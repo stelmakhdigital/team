@@ -17,10 +17,18 @@ function env(name: string): string | undefined {
 
 export function getApiConfig(): ApiConfig {
   const mode = (env('VITE_API_MODE') ?? 'mock') as ApiMode;
+  // Default same-origin: в dev Vite-прокси шлёт /api и /ws на backend (см. vite.config.ts),
+  // в production ожидается отдача SPA backend'ом.
+  const baseUrl = env('VITE_API_BASE_URL') ?? '';
+  const wsUrl =
+    env('VITE_WS_URL') ??
+    (typeof window !== 'undefined'
+      ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
+      : 'ws://localhost:8080/ws');
   return {
     mode: mode === 'real' ? 'real' : 'mock',
-    baseUrl: env('VITE_API_BASE_URL') ?? 'http://localhost:8080',
-    wsUrl: env('VITE_WS_URL') ?? 'ws://localhost:8080/ws',
+    baseUrl,
+    wsUrl,
     apiKey: env('VITE_API_KEY'),
   };
 }

@@ -4,6 +4,12 @@
 import { describe, expect, it } from 'vitest';
 import { createRealAdapter } from '../src/api/real';
 
+// Интеграция идёт напрямую на живой daemon (не через Vite-прокси).
+// getApiConfig() читает import.meta.env в момент запроса.
+if (typeof import.meta.env !== 'undefined') {
+  import.meta.env.VITE_API_BASE_URL = 'http://localhost:8080';
+}
+
 const backendAvailable = await (async () => {
   try {
     const ctrl = new AbortController();

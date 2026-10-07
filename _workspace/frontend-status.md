@@ -18,6 +18,9 @@ implementation (F1–F8 done; F9 — Team Builder + Dashboard(summary/tasks) + H
   `tests/realIntegration.test.ts`). Auth заголовок переведён на `X-API-Key` (лид-решение, blockers #9).
 - F9 (slice 2): Dashboard (summary+tasks) и History (task history) интегрированы
   с реальным backend; интеграционные тесты расширены (итого 4, все зелёные).
+- F9 (infra): UI готов к запуску в обоих режимах — `npm run dev` (mock, default, .env создан);
+  real mode: same-origin + Vite-прокси `/api`,`/ws`,`/healthz` → backend (BACKEND_URL,
+  default :8080) — CORS в dev не нужен; default base URL/ws URL = same-origin.
   Остальные экраны/панели — на mocks до backend slice 3–5.
 
 ## Pages
