@@ -6,8 +6,20 @@ import { formatDateTime, formatRelative } from '../lib/format';
 
 export default function HistoryPage() {
   const audit = useQuery('history.audit', () => api.history.getAuditLog({ limit: 50 }));
-  const taskHistory = useQuery('history.task.1', () => api.history.getTaskHistory(1));
-  const transcript = useQuery('history.transcript.1', () => api.history.getTranscript(1));
+  const tasks = useQuery('history.tasks', () => api.dashboard.getTasks());
+  const sessions = useQuery('history.sessions', () => api.sessions.list());
+  const taskId = tasks.data?.tasks[0]?.id;
+  const sessionId = sessions.data?.sessions[0]?.id;
+  const taskHistory = useQuery(
+    taskId != null ? `history.task.${taskId}` : 'history.task.none',
+    taskId != null ? () => api.history.getTaskHistory(taskId) : async () => ({ history: [], total: 0 }),
+    [taskId],
+  );
+  const transcript = useQuery(
+    sessionId != null ? `history.transcript.${sessionId}` : 'history.transcript.none',
+    sessionId != null ? () => api.history.getTranscript(sessionId) : async () => ({ transcript: [], total: 0, has_more: false }),
+    [sessionId],
+  );
 
   const [tab, setTab] = useState<'audit' | 'task' | 'transcript'>('audit');
 
@@ -20,8 +32,8 @@ export default function HistoryPage() {
         {(
           [
             ['audit', 'Audit log'],
-            ['task', 'Task #1 history'],
-            ['transcript', 'Session #1 transcript'],
+            ['task', taskId != null ? `Task #${taskId} history` : 'Task history'],
+            ['transcript', sessionId != null ? `Session #${sessionId} transcript` : 'Session transcript'],
           ] as const
         ).map(([key, label]) => (
           <button key={key} role="tab" aria-selected={tab === key} className={`tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
@@ -72,10 +84,10 @@ export default function HistoryPage() {
         <>
           {taskHistory.loading && <Spinner label="Loading task history…" />}
           {taskHistory.error && <ErrorState error={taskHistory.error} onRetry={taskHistory.refetch} />}
-          {taskHistory.data && taskHistory.data.history.length === 0 && <EmptyState title="No history for this task" />}
+          {taskHistory.data && taskHistory.data.history.length === 0 && <EmptyState title="No task history available" />}
           {taskHistory.data && taskHistory.data.history.length > 0 && (
             <div className="card">
-              <h2>Task #1 timeline</h2>
+              <h2>Task #{taskId} timeline</h2>
               <ol className="timeline">
                 {taskHistory.data.history.map((h) => (
                   <li key={h.id} className={`timeline-item tl-${h.color ?? 'blue'}`}>
@@ -104,9 +116,10 @@ export default function HistoryPage() {
         <>
           {transcript.loading && <Spinner label="Loading transcript…" />}
           {transcript.error && <ErrorState error={transcript.error} onRetry={transcript.refetch} />}
-          {transcript.data && (
+          {transcript.data && transcript.data.transcript.length === 0 && <EmptyState title="No transcript available" />}
+          {transcript.data && transcript.data.transcript.length > 0 && (
             <div className="card">
-              <h2>Session #1 transcript</h2>
+              <h2>Session #{sessionId} transcript</h2>
               {transcript.data.transcript.map((t) => (
                 <div key={t.id} className={`transcript-entry ts-${t.message_type}`}>
                   <div className="muted small">

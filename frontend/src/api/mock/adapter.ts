@@ -6,6 +6,8 @@ import type {
   CreateTeamRequest,
   Message,
   Profile,
+  Session,
+  SessionDetail,
   UpdateRoleConfigRequest,
   Workflow,
 } from '../../types/api';
@@ -58,6 +60,20 @@ function latency(): Promise<void> {
 
 const now = () => new Date().toISOString();
 
+function toSessionDetail(s: Session): SessionDetail {
+  const at = s.started_at ?? now();
+  return {
+    id: s.id,
+    team_id: s.team_id,
+    team_name: s.team_name,
+    role_id: s.role_id,
+    role_name: s.role_name,
+    runtime_type: s.runtime_type,
+    state: s.state,
+    created_at: at,
+    updated_at: at,
+  };
+}
 function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
 }
@@ -502,6 +518,69 @@ export function createMockAdapter(): Api {
         maybeFail();
         await latency();
         return computeMetrics();
+      },
+    },
+
+    sessions: {
+      async list(params) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        let list = db.sessions;
+        if (params?.team_id != null) list = list.filter((s) => s.team_id === params.team_id);
+        if (params?.role_id != null) list = list.filter((s) => s.role_id === params.role_id);
+        if (params?.state) list = list.filter((s) => s.state === params.state);
+        return { sessions: clone(list.map(toSessionDetail)), total: list.length };
+      },
+
+      async create(teamId, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const team = db.teams.find((t) => t.id === teamId);
+        if (!team) throw new ApiClientError(404, 'not_found', `Team ${teamId} not found`);
+        const role = db.roles.find((r) => r.id === req.role_id && r.team_id === teamId);
+        if (!role) throw new ApiClientError(404, 'not_found', `Role ${req.role_id} not found in team ${teamId}`);
+        const id = nextId();
+        const at = now();
+        const task = req.queue_task_id != null ? db.tasks.find((t) => t.id === req.queue_task_id) : undefined;
+        db.sessions.unshift({
+          id,
+          team_id: teamId,
+          team_name: team.name,
+          role_id: role.id,
+          role_name: role.name,
+          runtime_type: 'pi',
+          state: 'running',
+          queue_task_id: task?.id,
+          queue_task_title: task?.title,
+          started_at: at,
+        });
+        db.audit.unshift({ id: nextId(), timestamp: at, action: 'session.create', resource: `session:${id}` });
+        return { id, state: 'running', status: 'started' };
+      },
+
+      async get(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const s = db.sessions.find((x) => x.id === id);
+        if (!s) throw new ApiClientError(404, 'not_found', `Session ${id} not found`);
+        return clone(toSessionDetail(s));
+      },
+
+      async stop(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const s = db.sessions.find((x) => x.id === id);
+        if (!s) throw new ApiClientError(404, 'not_found', `Session ${id} not found`);
+        if (s.state !== 'running' && s.state !== 'starting' && s.state !== 'idle' && s.state !== 'stopped') {
+          throw new ApiClientError(409, 'conflict', `Session ${id} is ${s.state}, cannot stop`);
+        }
+        s.state = 'stopped';
+        db.audit.unshift({ id: nextId(), timestamp: now(), action: 'session.stop', resource: `session:${id}` });
+        return { id, state: 'stopped', status: 'stopped' };
       },
     },
 

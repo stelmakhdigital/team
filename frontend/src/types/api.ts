@@ -33,8 +33,9 @@ export interface RoleSpec {
 }
 
 export interface RelativeSpec {
-  from_role: string;
-  to_role: string;
+  // адресный формат "Segment.Role" (уточнение контракта 20, blockers #8)
+  from: string;
+  to: string;
   type: RelativeType;
   config?: Record<string, unknown>;
 }
@@ -589,6 +590,56 @@ export interface GetMetricsResponse {
     queue_size: TimeSeriesPoint[];
     llm_tokens: TimeSeriesPoint[];
   };
+}
+
+// ---- Session lifecycle (backend slice 3) ----
+
+export interface CreateSessionRequest {
+  role_id: number;
+  queue_task_id?: number;
+  runtime_type?: RuntimeType;
+  command?: string;
+  args?: string[];
+  working_dir?: string;
+  config?: Record<string, unknown>;
+}
+
+export interface CreateSessionResponse {
+  id: number;
+  state: SessionState;
+  status: 'started';
+}
+
+export interface SessionDetail {
+  id: number;
+  team_id: number;
+  team_name: string;
+  role_id: number;
+  role_name: string;
+  runtime_type: RuntimeType;
+  runtime_ref?: string;
+  state: SessionState;
+  command?: string;
+  exit_code?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListSessionsParams {
+  team_id?: number;
+  role_id?: number;
+  state?: SessionState;
+}
+
+export interface ListSessionsResponse {
+  sessions: SessionDetail[];
+  total: number;
+}
+
+export interface StopSessionResponse {
+  id: number;
+  state: SessionState;
+  status: 'stopped';
 }
 
 // ---- Message Center ----

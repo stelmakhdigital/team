@@ -35,6 +35,12 @@ import type {
   GetTasksResponse,
   GetWorkflowResponse,
   GetWorkflowsResponse,
+  ListSessionsParams,
+  ListSessionsResponse,
+  CreateSessionRequest,
+  CreateSessionResponse,
+  SessionDetail,
+  StopSessionResponse,
   SaveToLibraryRequest,
   SaveToLibraryResponse,
   SaveTopologyRequest,
@@ -97,6 +103,12 @@ export interface Api {
     getSessions(): Promise<GetSessionsResponse>;
     getAlerts(): Promise<GetAlertsResponse>;
     getMetrics(): Promise<GetMetricsResponse>;
+  };
+  sessions: {
+    list(params?: ListSessionsParams): Promise<ListSessionsResponse>;
+    create(teamId: number, req: CreateSessionRequest): Promise<CreateSessionResponse>;
+    get(id: number): Promise<SessionDetail>;
+    stop(id: number): Promise<StopSessionResponse>;
   };
   messages: {
     getMessages(params?: GetMessagesParams): Promise<GetMessagesResponse>;

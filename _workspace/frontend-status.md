@@ -1,8 +1,9 @@
 # Frontend status
 
 ## Current phase
-implementation (F1–F8 done; F9 — Team Builder + Dashboard(summary/tasks) + History(task history)
-интегрированы с реальным backend; остальное ждёт backend slice 3–5)
+implementation (F1–F8 done; F9 — Team Builder, Dashboard (summary/tasks/sessions/alerts),
+History (task/session history, transcript) интегрированы с реальным backend;
+Messages/Workflows/Library/WS/metrics ждут backend slice 4–5)
 
 ## Implemented
 - docs/architecture/frontend.md — архитектура и frontend-план (F1–F9)
@@ -18,6 +19,12 @@ implementation (F1–F8 done; F9 — Team Builder + Dashboard(summary/tasks) + H
   `tests/realIntegration.test.ts`). Auth заголовок переведён на `X-API-Key` (лид-решение, blockers #9).
 - F9 (slice 2): Dashboard (summary+tasks) и History (task history) интегрированы
   с реальным backend; интеграционные тесты расширены (итого 4, все зелёные).
+- F9 (slice 3, 2026-10-07): Dashboard sessions/alerts и History (session history,
+  transcript) на real API. Добавлена группа `sessions` в Api-фасад (list/create/get/stop —
+  real + mock), HistoryPage берёт реальные id task/session из dashboard (убран хардкод #1).
+  Live e2e: create → running → history → transcript → dashboard → stop (идемпотентен) и
+  crash-сценарий: exit 3 → state=failed + exit_code + history → failed + watchdog alert.
+  Интеграционных тестов стало 6 (slice 3: lifecycle + failed/watchdog).
 - F9 (infra): UI готов к запуску в обоих режимах — `npm run dev` (mock, default, .env создан);
   real mode: same-origin + Vite-прокси `/api`,`/ws`,`/healthz` → backend (BACKEND_URL,
   default :8080) — CORS в dev не нужен; default base URL/ws URL = same-origin.
@@ -41,6 +48,8 @@ implementation (F1–F8 done; F9 — Team Builder + Dashboard(summary/tasks) + H
 - `GET/PATCH /api/v1/roles/:id/config`
 - `POST /api/v1/teams/:id/validate`, `POST /api/v1/teams/:id/save`
 - `GET /api/v1/dashboard/{summary,tasks,sessions,alerts,metrics}`
+- `GET/POST /api/v1/sessions` (lifecycle: create+start), `GET /api/v1/sessions/:id`, `DELETE /api/v1/sessions/:id` (stop, идемпотентен)
+- `GET /api/v1/sessions/:id/history`, `GET /api/v1/sessions/:id/transcript`
 - `GET/POST /api/v1/messages`, `GET /api/v1/chatrooms`, `GET/POST /api/v1/chatrooms/:id/messages`
 - `GET/POST /api/v1/library`, `GET /api/v1/library/:id`
 - `GET /api/v1/audit`, `GET /api/v1/tasks/:id/history`
@@ -49,7 +58,7 @@ implementation (F1–F8 done; F9 — Team Builder + Dashboard(summary/tasks) + H
 
 ## Mock status
 - MockAdapter полностью покрывает используемые endpoint'ы, данные строго по типам контракта
-- `VITE_API_MODE=mock` (default) | `real` (fetch, `VITE_API_BASE_URL`, Bearer `VITE_API_KEY`)
+- `VITE_API_MODE=mock` (default) | `real` (fetch, `VITE_API_BASE_URL`, `X-API-Key` `VITE_API_KEY`)
 - Error-simulator: `?mockError=unauthorized|forbidden|not_found|conflict|server|network`
 - WS mock: синтетические `task.state_changed`, `alert.created`, `message.sent`
 
@@ -66,14 +75,16 @@ npm run build      # production build
 
 ## Validation
 - typecheck: OK
-- unit/component tests: OK (vitest, 29 тестов: topology, errors, mock-контракт, UI states, app smoke, real-integration×4)
-- production build: OK
-- интеграция с живым backend: OK (Team Builder vertical + slice 2: dashboard summary/tasks, task history)
+- unit/component tests: OK (vitest, 31 тест: topology, errors, mock-контракт, UI states, app smoke, real-integration×6)
+- production build: OK (78 KB gzip)
+- интеграция с живым backend: OK (Team Builder vertical, slice 2: dashboard summary/tasks + task history, slice 3: sessions lifecycle + history/transcript + alerts)
 
 ## Backend impact
-- НУЖЕН: `GET /api/v1/workflows` (список), в контракте только `GET /workflows/:id` (blockers #3)
+- СДЕЛАНО (контракт 20 обновлён, лид 2026-10-07): `GET /api/v1/workflows` задокументирован (2.0) — ждём реализацию в slice 5 (blockers #3)
+- СДЕЛАНО (контракт 20, лид): RelativeSpec = адресный формат `from`/`to` (blockers #8 — закрыть)
+- СДЕЛАНО (контракт 20, лид): раздел 3.6 Session lifecycle (POST/GET/DELETE /sessions) — формы зафиксированы по live-проверке
+- Осталось у backend: `GET /sessions/:id/transcript` — нет поля `total` (контракт 20 §6.4 требует `{transcript, total, has_more}`)
 - Контракт 21: request'ы содержат поле `layout` — backend принимает (slice 1), ok
-- Контракт 20: `RelativeSpec.from_role/to_role` vs backend `from/to` — нужно обновить контракт (blockers #8)
 - Error-модель: envelope `error.code/message/request_id` — frontend flex-parse + `validation_failed` обработаны (blockers #2 — закрыть)
 - Auth: `X-API-Key` реализован с обеих сторон (blockers #1 — закрыть)
 
@@ -81,6 +92,6 @@ npm run build      # production build
 - см. _workspace/blockers.md
 
 ## Next step
-- Slice 3 (Sessions): переключить Dashboard sessions/alerts + History session history на real API
-- Slice 4: Messages → real; Slice 5: Workflows/Library/WS
-- Добавить tasks-lifecycle client (create/state/handoff) при появлении UI управления задачами
+- Slice 4 (Messages) → real; Slice 5: Workflows/Library/WS/audit/metrics + `GET /workflows`
+- UI управления задачами (create/state/handoff) — нужно решение продукта (кандидат на новую работу)
+- Backend: доделать `transcript.total` (non-blocking)

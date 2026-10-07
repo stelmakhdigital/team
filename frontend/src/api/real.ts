@@ -38,6 +38,12 @@ export function createRealAdapter(): Api {
       getAlerts: () => http(`${B}/dashboard/alerts`),
       getMetrics: () => http(`${B}/dashboard/metrics`),
     },
+    sessions: {
+      list: (params) => http(`${B}/sessions${toQuery({ team_id: params?.team_id, role_id: params?.role_id, state: params?.state })}`),
+      create: (teamId, req) => http(`${B}/sessions?team_id=${teamId}`, { method: 'POST', body: req }),
+      get: (id) => http(`${B}/sessions/${id}`),
+      stop: (id) => http(`${B}/sessions/${id}`, { method: 'DELETE' }),
+    },
     messages: {
       getMessages: (params) =>
         http(`${B}/messages${toQuery({

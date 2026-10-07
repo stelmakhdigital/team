@@ -20,16 +20,11 @@
 Интерпретировано как archive (по 01_daemon.md). Требуется подтверждение.
 
 ## F1–F4. Blockers frontend-агента (статус от 2026-10-07, ответ backend)
-- **#1 Auth**: решено — `Authorization: Bearer <VITE_API_KEY>` теперь принимается backend'
-  (и `X-API-Key`); key задаётся через `DAEMON_API_KEYS` (ADR-003 обновлён). Сайд-эффекта
-  для mock режима нет. Осталось решение Lead по включению auth в dev-окружении.
-- **#2 Error model**: зафиксирована (`docs/contracts/error-model.md`); frontend flex-парсинг
-  с ней совместим. Небольшой mismatch: backend-код `validation_failed` vs frontend-ветка
-  `validation` — зафиксировано в integration-status как known mismatch.
-- **#3 GET /api/v1/workflows (список)**: принято в план backend (slice 5, workflows).
-  Контракт 20 дополнить методом/кодами ответа — с Lead.
-- **#4 layout в request'ах**: backend принимает `layout` во всех create/patch endpoint'ах
-  slice 1 (хранится в config, возвращается в topology/create/PATCH layout). Решено.
+- **#1 Auth**: решено — `X-API-Key` (header) — **CLOSED** (блокеры #9).
+- **#2 Error model**: зафиксирована, frontend flex-парсинг совместим — **CLOSED**.
+- **#3 GET /api/v1/workflows (список)**: контракт 20 дополнен §2.0 (лид, 2026-10-07);
+  реализация — slice 5. **contract closed, impl pending**.
+- **#4 layout в request'ах**: backend принимает — **CLOSED**.
 
 ## 6. [LEAD integration check 2026-10-07] Topology endpoint сериализует raw-модели (CLOSED)
 - `GET /api/v1/teams/{id}/topology` возвращает `team/segments/roles/relatives`
@@ -48,17 +43,15 @@
 - Frontend ConfigPanel зависит от него.
 - Статус: **CLOSED (2026-10-07)** — handler и маршрут существовали; первый smoke использовал устаревший бинарник. Интеграционный тест frontend зелёный.
 
-## 8. [LEAD] Layout-расхождения (non-blocking, исправить в slice 1)
-- Topology layout: `segments[].position` без `width`/`height` (контракт: есть).
-- `PATCH /segments/{id}/layout`: ответ `previous_layout`/`new_layout` — плоский
-  `{x,y,...}` вместо `SegmentLayout {segment_id, position, collapsed}`;
-  к тому же `previous_layout` == `new_layout` (old не сохраняется).
-- Create-ответы: `layout: null` сразу после создания (в in-memory config layout
-  хранится как struct, `LayoutFromConfig` ждёт map) — после DB roundtrip ок.
-- Spec relatives: backend принимает `from`/`to` ("segment.role"), контракт 20
-  описывает `from_role`/`to_role`. Лид-решение: принимаем `from`/`to` backend'а
-  как уточнение контракта (адресный формат), **контракт 20 обновить** (open).
-  Остальное в #8 (layout width/height) — CLOSED: добавлено в topologyView.
+## 8. [LEAD] Layout-расхождения — **CLOSED (2026-10-07, live-проверено)**
+- Topology layout: width/height + `layout.relatives` — есть.
+- PATCH layout: `previous_layout`/`new_layout` — нормальные `SegmentLayout{segment_id,
+  position{x,y,width,height}, collapsed}`; `previous != new` (old сохраняется).
+- Spec relatives: зафиксирован адресный формат `from`/`to` — **контракт 20 обновлён** (лид).
+- Осталось non-blocking: create-ответы `layout: null` — **live-проверено: закрыто**
+  (layout возвращается в create-ответе, если передан в request; без layout — null, ок).
+- Новый known mismatch (backend): `GET /sessions/:id/transcript` без поля `total`
+  (контракт 20 §6.4 требует `{transcript, total, has_more}`).
 
 ## 9. [LEAD-решение, CLOSED] Auth = `X-API-Key`
 - Backend реализовал `X-API-Key` (`DAEMON_API_KEYS`), в ТЗ auth не задан.

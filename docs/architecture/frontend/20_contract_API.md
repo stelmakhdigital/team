@@ -107,6 +107,15 @@ interface TeamSpec {
   roles: RoleSpec[];
   relatives?: RelativeSpec[];
 }
+
+// Уточнение (2026-10-07, blockers #8): backend принимает адресный формат from/to,
+// а не from_role_id/to_role_id. Адрес — "<segment_name>.<role_name>".
+interface RelativeSpec {
+  from: string;   // "Segment.Role"
+  to: string;     // "Segment.Role"
+  type: 'delegates_to' | 'spawned_by' | 'can_observe' | 'collaborates_with';
+  config?: Record<string, any>;
+}
 ```
 
 
@@ -248,6 +257,22 @@ interface UpdateRoleConfigResponse {
 ______________________________________________________________________
 
 ### 2. **Workflow Editor API**
+
+#### 2.0 Получить список workflows (добавлено 2026-10-07, blockers #3)
+
+```typescript
+// GET /api/v1/workflows?team_id=&state=
+interface GetWorkflowsParams {
+  team_id?: number;
+  state?: string;
+}
+
+interface GetWorkflowsResponse {
+  workflows: Workflow[];
+  total: number;
+}
+```
+
 
 #### 2.1 Получить workflow
 
@@ -527,6 +552,67 @@ interface TimeSeriesPoint {
   value: number;
 }
 ```
+
+
+#### 3.6 Session lifecycle (slice 3, добавлено 2026-10-07 — лид)
+
+```typescript
+// POST /api/v1/sessions?team_id={teamId} — создать и запустить сессию роли
+interface CreateSessionRequest {
+  role_id: number;
+  queue_task_id?: number;
+  runtime_type?: RuntimeType;  // по умолчанию — из agent_spec роли
+  command?: string;             // для runtime 'process' обязателен command (иначе 400 validation_failed)
+  args?: string[];              // аргументы command (exec.Command(command, args...))
+  working_dir?: string;
+  config?: Record<string, any>;
+}
+
+// 201
+interface CreateSessionResponse {
+  id: number;
+  state: 'starting' | 'running';
+  status: 'started';
+}
+
+// GET /api/v1/sessions?team_id=&role_id=&state= — все сессии (не только активные)
+interface ListSessionsResponse {
+  sessions: SessionDetail[];
+  total: number;
+}
+
+interface SessionDetail {
+  id: number;
+  team_id: number;
+  team_name: string;
+  role_id: number;
+  role_name: string;
+  runtime_type: RuntimeType;
+  runtime_ref?: string;   // pid / tmux-name
+  state: SessionState;
+  command?: string;
+  exit_code?: number;     // после stopped/failed
+  created_at: string;
+  updated_at: string;
+}
+
+// GET /api/v1/sessions/:id — SessionDetail (404 not_found)
+
+// DELETE /api/v1/sessions/:id — остановить сессию; идемпотентно:
+// повторный stop уже stopped-сессии → 200 {id, state:'stopped', status:'stopped'};
+// из failed → 409 conflict
+// 200
+interface StopSessionResponse {
+  id: number;
+  state: 'stopped';
+  status: 'stopped';
+}
+```
+
+> Semantics: процесс с ненулевым exit code (включая kill по watchdog) → `state=failed`
+> + history-запись `to_state=failed` с metadata.exit_code + watchdog alert.
+> user-stop живого процесса → `stopped`. `GET /dashboard/sessions` возвращает только
+> активные сессии; полный список — `GET /sessions`.
 
 
 ______________________________________________________________________

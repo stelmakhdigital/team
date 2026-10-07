@@ -146,4 +146,84 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
       }
     }
   }, 30_000);
+
+  // poll until predicate true or timeout (reaper/watchdog работают асинхронно)
+  async function waitUntil(pred: () => Promise<boolean>, ms = 8_000) {
+    const deadline = Date.now() + ms;
+    for (;;) {
+      if (await pred()) return;
+      if (Date.now() > deadline) throw new Error('waitUntil: timeout');
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+
+  it('slice 3: session lifecycle (create → history/transcript/dashboard → stop)', async () => {
+    const teams = await api.teams.getTeams();
+    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const topo = await api.teams.getTopology(team.id);
+    const role = topo.roles[0];
+
+    const created = await api.sessions.create(team.id, { role_id: role.id, command: 'sleep', args: ['60'] });
+    expect(created.status).toBe('started');
+    const sid = created.id;
+
+    // GET /sessions/:id — contract view (snake_case, role_name, state)
+    const detail = await api.sessions.get(sid);
+    expect(detail.state).toBe('running');
+    expect(detail.role_name).toBe(role.name);
+    expect(detail.team_id).toBe(team.id);
+
+    // dashboard/sessions: контрактная Session-форма, сессия видна
+    await waitUntil(async () => {
+      const ds = await api.dashboard.getSessions();
+      const s = ds.sessions.find((x) => x.id === sid);
+      return !!s && s.state === 'running' && !!s.role_name && !!s.runtime_type;
+    });
+
+    // session history: минимум starting → running
+    const h = await api.history.getSessionHistory(sid);
+    expect(h.total).toBeGreaterThanOrEqual(2);
+    expect(h.history[h.history.length - 1].to_state).toBe('running');
+
+    // transcript: контрактная форма (transcript[] + has_more)
+    const tr = await api.history.getTranscript(sid);
+    expect(Array.isArray(tr.transcript)).toBe(true);
+    expect(typeof tr.has_more).toBe('boolean');
+
+    // stop (DELETE) → stopped; повторный stop идемпотентен (200 stopped)
+    const stopped = await api.sessions.stop(sid);
+    expect(stopped.state).toBe('stopped');
+    expect((await api.sessions.get(sid)).state).toBe('stopped');
+    const again = await api.sessions.stop(sid);
+    expect(again.state).toBe('stopped');
+  }, 30_000);
+
+  it('slice 3: crashed process → failed (exit_code) + watchdog alert', async () => {
+    const teams = await api.teams.getTeams();
+    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const topo = await api.teams.getTopology(team.id);
+    const role = topo.roles[0];
+
+    const created = await api.sessions.create(team.id, {
+      role_id: role.id,
+      command: '/bin/sh',
+      args: ['-c', 'exit 3'],
+    });
+    const sid = created.id;
+
+    // reaper: running → failed, exit_code=3
+    await waitUntil(async () => (await api.sessions.get(sid)).state === 'failed');
+    const failed = await api.sessions.get(sid);
+    expect(failed.exit_code).toBe(3);
+
+    // история фиксирует переход → failed
+    const h = await api.history.getSessionHistory(sid);
+    expect(h.history.some((e) => e.to_state === 'failed')).toBe(true);
+
+    // watchdog: alert в dashboard/alerts (severity по контракту)
+    await waitUntil(async () => {
+      const a = await api.dashboard.getAlerts();
+      return a.alerts.some((x) => x.session_id === sid && x.requires_action);
+    });
+  }, 30_000);
 });
