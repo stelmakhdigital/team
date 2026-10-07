@@ -1,4 +1,4 @@
-import type { RelativeType } from '../../types/api';
+import type { RelativeType, TopologyLayout } from '../../types/api';
 
 export interface SegmentTemplate {
   name: string;
@@ -39,3 +39,30 @@ export const DRAG_TYPES = {
 
 export const ROLE_W = 150;
 export const ROLE_H = 52;
+
+/** Bounding box of all segments+roles in canvas coordinates, or null when empty. */
+export function contentBounds(layout: TopologyLayout | undefined): { x: number; y: number; w: number; h: number } | null {
+  if (!layout) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const s of layout.segments ?? []) {
+    const p = s.position;
+    if (!p) continue;
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x + p.width);
+    maxY = Math.max(maxY, p.y + p.height);
+  }
+  for (const r of layout.roles ?? []) {
+    const p = r.position;
+    if (!p) continue;
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x + ROLE_W);
+    maxY = Math.max(maxY, p.y + ROLE_H);
+  }
+  if (!isFinite(minX) || !isFinite(minY)) return null;
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}

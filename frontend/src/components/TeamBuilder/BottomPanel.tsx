@@ -3,6 +3,7 @@ import type { TopologyError, TopologyWarning } from '../../types/api';
 interface BottomPanelProps {
   zoom: number;
   onZoom: (z: number) => void;
+  onFit: () => void;
   grid: boolean;
   onGrid: (v: boolean) => void;
   snap: boolean;
@@ -17,7 +18,7 @@ interface BottomPanelProps {
 }
 
 export default function BottomPanel(props: BottomPanelProps) {
-  const { zoom, onZoom, grid, onGrid, snap, onSnap, validating, validation, onValidate, saving, onSave, onDeleteSelection, selectionLabel } = props;
+  const { zoom, onZoom, onFit, grid, onGrid, snap, onSnap, validating, validation, onValidate, saving, onSave, onDeleteSelection, selectionLabel } = props;
   return (
     <div className="bottom-panel">
       <div className="bottom-left">
@@ -28,6 +29,9 @@ export default function BottomPanel(props: BottomPanelProps) {
           <span>{Math.round(zoom * 100)}%</span>
           <button className="btn-icon" onClick={() => onZoom(Math.min(2, zoom + 0.1))} aria-label="Zoom in">
             +
+          </button>
+          <button className="btn-icon" onClick={onFit} aria-label="Fit to view" title="Fit whole topology into view">
+            ⤢
           </button>
         </div>
         <label className="check">

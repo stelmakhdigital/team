@@ -21,6 +21,24 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: stri
   );
 }
 
+/** Neutral state for a panel whose backend endpoint is not implemented yet
+ * (list/detail GET → 404). Shown instead of a scary error; retrying a 404
+ * is pointless, so no Retry button. */
+export function Unavailable({ feature, hint }: { feature: string; hint?: string }) {
+  return (
+    <div className="empty-state unavailable" aria-live="polite">
+      <div className="empty-icon" aria-hidden="true">▦</div>
+      <h3>{feature}: not available yet</h3>
+      <p>{hint ?? 'The backend endpoint for this feature is not implemented yet. It will appear here once the backend ships it.'}</p>
+    </div>
+  );
+}
+
+/** True when a query error is a 404 (resource/endpoint absent). */
+export function isNotFoundError(error: ErrorInfo | null | undefined): boolean {
+  return !!error && error.status === 404;
+}
+
 export interface ErrorInfo {
   status: number;
   code: string;

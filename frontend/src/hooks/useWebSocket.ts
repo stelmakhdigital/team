@@ -65,7 +65,8 @@ export function useWebSocket(channels: string[]): WSHook {
 
     const connect = () => {
       if (closed) return;
-      setStatus(attempt === 0 ? 'connected' : 'reconnecting');
+      // статус честный: 'connected' только после onopen, до этого — disconnected/reconnecting
+      setStatus(attempt === 0 ? 'disconnected' : 'reconnecting');
       try {
         ws = new WebSocket(getApiConfig().wsUrl);
       } catch {

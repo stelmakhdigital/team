@@ -15,10 +15,12 @@
 | Tasks & History | done (slice 2) | done (mock+real, UI /tasks: create/state/handoff) | ready (§3.7) | **done** (real, incl. lifecycle UI) | — |
 | Dashboard | done (slice 3: summary+tasks+sessions+alerts) | done (mock+real) | ready | **done** (summary, tasks, sessions, alerts) | metrics — slice 5 |
 | Sessions (runtime) | done (slice 3: lifecycle, reaper, watchdog) | done (mock+real: Api.sessions list/create/get/stop, HistoryPage на реальных id) | ready (3.6 добавлен) | **done** (real, e2e: start→stop, crash→failed+alert) | transcript без `total` (контракт требует) |
-| Message Center | done (slice 4: messages, chatrooms, event bus) | done (mock) | ready (уточнения в api-decisions) | ready (фронт может переключать real client) | unread_count=0 до RBAC (slice 6); WS — slice 5 |
-| WS (real-time) | done (slice 5a: /ws, subscribe channels, EventBus) | done (mock; DashboardPage real-совместим: канал dashboard) | ready | ready (фронт может переключать real) | gorilla: read-таймаут «корruptит» соединение (документировано) |
-| Workflows (список + редактор) | done (slice 5a: CRUD workflows/blocks/connections) | done (mock) | ready (уточнения в api-decisions) | ready | connections в POST /workflows — индексы blocks |
-| Library / History Viewer / audit / metrics | planned (slice 5b) | done (mock) | draft | blocked | slice 5b |
+| Message Center | done (slice 4: messages, chatrooms, event bus) | **done (real, verified live 2026-10-08)** | ready (уточнения в api-decisions) | **done (real)** | unread_count=0 до RBAC (slice 6) |
+| WS (real-time) | done (slice 5a: /ws, subscribe channels, EventBus) | **done (real, verified live: 101 Switching Protocols, badge connected)** | ready | **done (real)** | gorilla: read-таймаут «корruptит» соединение (документировано) |
+| Workflows (список + редактор) | done (slice 5a: CRUD workflows/blocks/connections) | **done (real, verified live 2026-10-08)** | ready (уточнения в api-decisions) | **done (real)** | connections в POST /workflows — индексы blocks |
+| Library | done (slice 5b: save/get/apply team+workflow) | **done (real, verified live 2026-10-08)** | ready (role/segment — next) | **done (real)** | apply для type role/segment — 400 (следующий шаг) |
+| History Viewer (audit + metrics + transcripts) | done (slice 5b: audit log, dashboard/metrics, transcript total) | **done (real, verified live 2026-10-08)** | ready | **done (real)** | audit: user_id/api_key_id — slice 6 (RBAC); llm_tokens = 0 |
+| Frontend UI-audit (2026-10-08) | — | **done** | — | **done** | WS-бейдж честный; 404→Unavailable; canvas авто-fit + Fit-кнопка (F11) |
 
 ## Integration verification (lead, 2026-10-07)
 
@@ -47,6 +49,45 @@ Backend endpoint slice 1 (все под `/api/v1`):
 `DELETE /relatives/{id}` · `GET /healthz` · `GET /readyz`
 
 ## API change log
+
+### 2026-10-08 — frontend: UI-audit (headless, скриншоты) + фиксы F11
+- Аудит: real+mock, все 7 страниц. «Не всё грузится» = 404 на slice-5 endpoints (backend
+  дошел slice 4–5 в ходе аудита — теперь всё грузится, live-verified: dashboard+metrics,
+  history+audit, messages+chatrooms, library, workflows, /ws 101).
+- Фиксы: (1) `useWebSocket` — connected только после onopen (бейдж не врал при 404);
+  (2) 404 на list-эндпоинтах → нейтральный `Unavailable` («not available yet») вместо
+  «Not found + Retry» (dashboard metrics, history audit, library, messages);
+  (3) canvas fit-to-view: авто-fit топологии при загрузке + кнопка Fit (`contentBounds()`);
+  drag-и/DnD/connect/config/save/validate — verified working (скриншоты).
+- Tests: 37/37 (+3 unit contentBounds); typecheck/build OK (81.6 KB gzip).
+
+### 2026-10-08 — backend slice 5b: Library + History Viewer (audit/metrics) (новые endpoints, ничего не ломается)
+- **Library** (контракт 20 §5): `GET /library` (type/group/search, `groups`),
+  `POST /library` (снапшот spec команды/workflow; `source_id`, unique (type,name) → 409),
+  `GET /library/{id}` (item + `spec` + `versions`), `POST /library/{id}/apply`:
+  - team: без `target_team_id` → новая команда (`applied` + created_resources.teams);
+    с `target_team_id` → merge отсутствующих сегментов/ролей/relatives (`merged` +
+    created_resources.segments/roles); `overrides.name` — имя новой команды;
+  - workflow: в `target_team_id` (обязателен) → `applied`;
+  - role/segment: 400 (следующий шаг);
+  - `downloads_count` инкрементится при apply.
+- **`POST /teams/{id}/save`**: при `save_to_library: true` — снапшот в библиотеку,
+  ответ += `library_item_id` (ранее флаг принимался и игнорировался).
+- **Audit log** (контракт 20 §6.3): `GET /audit` (user_id/action/resource/start_time/end_time,
+  limit/offset, total). Записывает middleware: успешные POST/PATCH/DELETE →
+  `action` (team.create, task.create, task.state_update, session.start/stop, message.send,
+  workflow.*, library.*, ...), `resource` (team:1, task:2, ...), user_name ("operator" или
+  "operator:<4 hex>" при API-ключе), ip_address, user_agent. user_id/api_key_id — slice 6.
+- **Metrics** (контракт 20 §3.5): `GET /dashboard/metrics?range=1h|24h|7d` → 12 точек:
+  tasks_created/completed (из queue_tasks/history_status), sessions_active + queue_size
+  (snapshots), llm_tokens = 0 (LLM-агентов нет).
+- **Transcript** (контракт 20 §6.4): `GET /sessions/{id}/transcript` теперь возвращает
+  `total` (известный mismatch с контрактом закрыт).
+- Frontend impact: ноль для mock-режима; real client (api.library.*, audit, metrics) —
+  форматы совпадают с моками.
+- Validation: gofmt/vet/test PASS (+TestLibraryVertical, TestLibraryWorkflowApply,
+  TestAuditAndMetrics). Live-проверка 127.0.0.1:8080 — пройдена (save/list/get/apply
+  new+merge, save_to_library, audit, metrics created/completed=1).
 
 ### 2026-10-08 — backend slice 5a: WS /ws + Workflows (новые endpoints, ничего не ломается)
 - `GET /ws` — WebSocket (kонтракт 20 §WebSocket). Subscribe: `{"type":"subscribe","channels":[...]}`
@@ -225,3 +266,9 @@ Backend endpoint slice 1 (все под `/api/v1`):
 - Контракт 20 (лид): §3.7 Task lifecycle (create/state/handoff, транзишены, closure_reason, handoff-semantics).
 - Validation: `tsc`/`vitest` (34 теста, вкл. tasks lifecycle mock + 1 интеграционный против живого daemon)
   /`build` — все зелёные; production build 81 KB gzip.
+
+## Next steps (sync)
+- Frontend: интеграционные тесты real-эндпоинтов slice 4–5 (messages/chatrooms, workflows,
+  library save/apply, audit, metrics, WS dashboard-канал) — форматы live-проверены, осталось
+  добавить автотесты.
+- Backend: WS read-ping (gorilla); `unread_count` (RBAC, slice 6); apply library для role/segment.

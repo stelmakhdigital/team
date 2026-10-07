@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -11,6 +11,7 @@ import TeamCanvas, { type Selection } from '../components/TeamBuilder/TeamCanvas
 import Toolbar from '../components/TeamBuilder/Toolbar';
 import ConfigPanel, { type ConfigSelection } from '../components/TeamBuilder/ConfigPanel';
 import BottomPanel from '../components/TeamBuilder/BottomPanel';
+import { contentBounds } from '../components/TeamBuilder/palette';
 
 export default function TeamBuilderPage() {
   const { teamId } = useParams();
@@ -25,6 +26,38 @@ export default function TeamBuilderPage() {
   const [grid, setGrid] = useState(true);
   const [snap, setSnap] = useState(true);
   const [validation, setValidation] = useState<ValidateTopologyResponse | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Fit the whole topology into the visible canvas area (zoom + scroll).
+  const fitToView = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || !data) return;
+    const b = contentBounds(data.layout);
+    if (!b) {
+      setZoom(1);
+      return;
+    }
+    const pad = 32;
+    const availW = Math.max(100, el.clientWidth - pad * 2);
+    const availH = Math.max(100, el.clientHeight - pad * 2);
+    let z = Math.min(availW / b.w, availH / b.h, 1.25);
+    z = Math.max(0.4, Math.min(2, z));
+    setZoom(z);
+    // scroll after the new zoom is painted (transformOrigin 0 0 → content at b*z)
+    window.setTimeout(() => {
+      el.scrollLeft = Math.max(0, b.x * z - pad);
+      el.scrollTop = Math.max(0, b.y * z - pad);
+    }, 30);
+  }, [data]);
+
+  // auto-fit once when the topology first loads
+  const didFit = useRef(false);
+  useEffect(() => {
+    if (data && !didFit.current) {
+      didFit.current = true;
+      fitToView();
+    }
+  }, [data, fitToView]);
 
   const createSegment = useMutation((req: Parameters<typeof api.teams.createSegment>[1]) => api.teams.createSegment(id, req));
   const createRole = useMutation(
@@ -207,6 +240,7 @@ export default function TeamBuilderPage() {
             snap={snap}
             selection={selection}
             connectFrom={connectFrom}
+            scrollRef={scrollRef}
             onSelect={setSelection}
             onRoleMoved={onRoleMoved}
             onSegmentMoved={onSegmentMoved}
@@ -239,6 +273,7 @@ export default function TeamBuilderPage() {
       <BottomPanel
         zoom={zoom}
         onZoom={setZoom}
+        onFit={fitToView}
         grid={grid}
         onGrid={setGrid}
         snap={snap}

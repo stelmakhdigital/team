@@ -1,9 +1,9 @@
 # Frontend status
 
 ## Current phase
-implementation (F1–F8 done; F9 — Team Builder, Dashboard (summary/tasks/sessions/alerts),
-History (task/session history, transcript) интегрированы с реальным backend;
-Tasks lifecycle UI (create/state/handoff) — real; Messages/Workflows/Library/WS/metrics ждут backend slice 4–5)
+implementation (F1–F10 done; весь UI интегрирован с реальным backend — backend дошил slice 5
+во время фронт-аудита 2026-10-08: metrics/audit/library/messages/ws live; audit-фиксы: WS-бейдж честный,
+404-панели → "not available yet", canvas fit-to-view)
 
 ## Implemented
 - docs/architecture/frontend.md — архитектура и frontend-план (F1–F9)
@@ -30,6 +30,16 @@ Tasks lifecycle UI (create/state/handoff) — real; Messages/Workflows/Library/W
   closure_reason, expandable-строка → история + subtasks). Группа `tasks` в Api-фасад
   (list/create/get/updateState/handoff — real + mock). `lib/task.ts` — transitions + closure reasons.
   Работает в mock и real (backend slice 2 API готов). Контракт 20 дополнен §3.7 Task lifecycle.
+- F11 UI-audit + fixes (2026-10-08): headless-аудит всех страниц (real+mock, скриншоты):
+  1) **WS-бейдж честный** (баг-фикс): `useWebSocket` раньше ставил `connected` до onopen —
+     при 404 на /ws бейдж врал «real-time: connected». Теперь connected только после onopen.
+  2) **404-панели → Unavailable** (не «Not found + Retry»): Dashboard metrics, History audit,
+     Library, Messages — 404 на list-эндпоинте = «feature not available yet» (нейтрально, без Retry).
+  3) **Canvas fit-to-view**: авто-fit топологии при загрузке + кнопка ⤢ Fit в BottomPanel
+     (`contentBounds()` в palette.ts; zoom 0.4–1.25 + скролл к контенту). Раньше 2000×1200 канвас
+     показывал только левый верхний угол, контент обрезался — «графическое редактирование некорректно».
+  Verified: role/segment-drag (PATCH), HTML5 DnD из палитры, connect, config, save/validate — работают.
+  Тесты: 37/37 (+3 unit для contentBounds).
 - F9 (infra): UI готов к запуску в обоих режимах — `npm run dev` (mock, default, .env создан);
   real mode: same-origin + Vite-прокси `/api`,`/ws`,`/healthz` → backend (BACKEND_URL,
   default :8080) — CORS в dev не нужен; default base URL/ws URL = same-origin.
@@ -82,7 +92,7 @@ npm run build      # production build
 
 ## Validation
 - typecheck: OK
-- unit/component tests: OK (vitest, 34 теста: topology, errors, mock-контракт (вкл. tasks lifecycle), UI states, app smoke (Dashboard/Teams/Tasks), real-integration×7)
+- unit/component tests: OK (vitest, 37 тестов: topology + contentBounds, errors, mock-контракт (вкл. tasks lifecycle), UI states, app smoke (Dashboard/Teams/Tasks), real-integration×7)
 - production build: OK (78 KB gzip)
 - интеграция с живым backend: OK (Team Builder vertical, slice 2: dashboard summary/tasks + task history, slice 3: sessions lifecycle + history/transcript + alerts, tasks lifecycle: create/state/handoff)
 
@@ -99,6 +109,6 @@ npm run build      # production build
 - см. _workspace/blockers.md
 
 ## Next step
-- Slice 4 (Messages) → real; Slice 5: Workflows/Library/WS/audit/metrics + `GET /workflows`
-- ~~UI управления задачами~~ — сделано (F10, страница /tasks, real API)
-- Backend: доделать `transcript.total` (non-blocking)
+- Slice 4 (Messages) и slice 5 (Workflows/Library/WS/audit/metrics) — **backend дошлился** (live 2026-10-08);
+  frontend переключить на real + интеграционные тесты (Messages/Workflows/Library/audit/metrics/WS).
+- Backend: `transcript.total` (non-blocking).

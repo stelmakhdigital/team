@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';import { useQuery } from '../hooks/useQuery';
 import { api } from '../api';
-import { ErrorState, Spinner } from '../components/ui/States';
+import { ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
 import { useWebSocket } from '../hooks/useWebSocket';
 import SummaryCards from '../components/Dashboard/SummaryCards';
 import TaskList from '../components/Dashboard/TaskList';
@@ -66,7 +66,11 @@ export default function DashboardPage() {
         {metrics.loading ? (
           <Spinner label="Loading metrics…" />
         ) : metrics.error ? (
-          <ErrorState error={metrics.error} onRetry={metrics.refetch} />
+          isNotFoundError(metrics.error) ? (
+            <Unavailable feature="Metrics" />
+          ) : (
+            <ErrorState error={metrics.error} onRetry={metrics.refetch} />
+          )
         ) : (
           <MetricsChart metrics={metrics.data!} />
         )}

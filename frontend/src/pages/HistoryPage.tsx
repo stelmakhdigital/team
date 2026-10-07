@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
-import { EmptyState, ErrorState, Spinner } from '../components/ui/States';
+import { EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
 import { formatDateTime, formatRelative } from '../lib/format';
 
 export default function HistoryPage() {
@@ -45,7 +45,12 @@ export default function HistoryPage() {
       {tab === 'audit' && (
         <>
           {audit.loading && <Spinner label="Loading audit log…" />}
-          {audit.error && <ErrorState error={audit.error} onRetry={audit.refetch} />}
+          {audit.error &&
+          (isNotFoundError(audit.error) ? (
+            <Unavailable feature="Audit log" hint="The audit endpoint is not implemented in the backend yet (planned)." />
+          ) : (
+            <ErrorState error={audit.error} onRetry={audit.refetch} />
+          ))}
           {audit.data && audit.data.entries.length === 0 && <EmptyState title="No audit entries" />}
           {audit.data && audit.data.entries.length > 0 && (
             <div className="card">

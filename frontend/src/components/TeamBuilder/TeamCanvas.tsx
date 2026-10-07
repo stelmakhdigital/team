@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent, type Ref } from 'react';
 import type { Relative, Role, Segment, TopologyLayout } from '../../types/api';
 import { RELATIVE_TYPE_LABELS } from '../../lib/topology';
 import { DRAG_TYPES, ROLE_H, ROLE_W } from './palette';
@@ -18,6 +18,7 @@ interface TeamCanvasProps {
   snap: boolean;
   selection: Selection;
   connectFrom: number | null; // role id waiting for a target
+  scrollRef?: Ref<HTMLDivElement>;
   onSelect: (sel: Selection) => void;
   onRoleMoved: (roleId: number, pos: { x: number; y: number }) => void;
   onSegmentMoved: (segmentId: number, pos: { x: number; y: number }) => void;
@@ -51,6 +52,7 @@ export default function TeamCanvas(props: TeamCanvasProps) {
     snap,
     selection,
     connectFrom,
+    scrollRef,
     onSelect,
     onRoleMoved,
     onSegmentMoved,
@@ -150,7 +152,7 @@ export default function TeamCanvas(props: TeamCanvasProps) {
   };
 
   return (
-    <div className="canvas-scroll">
+    <div className="canvas-scroll" ref={scrollRef}>
       <div
         ref={canvasRef}
         className={`canvas${grid ? ' canvas-grid' : ''}`}

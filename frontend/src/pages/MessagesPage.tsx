@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import { ErrorState, Spinner } from '../components/ui/States';
+import { ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 
@@ -44,7 +44,12 @@ export default function MessagesPage() {
         <div className="card">
           <h2>Direct messages</h2>
           {messages.loading && <Spinner />}
-          {messages.error && <ErrorState error={messages.error} onRetry={messages.refetch} />}
+          {messages.error &&
+          (isNotFoundError(messages.error) ? (
+            <Unavailable feature="Direct messages" hint="The messages endpoint is not implemented in the backend yet (planned)." />
+          ) : (
+            <ErrorState error={messages.error} onRetry={messages.refetch} />
+          ))}
           {messages.data && messages.data.messages.length === 0 && <p className="muted">No messages yet.</p>}
           <ul className="message-list">
             {messages.data?.messages.map((m) => (
@@ -64,7 +69,12 @@ export default function MessagesPage() {
         <div className="card">
           <h2>Chatrooms</h2>
           {chatrooms.loading && <Spinner />}
-          {chatrooms.error && <ErrorState error={chatrooms.error} onRetry={chatrooms.refetch} />}
+          {chatrooms.error &&
+          (isNotFoundError(chatrooms.error) ? (
+            <Unavailable feature="Chatrooms" hint="The chatrooms endpoint is not implemented in the backend yet (planned)." />
+          ) : (
+            <ErrorState error={chatrooms.error} onRetry={chatrooms.refetch} />
+          ))}
           <ul className="chatroom-list">
             {chatrooms.data?.chatrooms.map((c) => (
               <li key={c.id}>
