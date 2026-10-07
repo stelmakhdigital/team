@@ -1,0 +1,119 @@
+import type {
+  CreateBlockRequest,
+  CreateBlockResponse,
+  CreateConnectionRequest,
+  CreateConnectionResponse,
+  CreateRelativeRequest,
+  CreateRelativeResponse,
+  CreateRoleRequest,
+  CreateRoleResponse,
+  CreateSegmentRequest,
+  CreateSegmentResponse,
+  CreateTeamRequest,
+  CreateTeamResponse,
+  CreateWorkflowRequest,
+  CreateWorkflowResponse,
+  GetAlertsResponse,
+  GetAuditLogParams,
+  GetAuditLogResponse,
+  GetChatroomMessagesResponse,
+  GetChatroomsResponse,
+  GetLibraryItemResponse,
+  GetLibraryParams,
+  GetLibraryResponse,
+  GetMetricsResponse,
+  GetMessagesParams,
+  GetMessagesResponse,
+  GetRoleConfigResponse,
+  GetSessionHistoryResponse,
+  GetSessionsResponse,
+  GetTaskHistoryResponse,
+  GetTeamResponse,
+  GetTeamsResponse,
+  GetTopologyResponse,
+  GetTranscriptResponse,
+  GetTasksResponse,
+  GetWorkflowResponse,
+  GetWorkflowsResponse,
+  SaveToLibraryRequest,
+  SaveToLibraryResponse,
+  SaveTopologyRequest,
+  SaveTopologyResponse,
+  SendChatroomMessageRequest,
+  SendChatroomMessageResponse,
+  SendMessageRequest,
+  SendMessageResponse,
+  UpdateBlockRequest,
+  UpdateBlockResponse,
+  UpdateRoleConfigRequest,
+  UpdateRoleConfigResponse,
+  UpdateRoleLayoutRequest,
+  UpdateRoleLayoutResponse,
+  UpdateSegmentLayoutRequest,
+  UpdateSegmentLayoutResponse,
+  ValidateTopologyRequest,
+  ValidateTopologyResponse,
+  DashboardSummaryResponse,
+  GetWorkflowsParams,
+} from '../types/api';
+
+export interface DeleteRelativeResponse {
+  id: number;
+  status: 'deleted';
+  from_role_name: string;
+  to_role_name: string;
+}
+
+/** Single API surface used by the UI. Implemented by MockAdapter and
+ * RealAdapter; the UI never knows which one is active. */
+export interface Api {
+  teams: {
+    getTeams(): Promise<GetTeamsResponse>;
+    createTeam(req: CreateTeamRequest): Promise<CreateTeamResponse>;
+    getTeam(id: number): Promise<GetTeamResponse>;
+    getTopology(id: number): Promise<GetTopologyResponse>;
+    createSegment(teamId: number, req: CreateSegmentRequest): Promise<CreateSegmentResponse>;
+    createRole(segmentId: number, req: CreateRoleRequest): Promise<CreateRoleResponse>;
+    createRelative(teamId: number, req: CreateRelativeRequest): Promise<CreateRelativeResponse>;
+    updateSegmentLayout(id: number, req: UpdateSegmentLayoutRequest): Promise<UpdateSegmentLayoutResponse>;
+    updateRoleLayout(id: number, req: UpdateRoleLayoutRequest): Promise<UpdateRoleLayoutResponse>;
+    deleteRelative(id: number): Promise<DeleteRelativeResponse>;
+    getRoleConfig(id: number): Promise<GetRoleConfigResponse>;
+    updateRoleConfig(id: number, req: UpdateRoleConfigRequest): Promise<UpdateRoleConfigResponse>;
+    validateTopology(id: number, req?: ValidateTopologyRequest): Promise<ValidateTopologyResponse>;
+    saveTopology(id: number, req?: SaveTopologyRequest): Promise<SaveTopologyResponse>;
+  };
+  workflows: {
+    getWorkflows(params?: GetWorkflowsParams): Promise<GetWorkflowsResponse>;
+    getWorkflow(id: number): Promise<GetWorkflowResponse>;
+    createWorkflow(req: CreateWorkflowRequest): Promise<CreateWorkflowResponse>;
+    createBlock(workflowId: number, req: CreateBlockRequest): Promise<CreateBlockResponse>;
+    createConnection(workflowId: number, req: CreateConnectionRequest): Promise<CreateConnectionResponse>;
+    updateBlock(workflowId: number, blockId: number, req: UpdateBlockRequest): Promise<UpdateBlockResponse>;
+  };
+  dashboard: {
+    getSummary(): Promise<DashboardSummaryResponse>;
+    getTasks(): Promise<GetTasksResponse>;
+    getSessions(): Promise<GetSessionsResponse>;
+    getAlerts(): Promise<GetAlertsResponse>;
+    getMetrics(): Promise<GetMetricsResponse>;
+  };
+  messages: {
+    getMessages(params?: GetMessagesParams): Promise<GetMessagesResponse>;
+    sendMessage(req: SendMessageRequest): Promise<SendMessageResponse>;
+    getChatrooms(): Promise<GetChatroomsResponse>;
+    getChatroomMessages(chatroomId: number): Promise<GetChatroomMessagesResponse>;
+    sendChatroomMessage(chatroomId: number, req: SendChatroomMessageRequest): Promise<SendChatroomMessageResponse>;
+  };
+  library: {
+    getLibrary(params?: GetLibraryParams): Promise<GetLibraryResponse>;
+    getLibraryItem(id: number): Promise<GetLibraryItemResponse>;
+    saveToLibrary(req: SaveToLibraryRequest): Promise<SaveToLibraryResponse>;
+  };
+  history: {
+    getTaskHistory(taskId: number): Promise<GetTaskHistoryResponse>;
+    getSessionHistory(sessionId: number): Promise<GetSessionHistoryResponse>;
+    getAuditLog(params?: GetAuditLogParams): Promise<GetAuditLogResponse>;
+    getTranscript(sessionId: number): Promise<GetTranscriptResponse>;
+  };
+}

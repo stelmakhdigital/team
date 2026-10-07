@@ -1,0 +1,9 @@
+./project
+agents.md
+workspace/
+AGENTS.md
+# frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local

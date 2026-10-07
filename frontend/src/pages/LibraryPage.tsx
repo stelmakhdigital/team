@@ -1,0 +1,130 @@
+import { useState } from 'react';
+import { api } from '../api';
+import { useMutation } from '../hooks/useMutation';
+import { useQuery } from '../hooks/useQuery';
+import { EmptyState, ErrorState, Spinner } from '../components/ui/States';
+import { useToast } from '../components/ui/Toast';
+import { formatRelative } from '../lib/format';
+
+export default function LibraryPage() {
+  const [search, setSearch] = useState('');
+  const [type, setType] = useState('');
+  const [detailId, setDetailId] = useState<number | null>(null);
+  const list = useQuery(`library.list.${type}.${search}`, () =>
+    api.library.getLibrary({ type: (type || undefined) as never, search: search || undefined }),
+    [type, search],
+  );
+  const detail = useQuery(detailId ? `library.item.${detailId}` : 'library.item.none', () =>
+    detailId ? api.library.getLibraryItem(detailId) : Promise.resolve(null),
+    [detailId],
+  );
+  const save = useMutation(() =>
+    api.library.saveToLibrary({ type: 'team', source_id: 1, name: `Exported team ${new Date().toISOString().slice(0, 10)}`, group: 'Teams' }),
+  );
+  const { toast } = useToast();
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <h1>Library</h1>
+        <button
+          className="btn btn-primary"
+          onClick={async () => {
+            try {
+              await save.mutate();
+              toast('success', 'Saved to library');
+              list.refetch();
+            } catch {
+              toast('error', 'Failed to save to library');
+            }
+          }}
+          disabled={save.pending}
+        >
+          {save.pending ? 'Saving…' : '+ Save current team'}
+        </button>
+      </div>
+
+      <div className="library-filters">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search…"
+          aria-label="Search library"
+        />
+        <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Filter by type">
+          <option value="">All types</option>
+          <option value="team">Teams</option>
+          <option value="workflow">Workflows</option>
+          <option value="role">Roles</option>
+          <option value="segment">Segments</option>
+        </select>
+        <div className="group-chips">
+          {list.data?.groups.map((g) => (
+            <span key={g.name} className="chip">
+              {g.name} ({g.items_count})
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="library-layout">
+        <div>
+          {list.loading && <Spinner label="Loading library…" />}
+          {list.error && <ErrorState error={list.error} onRetry={list.refetch} />}
+          {list.data && list.data.items.length === 0 && <EmptyState title="Nothing here" hint="Try a different search or type." />}
+          <div className="library-grid">
+            {list.data?.items.map((item) => (
+              <button key={item.id} className="card library-card" onClick={() => setDetailId(item.id)}>
+                <div className="library-card-head">
+                  <span className="badge badge-type-{item.type}">{item.type}</span>
+                  <span className="muted small">v{item.version}</span>
+                </div>
+                <h3>{item.name}</h3>
+                {item.description && <p className="muted small">{item.description}</p>}
+                <div className="muted small">
+                  {item.downloads_count} downloads · updated {formatRelative(item.updated_at)}
+                </div>
+                {item.tags && item.tags.length > 0 && (
+                  <div className="group-chips">
+                    {item.tags.map((t) => (
+                      <span key={t} className="chip">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <aside className="card detail-pane">
+          <h2>Details</h2>
+          {detailId === null && <p className="muted">Select an item to see its spec and versions.</p>}
+          {detail.loading && <Spinner />}
+          {detail.error && <ErrorState error={detail.error} onRetry={detail.refetch} />}
+          {detail.data && (
+            <div>
+              <h3>
+                {detail.data.item.name} <span className="badge">v{detail.data.item.version}</span>
+              </h3>
+              <p className="muted small">
+                author: {detail.data.item.author ?? '—'} · public: {detail.data.item.is_public ? 'yes' : 'no'}
+              </p>
+              <h4>Versions</h4>
+              <ul>
+                {detail.data.versions.map((v) => (
+                  <li key={v.version} className="muted small">
+                    {v.version} — {v.changes ?? ''} ({formatRelative(v.created_at)})
+                  </li>
+                ))}
+              </ul>
+              <h4>Spec</h4>
+              <pre className="spec-pre">{JSON.stringify(detail.data.spec, null, 2)}</pre>
+            </div>
+          )}
+        </aside>
+      </div>
+    </div>
+  );
+}
