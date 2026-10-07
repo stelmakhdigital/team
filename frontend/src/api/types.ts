@@ -9,6 +9,8 @@ import type {
   CreateRoleResponse,
   CreateSegmentRequest,
   CreateSegmentResponse,
+  CreateTaskRequest,
+  CreateTaskResponse,
   CreateTeamRequest,
   CreateTeamResponse,
   CreateWorkflowRequest,
@@ -33,6 +35,7 @@ import type {
   GetTopologyResponse,
   GetTranscriptResponse,
   GetTasksResponse,
+  GetTaskResponse,
   GetWorkflowResponse,
   GetWorkflowsResponse,
   ListSessionsParams,
@@ -41,6 +44,11 @@ import type {
   CreateSessionResponse,
   SessionDetail,
   StopSessionResponse,
+  ListTasksParams,
+  UpdateTaskStateRequest,
+  HandoffTaskRequest,
+  HandoffTaskResponse,
+  Task,
   SaveToLibraryRequest,
   SaveToLibraryResponse,
   SaveTopologyRequest,
@@ -109,6 +117,13 @@ export interface Api {
     create(teamId: number, req: CreateSessionRequest): Promise<CreateSessionResponse>;
     get(id: number): Promise<SessionDetail>;
     stop(id: number): Promise<StopSessionResponse>;
+  };
+  tasks: {
+    list(params?: ListTasksParams): Promise<GetTasksResponse>;
+    create(req: CreateTaskRequest): Promise<CreateTaskResponse>;
+    get(id: number): Promise<GetTaskResponse>;
+    updateState(id: number, req: UpdateTaskStateRequest): Promise<Task>;
+    handoff(id: number, req: HandoffTaskRequest): Promise<HandoffTaskResponse>;
   };
   messages: {
     getMessages(params?: GetMessagesParams): Promise<GetMessagesResponse>;

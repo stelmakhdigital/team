@@ -12,11 +12,13 @@
 | Team Builder: role config (GET/PATCH) | done | done (mock+real) | ready | **done** (real) | — |
 | Team Builder: save (POST /teams/{id}/save) | done | done (mock+real) | ready | **done** (real) | save_to_library — slice 5 |
 | Error model (все endpoint) | done | done (flex-parse + validation_failed) | changed | **done** (real) | — |
-| Tasks & History | done (slice 2) | done (mock+real) | ready | **done** (real) | task-lifecycle client (create/state/handoff) — добавить при появлении UI задач |
+| Tasks & History | done (slice 2) | done (mock+real, UI /tasks: create/state/handoff) | ready (§3.7) | **done** (real, incl. lifecycle UI) | — |
 | Dashboard | done (slice 3: summary+tasks+sessions+alerts) | done (mock+real) | ready | **done** (summary, tasks, sessions, alerts) | metrics — slice 5 |
 | Sessions (runtime) | done (slice 3: lifecycle, reaper, watchdog) | done (mock+real: Api.sessions list/create/get/stop, HistoryPage на реальных id) | ready (3.6 добавлен) | **done** (real, e2e: start→stop, crash→failed+alert) | transcript без `total` (контракт требует) |
-| Message Center | planned (slice 4) | done (mock) | draft | blocked | slice 4 |
-| Workflows / Library / History Viewer / WS | planned (slice 5) | done (mock) | draft (`GET /workflows` задокументирован, 2.0) | blocked | WS, audit, metrics, workflows — slice 5 |
+| Message Center | done (slice 4: messages, chatrooms, event bus) | done (mock) | ready (уточнения в api-decisions) | ready (фронт может переключать real client) | unread_count=0 до RBAC (slice 6); WS — slice 5 |
+| WS (real-time) | done (slice 5a: /ws, subscribe channels, EventBus) | done (mock; DashboardPage real-совместим: канал dashboard) | ready | ready (фронт может переключать real) | gorilla: read-таймаут «корruptит» соединение (документировано) |
+| Workflows (список + редактор) | done (slice 5a: CRUD workflows/blocks/connections) | done (mock) | ready (уточнения в api-decisions) | ready | connections в POST /workflows — индексы blocks |
+| Library / History Viewer / audit / metrics | planned (slice 5b) | done (mock) | draft | blocked | slice 5b |
 
 ## Integration verification (lead, 2026-10-07)
 
@@ -45,6 +47,45 @@ Backend endpoint slice 1 (все под `/api/v1`):
 `DELETE /relatives/{id}` · `GET /healthz` · `GET /readyz`
 
 ## API change log
+
+### 2026-10-08 — backend slice 5a: WS /ws + Workflows (новые endpoints, ничего не ломается)
+- `GET /ws` — WebSocket (kонтракт 20 §WebSocket). Subscribe: `{"type":"subscribe","channels":[...]}`
+  (повторный заменяет). События: `{type, data, timestamp}` только по подписанным каналам:
+  `team:{id}`, `task:{id}`, `session:{id}`, `chatroom:{id}`, `watchdog:{id}` + глобальный
+  `dashboard` (каждое событие дублируется туда — DashboardPage фронтенда подписан на него).
+  Auth: при включённых API-ключих — `?api_key=` (браузерный WS не шлёт заголовки).
+  Типы событий: task.created, task.state_changed, session.started, session.stopped,
+  message.sent, alert.created (+data как в контракте).
+- Workflows (контракт 20 §2): `GET /workflows?team_id=&state=`, `GET /workflows/{id}`
+  (workflow+blocks+connections), `POST /workflows` (± blocks/connections),
+  `POST /workflows/{id}/blocks`, `POST /workflows/{id}/connections`,
+  `PATCH /workflows/{id}/blocks/{blockId}` (drag&drop, changes.position/config old/new).
+  Уточнение: в `POST /workflows` connections `from_block_id`/`to_block_id` — **индексы**
+  массива `blocks` (0-based); отдельно создаваемые connections — реальные id блоков.
+- Frontend impact: ноль для mock-режима. Real: `useWebSocket` — работает сразу
+  (канал dashboard); WorkflowsPage/WorkflowEditorPage — real client уже обращается
+  к этим путям (форматы совпадают с моками).
+- Validation: gofmt/vet/test PASS (WS-тесты: subscribe/фильтры/auth; workflows:
+  service + HTTP-вертикаль). Live-проверка на 127.0.0.1:8080: task.created +
+  message.sent (broadcast) доставлены по WS; workflows CRUD — все пути.
+- Slice 5b (впереди): Library (save/apply, `POST /teams/{id}/save` library_item_id),
+  History Viewer (audit + transcripts), metrics.
+
+### 2026-10-08 — backend slice 4: Message Center (новые endpoints, ничего не ломается)
+- `GET/POST /api/v1/messages` — фильтры team_id/queue_task_id/from_role_id/to_role_id/type,
+  `total`/`has_more`; delivery: direct (to_role_id обязателен) / broadcast (все роли team)
+  / segment (все роли сегмента to_role_id); ответ `{id, status:'sent', delivered_to}`.
+- `GET /api/v1/chatrooms` (опц. `?team_id=`), `GET/POST /api/v1/chatrooms/{id}/messages`
+  (limit/offset, `has_more`).
+- Chatrooms создаются автоматически: при создании команды — team-level (имя команды,
+  topic "Whole team"), при создании сегмента — `<segment>-general` (topic "<Segment> channel").
+- Sender: в request'ах нет from (контракт) → `from_role_id` NULL = оператор: `from_role_name="You"`,
+  `is_mine=true`. Опц. расширение: `from_role_id` в POST-х (валидация по команде).
+- `type system|watchdog` — только серверные (API → 400). `unread_count=0` до user-модели (RBAC, slice 6).
+- EventBus (in-memory pub/sub): task.created, task.state_changed, session.started,
+  session.stopped, message.sent, alert.created (+timestamp). WS-хендлер `/ws` — slice 5.
+- Frontend impact: ноль для mock-режима; real client `api.messages.*` уже обращается к этим путям.
+- Validation: gofmt/vet/test PASS (service + HTTP-вертикаль); live-проверка на 127.0.0.1:8080.
 
 ### 2026-10-08 — backend: ответ на answer_backend.md (slice 3 failing-тест + agents/ + slice-1 контракт)
 - **Punkt 1**: fix гонки process-адаптера — crash (exit != 0) теперь всегда →
@@ -175,3 +216,12 @@ Backend endpoint slice 1 (все под `/api/v1`):
 - Контракт 20 (лид): добавлен §3.6 Session lifecycle, §2.0 `GET /workflows`, уточнён `RelativeSpec` (from/to).
 - Известный mismatch: `GET /sessions/:id/transcript` без `total` (контракт требует) — backend-фикс.
 - `go test`/`tsc`/`vitest`/`build` — все зелёные; production build 78 KB gzip.
+
+### 2026-10-07 — lead: Tasks lifecycle UI (страница /tasks)
+- Frontend: новая страница `/tasks` (список с фильтрами team/state, create, inline-переходы
+  state по карте переходов, handoff, done требует closure_reason, expandable → история + subtasks).
+  Группа `tasks` в Api-фасад (list/create/get/updateState/handoff — real + mock), `lib/task.ts`
+  (transitions, closure reasons). Работает в mock и real (backend slice 2 API готов).
+- Контракт 20 (лид): §3.7 Task lifecycle (create/state/handoff, транзишены, closure_reason, handoff-semantics).
+- Validation: `tsc`/`vitest` (34 теста, вкл. tasks lifecycle mock + 1 интеграционный против живого daemon)
+  /`build` — все зелёные; production build 81 KB gzip.

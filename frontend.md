@@ -30,9 +30,12 @@
   - Dashboard sessions+alerts, History session history/transcript — **real** (slice 3, live e2e:
     lifecycle start→stop, crash→failed+watchdog alert; `Api.sessions` list/create/get/stop);
   - infra: `.env` + `.env.example`, vite-прокси, same-origin default (commit `b5e818b`).
+- **F10** Tasks lifecycle UI: страница `/tasks` (список+фильтры, create, inline-переходы state,
+  handoff, done→closure_reason, expandable → история+subtasks); группа `tasks` в Api (real+mock);
+  работает в mock и real (backend slice 2). Контракт 20 §3.7.
 
-## 3. Текущий статус (2026-10-07, после live e2e slice 3)
-- Тесты: **31/31** (25 unit + 6 интеграционных против живого daemon на :8080); typecheck OK; production build OK (78 KB gzip).
+## 3. Текущий статус (2026-10-07, после F10 Tasks UI)
+- Тесты: **34/34** (unit + 7 интеграционных против живого daemon на :8080); typecheck OK; production build OK (81 KB gzip).
 - Backend `go test ./...` — **все зелёные** (failing `TestSessionFailedProcessAndWatchdog` исправлен бекендом). Каталог `agents/` с fixture-spec'ами (pi-lead/pi-worker/pi-reviewer) существует — live-сессии гоняются.
 - Live e2e slice 3 (real API client): create (role+`sleep`) → running → history → transcript → dashboard/sessions → stop (идемпотентен 200); crash `exit 3` → **failed** + exit_code + history → failed + watchdog alert.
 - Slice 1 layout (blockers #8) — закрыто live: topology `layout.relatives` заполнен; PATCH layout —
@@ -54,7 +57,16 @@
 1. Slice 4 → Messages real (после отчёта бекенда по slice 4).
 2. Slice 5 → Workflows/Library/WS/audit/metrics + реализация `GET /workflows` (контракт готов, 2.0).
 3. Бекенду (non-blocking): `transcript.total`.
-4. Кандидат на новую работу (нужно решение лида/продукта): UI управления задачами (create/state/handoff) — backend API готов, в UI-спеке контракта страницы задач нет (сейчас read-only в Dashboard).
+4. ~~UI управления задачами~~ — **сделано (F10, 2026-10-07)**: страница `/tasks` (create/state/handoff),
+   real API (slice 2), интеграционные тесты. Контракт 20 §3.7.
+
+### F10: UI управления задачами (сделано 2026-10-07)
+- `src/pages/TasksPage.tsx` — /tasks: список (фильтры team/state), create-модалка,
+  inline-переходы state (карта `lib/task.ts`), handoff-модалка, done → closure_reason,
+  expandable-строка → история + subtasks.
+- Api: группа `tasks` (list/create/get/updateState/handoff) real + mock.
+- Тесты: mock lifecycle + интеграционный tasks lifecycle (live) + app smoke /tasks.
+- Тесты: **34/34** (27 unit + 7 интеграционных); typecheck/build OK.
 
 ## 4. Ключевые файлы
 | Файл | Назначение |
@@ -63,9 +75,11 @@
 | `frontend/src/api/{index,real,config,errors,http}.ts` | фасад, real-адаптер, env, ошибки, fetch-обёртка |
 | `frontend/src/api/mock/{adapter,data}.ts` | mock-режим |
 | `frontend/src/pages/TeamBuilderPage.tsx` | главный канвас |
+| `frontend/src/pages/TasksPage.tsx` | /tasks: create/state/handoff (F10) |
 | `frontend/src/components/TeamBuilder/*` | canvas, toolbar, config/bottom panels, palette |
 | `frontend/src/components/Dashboard/*` | панели дашборда |
 | `frontend/src/hooks/{useQuery,useMutation,useWebSocket}.ts` | данные/мутации/WS |
+| `frontend/src/lib/task.ts` | task transitions + closure reasons |
 | `frontend/vite.config.ts` | dev-сервер + **прокси** `/api`,`/ws`,`/healthz` → BACKEND_URL |
 | `frontend/tests/realIntegration.test.ts` | интеграционные тесты (6; автоскип, если нет daemon на :8080) |
 | `frontend/.env` / `.env.example` | режимы (`.env` gitignored) |
@@ -91,6 +105,6 @@ curl -s localhost:8080/healthz
 
 ## 7. Как восстановить сессию
 1. Прочитать этот файл + `_workspace/integration-status.md` (последние 2 записи) + `_workspace/blockers.md`.
-2. `cd frontend && npm test` — должен быть 31/31 (интеграционные скипаются без daemon; поднять по п.5).
+2. `cd frontend && npm test` — должен быть 34/34 (интеграционные скипаются без daemon; поднять по п.5).
 3. `git log --oneline -3` — последний frontend-коммит `b5e818b`.
 4. Дальше — «Следующие шаги» (п.3), после отчёта бекенда (формат отчёта — в `answer_backend.md`).

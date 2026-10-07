@@ -8,6 +8,7 @@ import WorkflowEditorPage from './pages/WorkflowEditorPage';
 import MessagesPage from './pages/MessagesPage';
 import LibraryPage from './pages/LibraryPage';
 import HistoryPage from './pages/HistoryPage';
+import TasksPage from './pages/TasksPage';
 import { EmptyState } from './components/ui/States';
 
 function NotFound() {
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/teams/:teamId" element={<TeamBuilderPage />} />
+        <Route path="/tasks" element={<TasksPage />} />
         <Route path="/workflows" element={<WorkflowsPage />} />
         <Route path="/workflows/:workflowId" element={<WorkflowEditorPage />} />
         <Route path="/messages" element={<MessagesPage />} />

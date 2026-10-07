@@ -494,19 +494,26 @@ export interface DashboardSummaryResponse {
   updated_at: string;
 }
 
-export type TaskState = 'pending' | 'in_progress' | 'blocked' | 'done';
+export type TaskState = 'pending' | 'in_progress' | 'blocked' | 'done' | 'canceled';
+
+export type ClosureReason = 'handed_off_to' | 'blocked_on' | 'denied' | 'canceled' | 'no_follow_on' | 'escalation';
 
 export interface Task {
   id: number;
   team_id: number;
   team_name: string;
+  parent_task_id?: number;
   title: string;
+  body?: string;
+  body_context?: Record<string, unknown>;
   state: TaskState;
   priority: number;
   destination_role_id: number;
   destination_role_name: string;
   source_role_id?: number;
   source_role_name?: string;
+  closure_reason?: ClosureReason;
+  closure_target_id?: number;
   created_at: string;
   updated_at: string;
   started_at?: string;
@@ -518,6 +525,55 @@ export interface Task {
 export interface GetTasksResponse {
   tasks: Task[];
   total: number;
+}
+
+export interface ListTasksParams {
+  team_id?: number;
+  state?: TaskState;
+  destination_role_id?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CreateTaskRequest {
+  team_id: number;
+  parent_task_id?: number;
+  destination_role_id: number;
+  source_role_id?: number;
+  title: string;
+  body?: string;
+  body_context?: Record<string, unknown>;
+  priority?: number;
+}
+
+export interface CreateTaskResponse {
+  id: number;
+  state: TaskState;
+  status: 'created';
+}
+
+export interface GetTaskResponse {
+  task: Task;
+  subtasks: Task[];
+}
+
+export interface UpdateTaskStateRequest {
+  state: TaskState;
+  closure_reason?: ClosureReason;  // обязателен для state=done (иначе 400)
+  closure_target_id?: number;
+  comment?: string;
+}
+
+export interface HandoffTaskRequest {
+  to_role_id: number;
+  comment?: string;
+}
+
+export interface HandoffTaskResponse {
+  new_task_id: number;
+  closed_task_id: number;
+  task: Task;
+  status: 'handed_off';
 }
 
 export type SessionState = 'starting' | 'running' | 'idle' | 'stopping' | 'stopped' | 'failed';

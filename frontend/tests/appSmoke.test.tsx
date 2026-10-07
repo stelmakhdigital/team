@@ -27,4 +27,20 @@ describe('App smoke', () => {
     expect(await screen.findByText('Dev Team', {}, { timeout: 10_000 })).toBeInTheDocument();
     expect(await screen.findByText('Platform Team', {}, { timeout: 10_000 })).toBeInTheDocument();
   });
+
+  it('renders Tasks page with mock data + lifecycle actions', async () => {
+    render(
+      <MemoryRouter initialEntries={['/tasks']}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Implement auth middleware', {}, { timeout: 10_000 })).toBeInTheDocument();
+    // pending task exposes transition actions
+    const startButtons = await screen.findAllByText('▶ start', {}, { timeout: 10_000 });
+    expect(startButtons.length).toBeGreaterThan(0);
+    // create modal renders destination-role select
+    const newTask = await screen.findByRole('button', { name: /new task/i });
+    newTask.click();
+    expect(await screen.findByText('Destination role *', {}, { timeout: 10_000 })).toBeInTheDocument();
+  }, 20_000);
 });

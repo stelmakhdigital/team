@@ -7,6 +7,7 @@ import type { MockErrorKind } from '../../api/mock/adapter';
 const NAV = [
   { to: '/', label: 'Dashboard', icon: '▦', end: true },
   { to: '/teams', label: 'Teams', icon: '⬡' },
+  { to: '/tasks', label: 'Tasks', icon: '☰' },
   { to: '/workflows', label: 'Workflows', icon: '⑃' },
   { to: '/messages', label: 'Messages', icon: '✉' },
   { to: '/library', label: 'Library', icon: '▤' },

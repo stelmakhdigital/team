@@ -92,4 +92,58 @@ describe('MockAdapter contract compatibility', () => {
     const api = createMockAdapter();
     await expect(api.teams.getTopology(999)).rejects.toMatchObject({ status: 404, code: 'not_found' });
   });
+
+  it('tasks lifecycle: create → in_progress → done (closure required) + handoff + terminal 409', async () => {
+    const api = createMockAdapter();
+    const top = await api.teams.getTopology(1);
+    const roleA = top.roles[0];
+    const roleB = top.roles[1];
+
+    // create (missing title → 400 validation_failed)
+    await expect(
+      api.tasks.create({ team_id: 1, destination_role_id: roleA.id, title: '   ' }),
+    ).rejects.toMatchObject({ status: 400, code: 'validation_failed' });
+
+    const created = await api.tasks.create({ team_id: 1, destination_role_id: roleA.id, title: 'Do the thing', priority: 5 });
+    expect(created.status).toBe('created');
+    expect(created.state).toBe('pending');
+
+    // list/get roundtrip
+    const list = await api.tasks.list({ team_id: 1 });
+    expect(list.tasks.some((t) => t.id === created.id && t.state === 'pending')).toBe(true);
+    const detail = await api.tasks.get(created.id);
+    expect(detail.task.title).toBe('Do the thing');
+    expect(detail.task.destination_role_name).toBe(roleA.name);
+    expect(Array.isArray(detail.subtasks)).toBe(true);
+
+    // pending → in_progress
+    const started = await api.tasks.updateState(created.id, { state: 'in_progress' });
+    expect(started.state).toBe('in_progress');
+    expect(started.started_at).toBeDefined();
+
+    // done requires closure_reason → 400
+    await expect(api.tasks.updateState(created.id, { state: 'done' })).rejects.toMatchObject({
+      status: 400,
+      code: 'validation_failed',
+    });
+    const done = await api.tasks.updateState(created.id, { state: 'done', closure_reason: 'no_follow_on' });
+    expect(done.state).toBe('done');
+    expect(done.closure_reason).toBe('no_follow_on');
+
+    // terminal → any transition → 409
+    await expect(api.tasks.updateState(created.id, { state: 'pending' })).rejects.toMatchObject({ status: 409, code: 'conflict' });
+
+    // handoff: new pending task in role B, original closed handed_off_to
+    const created2 = await api.tasks.create({ team_id: 1, destination_role_id: roleA.id, title: 'Handoff target' });
+    const res = await api.tasks.handoff(created2.id, { to_role_id: roleB.id });
+    expect(res.status).toBe('handed_off');
+    expect(res.closed_task_id).toBe(created2.id);
+    expect(res.task.id).toBe(res.new_task_id);
+    expect(res.task.state).toBe('pending');
+    expect(res.task.destination_role_id).toBe(roleB.id);
+    const closed = await api.tasks.get(created2.id);
+    expect(closed.task.state).toBe('done');
+    expect(closed.task.closure_reason).toBe('handed_off_to');
+    expect(closed.task.closure_target_id).toBe(res.new_task_id);
+  }, 30_000);
 });

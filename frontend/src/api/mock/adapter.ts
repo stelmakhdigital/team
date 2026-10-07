@@ -8,9 +8,11 @@ import type {
   Profile,
   Session,
   SessionDetail,
+  Task,
   UpdateRoleConfigRequest,
   Workflow,
 } from '../../types/api';
+import { canTransition, isTerminalTaskState } from '../../lib/task';
 import {
   computeMetrics,
   computeSummary,
@@ -581,6 +583,118 @@ export function createMockAdapter(): Api {
         s.state = 'stopped';
         db.audit.unshift({ id: nextId(), timestamp: now(), action: 'session.stop', resource: `session:${id}` });
         return { id, state: 'stopped', status: 'stopped' };
+      },
+    },
+
+    tasks: {
+      async list(params) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        let list = db.tasks;
+        if (params?.team_id != null) list = list.filter((t) => t.team_id === params.team_id);
+        if (params?.state) list = list.filter((t) => t.state === params.state);
+        if (params?.destination_role_id != null) list = list.filter((t) => t.destination_role_id === params.destination_role_id);
+        const limit = params?.limit ?? 100;
+        const offset = params?.offset ?? 0;
+        const page = list.slice(offset, offset + limit);
+        return { tasks: clone(page), total: list.length };
+      },
+
+      async create(req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        if (!req.title?.trim()) throw new ApiClientError(400, 'validation_failed', "Field 'title' is required");
+        const team = db.teams.find((t) => t.id === req.team_id);
+        if (!team) throw new ApiClientError(404, 'not_found', `Team ${req.team_id} not found`);
+        const role = db.roles.find((r) => r.id === req.destination_role_id && r.team_id === team.id);
+        if (!role) throw new ApiClientError(404, 'not_found', `Role ${req.destination_role_id} not found in team ${team.id}`);
+        const id = nextId();
+        const at = now();
+        db.tasks.unshift({
+          id,
+          team_id: team.id,
+          team_name: team.name,
+          parent_task_id: req.parent_task_id,
+          title: req.title.trim(),
+          body: req.body,
+          body_context: req.body_context,
+          state: 'pending',
+          priority: req.priority ?? 3,
+          destination_role_id: role.id,
+          destination_role_name: role.name,
+          source_role_id: req.source_role_id,
+          created_at: at,
+          updated_at: at,
+        });
+        db.audit.unshift({ id: nextId(), timestamp: at, action: 'task.create', resource: `task:${id}` });
+        return { id, state: 'pending', status: 'created' };
+      },
+
+      async get(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const t = db.tasks.find((x) => x.id === id);
+        if (!t) throw new ApiClientError(404, 'not_found', `Task ${id} not found`);
+        return { task: clone(t), subtasks: clone(db.tasks.filter((x) => x.parent_task_id === id)) };
+      },
+
+      async updateState(id, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const t = db.tasks.find((x) => x.id === id);
+        if (!t) throw new ApiClientError(404, 'not_found', `Task ${id} not found`);
+        if (!canTransition(t.state, req.state)) {
+          throw new ApiClientError(409, 'conflict', `Cannot transition task ${id} from ${t.state} to ${req.state}`);
+        }
+        if (req.state === 'done' && !req.closure_reason) {
+          throw new ApiClientError(400, 'validation_failed', 'closure_reason is required for state=done');
+        }
+        t.state = req.state;
+        t.updated_at = now();
+        if (req.state === 'in_progress' && !t.started_at) t.started_at = now();
+        if (isTerminalTaskState(req.state)) {
+          t.closure_reason = req.closure_reason;
+          t.closure_target_id = req.closure_target_id;
+        }
+        db.audit.unshift({ id: nextId(), timestamp: now(), action: `task.${req.state}`, resource: `task:${id}` });
+        return clone(t);
+      },
+
+      async handoff(id, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const t = db.tasks.find((x) => x.id === id);
+        if (!t) throw new ApiClientError(404, 'not_found', `Task ${id} not found`);
+        if (isTerminalTaskState(t.state)) throw new ApiClientError(409, 'conflict', `Task ${id} is ${t.state}, cannot hand off`);
+        const role = db.roles.find((r) => r.id === req.to_role_id && r.team_id === t.team_id);
+        if (!role) throw new ApiClientError(404, 'not_found', `Role ${req.to_role_id} not found in team ${t.team_id}`);
+        const newId = nextId();
+        const at = now();
+        t.state = 'done';
+        t.closure_reason = 'handed_off_to';
+        t.closure_target_id = newId;
+        t.updated_at = at;
+        const nt: Task = {
+          ...clone(t),
+          id: newId,
+          state: 'pending',
+          destination_role_id: role.id,
+          destination_role_name: role.name,
+          source_role_id: t.destination_role_id,
+          started_at: undefined,
+          closure_reason: undefined,
+          closure_target_id: undefined,
+          created_at: at,
+          updated_at: at,
+        };
+        db.tasks.unshift(nt);
+        db.audit.unshift({ id: nextId(), timestamp: at, action: 'task.handoff', resource: `task:${id}` });
+        return { new_task_id: newId, closed_task_id: id, task: clone(nt), status: 'handed_off' };
       },
     },
 

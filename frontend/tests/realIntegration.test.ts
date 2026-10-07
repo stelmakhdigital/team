@@ -211,8 +211,8 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
     });
     const sid = created.id;
 
-    // reaper: running → failed, exit_code=3
-    await waitUntil(async () => (await api.sessions.get(sid)).state === 'failed');
+    // reaper: running → failed, exit_code=3 (под нагрузкой может занять несколько секунд)
+    await waitUntil(async () => (await api.sessions.get(sid)).state === 'failed', 15_000);
     const failed = await api.sessions.get(sid);
     expect(failed.exit_code).toBe(3);
 
@@ -220,10 +220,60 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
     const h = await api.history.getSessionHistory(sid);
     expect(h.history.some((e) => e.to_state === 'failed')).toBe(true);
 
-    // watchdog: alert в dashboard/alerts (severity по контракту)
+    // watchdog: alert в dashboard/alerts (цикл watchdog ~10 c)
     await waitUntil(async () => {
       const a = await api.dashboard.getAlerts();
       return a.alerts.some((x) => x.session_id === sid && x.requires_action);
-    });
+    }, 25_000);
+  }, 45_000);
+
+  it('tasks lifecycle: create → in_progress → done (closure) → handoff → terminal 409', async () => {
+    const teams = await api.teams.getTeams();
+    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const topo = await api.teams.getTopology(team.id);
+    const roleA = topo.roles[0];
+    const roleB = topo.roles[1] ?? roleA;
+
+    // create → 201 {id, state, status}
+    const created = await api.tasks.create({ team_id: team.id, destination_role_id: roleA.id, title: 'IT lifecycle task' });
+    expect(created.status).toBe('created');
+    expect(created.state).toBe('pending');
+
+    // list + get (контрактная форма с destination_role_name)
+    const list = await api.tasks.list({ team_id: team.id });
+    expect(list.tasks.some((t) => t.id === created.id)).toBe(true);
+    const detail = await api.tasks.get(created.id);
+    expect(detail.task.title).toBe('IT lifecycle task');
+    expect(detail.task.destination_role_name).toBe(roleA.name);
+    expect(Array.isArray(detail.subtasks)).toBe(true);
+
+    // invalid transition: pending → pending? нет; done без closure → 400
+    await expect(api.tasks.updateState(created.id, { state: 'done' })).rejects.toMatchObject({ status: 400 });
+
+    // pending → in_progress → done (closure_reason)
+    const started = await api.tasks.updateState(created.id, { state: 'in_progress' });
+    expect(started.state).toBe('in_progress');
+    const done = await api.tasks.updateState(created.id, { state: 'done', closure_reason: 'no_follow_on' });
+    expect(done.state).toBe('done');
+    expect(done.closure_reason).toBe('no_follow_on');
+
+    // terminal → 409
+    await expect(api.tasks.updateState(created.id, { state: 'pending' })).rejects.toMatchObject({ status: 409 });
+
+    // handoff → новая задача у целевой роли, исходная закрыта handed_off_to
+    const t2 = await api.tasks.create({ team_id: team.id, destination_role_id: roleA.id, title: 'IT handoff task' });
+    const res = await api.tasks.handoff(t2.id, { to_role_id: roleB.id });
+    expect(res.status).toBe('handed_off');
+    expect(res.closed_task_id).toBe(t2.id);
+    expect(res.task.destination_role_id).toBe(roleB.id);
+    expect(res.task.state).toBe('pending');
+    const closed = await api.tasks.get(t2.id);
+    expect(closed.task.state).toBe('done');
+    expect(closed.task.closure_reason).toBe('handed_off_to');
+
+    // history: переходы зафиксированы
+    const h = await api.history.getTaskHistory(created.id);
+    expect(h.history.some((e) => e.to_state === 'in_progress')).toBe(true);
+    expect(h.history.some((e) => e.to_state === 'done')).toBe(true);
   }, 30_000);
 });

@@ -615,6 +615,55 @@ interface StopSessionResponse {
 > активные сессии; полный список — `GET /sessions`.
 
 
+#### 3.7 Task lifecycle (slice 2, задокументировано 2026-10-07 — лид)
+
+```typescript
+// GET /api/v1/tasks?team_id=&state=&destination_role_id=&limit=&offset=
+// 200 {tasks: Task[], total}
+
+// POST /api/v1/tasks — 201
+interface CreateTaskRequest {
+  team_id: number;
+  parent_task_id?: number;
+  destination_role_id: number;   // обязательна (404, если роли нет в команде)
+  source_role_id?: number;
+  title: string;                 // обязательна (400 validation_failed)
+  body?: string;
+  body_context?: Record<string, any>;
+  priority?: number;
+}
+// 201 {id, state: 'pending', status: 'created'}
+
+// GET /api/v1/tasks/:id — 200 {task: Task, subtasks: Task[]}
+
+// PATCH /api/v1/tasks/:id/state — 200 Task (контрактная форма)
+interface UpdateTaskStateRequest {
+  state: 'pending' | 'in_progress' | 'blocked' | 'done' | 'canceled';
+  closure_reason?: ClosureReason;   // ОБЯЗАТЕЛЕН для state=done (иначе 400 validation_failed)
+  closure_target_id?: number;
+  comment?: string;
+}
+type ClosureReason = 'handed_off_to' | 'blocked_on' | 'denied' | 'canceled' | 'no_follow_on' | 'escalation';
+// Транзишены: pending → in_progress|done|blocked|canceled;
+//              in_progress → done|blocked|canceled;
+//              blocked → pending|in_progress|done|canceled;
+//              done/canceled — терминальные (любой переход → 409 conflict).
+
+// POST /api/v1/tasks/:id/handoff — 201
+interface HandoffTaskRequest {
+  to_role_id: number;             // другая роль той же команды
+  comment?: string;
+}
+// 201 {new_task_id, closed_task_id, task: Task, status: 'handed_off'}
+// Исходная задача закрывается done + closure_reason='handed_off_to' + closure_target_id=new_task_id;
+// новая pending-задача у целевой роли (повторный handoff терминальной → 409).
+
+// GET /api/v1/tasks/:id/history — см. §6.1
+```
+
+> UI: страница `/tasks` (список + create + переходы state + handoff + история/субзадачи).
+
+
 ______________________________________________________________________
 
 ### 4. **Message Center API**

@@ -44,6 +44,22 @@ export function createRealAdapter(): Api {
       get: (id) => http(`${B}/sessions/${id}`),
       stop: (id) => http(`${B}/sessions/${id}`, { method: 'DELETE' }),
     },
+    tasks: {
+      list: (params) =>
+        http(
+          `${B}/tasks${toQuery({
+            team_id: params?.team_id,
+            state: params?.state,
+            destination_role_id: params?.destination_role_id,
+            limit: params?.limit,
+            offset: params?.offset,
+          })}`,
+        ),
+      create: (req) => http(`${B}/tasks`, { method: 'POST', body: req }),
+      get: (id) => http(`${B}/tasks/${id}`),
+      updateState: (id, req) => http(`${B}/tasks/${id}/state`, { method: 'PATCH', body: req }),
+      handoff: (id, req) => http(`${B}/tasks/${id}/handoff`, { method: 'POST', body: req }),
+    },
     messages: {
       getMessages: (params) =>
         http(`${B}/messages${toQuery({

@@ -3,7 +3,7 @@
 ## Current phase
 implementation (F1–F8 done; F9 — Team Builder, Dashboard (summary/tasks/sessions/alerts),
 History (task/session history, transcript) интегрированы с реальным backend;
-Messages/Workflows/Library/WS/metrics ждут backend slice 4–5)
+Tasks lifecycle UI (create/state/handoff) — real; Messages/Workflows/Library/WS/metrics ждут backend slice 4–5)
 
 ## Implemented
 - docs/architecture/frontend.md — архитектура и frontend-план (F1–F9)
@@ -25,6 +25,11 @@ Messages/Workflows/Library/WS/metrics ждут backend slice 4–5)
   Live e2e: create → running → history → transcript → dashboard → stop (идемпотентен) и
   crash-сценарий: exit 3 → state=failed + exit_code + history → failed + watchdog alert.
   Интеграционных тестов стало 6 (slice 3: lifecycle + failed/watchdog).
+- F10 Tasks lifecycle UI (2026-10-07): страница `/tasks` (список с фильтрами team/state,
+  create-модалка, inline-переходы state по ALLOWED-карте, handoff-модалка, done требует
+  closure_reason, expandable-строка → история + subtasks). Группа `tasks` в Api-фасад
+  (list/create/get/updateState/handoff — real + mock). `lib/task.ts` — transitions + closure reasons.
+  Работает в mock и real (backend slice 2 API готов). Контракт 20 дополнен §3.7 Task lifecycle.
 - F9 (infra): UI готов к запуску в обоих режимах — `npm run dev` (mock, default, .env создан);
   real mode: same-origin + Vite-прокси `/api`,`/ws`,`/healthz` → backend (BACKEND_URL,
   default :8080) — CORS в dev не нужен; default base URL/ws URL = same-origin.
@@ -50,6 +55,8 @@ Messages/Workflows/Library/WS/metrics ждут backend slice 4–5)
 - `GET /api/v1/dashboard/{summary,tasks,sessions,alerts,metrics}`
 - `GET/POST /api/v1/sessions` (lifecycle: create+start), `GET /api/v1/sessions/:id`, `DELETE /api/v1/sessions/:id` (stop, идемпотентен)
 - `GET /api/v1/sessions/:id/history`, `GET /api/v1/sessions/:id/transcript`
+- `GET /api/v1/tasks` (list + фильтры), `POST /api/v1/tasks`, `GET /api/v1/tasks/:id`
+- `PATCH /api/v1/tasks/:id/state`, `POST /api/v1/tasks/:id/handoff`, `GET /api/v1/tasks/:id/history`
 - `GET/POST /api/v1/messages`, `GET /api/v1/chatrooms`, `GET/POST /api/v1/chatrooms/:id/messages`
 - `GET/POST /api/v1/library`, `GET /api/v1/library/:id`
 - `GET /api/v1/audit`, `GET /api/v1/tasks/:id/history`
@@ -75,9 +82,9 @@ npm run build      # production build
 
 ## Validation
 - typecheck: OK
-- unit/component tests: OK (vitest, 31 тест: topology, errors, mock-контракт, UI states, app smoke, real-integration×6)
+- unit/component tests: OK (vitest, 34 теста: topology, errors, mock-контракт (вкл. tasks lifecycle), UI states, app smoke (Dashboard/Teams/Tasks), real-integration×7)
 - production build: OK (78 KB gzip)
-- интеграция с живым backend: OK (Team Builder vertical, slice 2: dashboard summary/tasks + task history, slice 3: sessions lifecycle + history/transcript + alerts)
+- интеграция с живым backend: OK (Team Builder vertical, slice 2: dashboard summary/tasks + task history, slice 3: sessions lifecycle + history/transcript + alerts, tasks lifecycle: create/state/handoff)
 
 ## Backend impact
 - СДЕЛАНО (контракт 20 обновлён, лид 2026-10-07): `GET /api/v1/workflows` задокументирован (2.0) — ждём реализацию в slice 5 (blockers #3)
@@ -93,5 +100,5 @@ npm run build      # production build
 
 ## Next step
 - Slice 4 (Messages) → real; Slice 5: Workflows/Library/WS/audit/metrics + `GET /workflows`
-- UI управления задачами (create/state/handoff) — нужно решение продукта (кандидат на новую работу)
+- ~~UI управления задачами~~ — сделано (F10, страница /tasks, real API)
 - Backend: доделать `transcript.total` (non-blocking)
