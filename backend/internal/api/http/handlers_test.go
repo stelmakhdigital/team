@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -34,7 +35,8 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 		t.Fatalf("migrate: %v", err)
 	}
 	svc := service.NewTeamService(db, repository.NewStores(db))
-	handler := httpapi.NewServer(svc, httpapi.Options{
+	tsvc := service.NewTaskService(db, repository.NewStores(db))
+	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger:  slog.New(slog.NewTextHandler(os.Stderr, nil)),
 		APIKeys: apiKeys,
 		DB:      db,
@@ -424,4 +426,131 @@ func TestHealth(t *testing.T) {
 	if st != http.StatusOK || out["status"] != "ready" {
 		t.Fatalf("readyz: %d %v", st, out)
 	}
+}
+
+// ---------- Slice 2: tasks & dashboard (HTTP) ----------
+
+func TestTasksHTTPFlow(t *testing.T) {
+	srv := newTestServer(t, nil)
+	base := srv.URL + "/api/v1"
+
+	// команда с двумя ролями через spec
+	body := specBody()
+	st, out, _ := do(t, "POST", base+"/teams", body, nil)
+	if st != http.StatusCreated {
+		t.Fatalf("create team: %d %v", st, out)
+	}
+	teamID := int64(out["id"].(float64))
+	st, out, _ = do(t, "GET", base+"/teams/"+itoaID(teamID), nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("get team: %d", st)
+	}
+	roles := out["roles"].([]any)
+	roleA := int64(roles[0].(map[string]any)["id"].(float64))
+	roleB := int64(roles[1].(map[string]any)["id"].(float64))
+
+	// POST /tasks
+	st, out, _ = do(t, "POST", base+"/tasks", map[string]any{
+		"team_id": teamID, "destination_role_id": roleA, "title": "http task",
+	}, nil)
+	if st != http.StatusCreated {
+		t.Fatalf("create task: %d %v", st, out)
+	}
+	taskID := int64(out["id"].(float64))
+
+	// validation: пустой title → 400
+	st, out, _ = do(t, "POST", base+"/tasks", map[string]any{"team_id": teamID, "destination_role_id": roleA}, nil)
+	if st != http.StatusBadRequest {
+		t.Fatalf("empty title: got %d, want 400 (%v)", st, out)
+	}
+
+	// PATCH state: pending → in_progress
+	st, out, _ = do(t, "PATCH", base+"/tasks/"+itoaID(taskID)+"/state",
+		map[string]any{"state": "in_progress", "comment": "go"}, nil)
+	if st != http.StatusOK {
+		t.Fatalf("state patch: %d %v", st, out)
+	}
+	if out["state"] != "in_progress" || out["team_name"] == "" {
+		t.Errorf("task view = %v", out)
+	}
+
+	// invalid: done без closure_reason → 400
+	st, out, _ = do(t, "PATCH", base+"/tasks/"+itoaID(taskID)+"/state", map[string]any{"state": "done"}, nil)
+	if st != http.StatusBadRequest {
+		t.Fatalf("done w/o reason: got %d, want 400 (%v)", st, out)
+	}
+
+	// GET task с подзадачами
+	st, out, _ = do(t, "GET", base+"/tasks/"+itoaID(taskID), nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("get task: %d", st)
+	}
+	if _, ok := out["task"]; !ok {
+		t.Errorf("task detail: %v", out)
+	}
+
+	// handoff на roleB
+	st, out, _ = do(t, "POST", base+"/tasks/"+itoaID(taskID)+"/handoff",
+		map[string]any{"to_role_id": roleB, "comment": "next"}, nil)
+	if st != http.StatusCreated {
+		t.Fatalf("handoff: %d %v", st, out)
+	}
+	if out["status"] != "handed_off" {
+		t.Errorf("handoff: %v", out)
+	}
+	newTaskID := int64(out["new_task_id"].(float64))
+
+	// handoff завершённой задачи → 409
+	st, _, _ = do(t, "POST", base+"/tasks/"+itoaID(taskID)+"/handoff", map[string]any{"to_role_id": roleA}, nil)
+	if st != http.StatusConflict {
+		t.Fatalf("handoff closed task: got %d, want 409", st)
+	}
+
+	// история
+	st, out, _ = do(t, "GET", base+"/tasks/"+itoaID(taskID)+"/history", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("history: %d", st)
+	}
+	if len(out["history"].([]any)) < 3 {
+		t.Errorf("history too short: %v", out)
+	}
+
+	// список с фильтрами
+	st, out, _ = do(t, "GET", base+"/tasks?team_id="+itoaID(teamID)+"&state=pending", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("list tasks: %d", st)
+	}
+	if out["total"].(float64) != 1 {
+		t.Errorf("list pending: total=%v, want 1 (new task after handoff)", out["total"])
+	}
+
+	// 404
+	st, _, _ = do(t, "GET", base+"/tasks/999999", nil, nil)
+	if st != http.StatusNotFound {
+		t.Fatalf("unknown task: got %d, want 404", st)
+	}
+
+	// dashboard
+	st, out, _ = do(t, "GET", base+"/dashboard/summary", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("dashboard summary: %d %v", st, out)
+	}
+	if out["teams"].(map[string]any)["total"].(float64) != 1 {
+		t.Errorf("summary teams: %v", out["teams"])
+	}
+	st, out, _ = do(t, "GET", base+"/dashboard/tasks", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("dashboard tasks: %d", st)
+	}
+	if out["total"].(float64) != 1 {
+		t.Errorf("dashboard tasks: %v (expect the new pending task)", out)
+	}
+	if out["tasks"].([]any)[0].(map[string]any)["destination_role_name"] != "worker" {
+		t.Errorf("dashboard task view: %v", out["tasks"])
+	}
+	_ = newTaskID
+}
+
+func itoaID(id int64) string {
+	return strconv.FormatInt(id, 10)
 }

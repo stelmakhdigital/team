@@ -718,9 +718,17 @@ type TopologyLayout struct {
 }
 
 type SegmentLayout struct {
-	SegmentID int64    `json:"segment_id"`
-	Position  Position `json:"position"`
-	Collapsed bool     `json:"collapsed"`
+	SegmentID int64      `json:"segment_id"`
+	Position  SegmentPos `json:"position"`
+	Collapsed bool       `json:"collapsed"`
+}
+
+// SegmentPos — позиция сегмента на холсте (контракт 21: position несёт width/height).
+type SegmentPos struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
 }
 
 type RoleLayout struct {
@@ -760,7 +768,9 @@ func (s *TeamService) GetTopology(ctx context.Context, teamID int64) (*Topology,
 				c = *l.Collapsed
 			}
 			topo.Layout.Segments = append(topo.Layout.Segments, SegmentLayout{
-				SegmentID: sw.ID, Position: Position{X: l.X, Y: l.Y}, Collapsed: c,
+				SegmentID: sw.ID,
+				Position:  SegmentPos{X: l.X, Y: l.Y, Width: l.Width, Height: l.Height},
+				Collapsed: c,
 			})
 		}
 	}

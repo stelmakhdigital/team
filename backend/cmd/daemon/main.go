@@ -53,9 +53,11 @@ func run() error {
 		}
 	}
 
-	svc := service.NewTeamService(db, repository.NewStores(db))
+	stores := repository.NewStores(db)
+	svc := service.NewTeamService(db, stores)
 	svc.SpecsDir = cfg.SpecsDir
-	handler := httpapi.NewServer(svc, httpapi.Options{Logger: logger, APIKeys: cfg.APIKeys, DB: db})
+	tsvc := service.NewTaskService(db, stores)
+	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{Logger: logger, APIKeys: cfg.APIKeys, DB: db})
 
 	server := &http.Server{
 		Addr:         cfg.ListenAddr,

@@ -1,7 +1,8 @@
 # Frontend status
 
 ## Current phase
-implementation (F1–F8 done; F9 — Team Builder интегрирован с реальным backend, остальные слайсы ждут backend slice 2–5)
+implementation (F1–F8 done; F9 — Team Builder + Dashboard(summary/tasks) + History(task history)
+интегрированы с реальным backend; остальное ждёт backend slice 3–5)
 
 ## Implemented
 - docs/architecture/frontend.md — архитектура и frontend-план (F1–F9)
@@ -14,9 +15,10 @@ implementation (F1–F8 done; F9 — Team Builder интегрирован с р
 - F7: Workflow Editor (blocks, connections, drag, patch)
 - F8: useWebSocket (real + mock-синтетика), unit-тесты (topology, client, mock adapter)
 - F9: Team Builder вертикаль интегрирована с реальным backend (real API client,
-  `tests/realIntegration.test.ts` — 3 интеграционных теста зелёные на живом daemon).
-  Auth заголовок переведён на `X-API-Key` (лид-решение, blockers #9).
-  Остальные экраны — на mocks до backend slice 2–5.
+  `tests/realIntegration.test.ts`). Auth заголовок переведён на `X-API-Key` (лид-решение, blockers #9).
+- F9 (slice 2): Dashboard (summary+tasks) и History (task history) интегрированы
+  с реальным backend; интеграционные тесты расширены (итого 4, все зелёные).
+  Остальные экраны/панели — на mocks до backend slice 3–5.
 
 ## Pages
 - `/` Dashboard
@@ -61,9 +63,9 @@ npm run build      # production build
 
 ## Validation
 - typecheck: OK
-- unit/component tests: OK (vitest, 28 тестов: topology, errors, mock-контракт, UI states, app smoke, real-integration)
+- unit/component tests: OK (vitest, 29 тестов: topology, errors, mock-контракт, UI states, app smoke, real-integration×4)
 - production build: OK
-- интеграция с живым backend: OK (Team Builder vertical: create→topology→validate→save, role config, error envelope)
+- интеграция с живым backend: OK (Team Builder vertical + slice 2: dashboard summary/tasks, task history)
 
 ## Backend impact
 - НУЖЕН: `GET /api/v1/workflows` (список), в контракте только `GET /workflows/:id` (blockers #3)
@@ -76,6 +78,6 @@ npm run build      # production build
 - см. _workspace/blockers.md
 
 ## Next step
-- Ждать backend slice 2 (dashboard, tasks, history) → переключить Dashboard/History на real API
-- Slice 3–5: sessions, messages, workflows/library/WS → по мере готовности
-- Обновить контракт 20: spec relatives `from/to` (blockers #8)
+- Slice 3 (Sessions): переключить Dashboard sessions/alerts + History session history на real API
+- Slice 4: Messages → real; Slice 5: Workflows/Library/WS
+- Добавить tasks-lifecycle client (create/state/handoff) при появлении UI управления задачами

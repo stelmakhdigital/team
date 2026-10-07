@@ -13,7 +13,8 @@ import (
 const rfc3339 = time.RFC3339
 
 type handlers struct {
-	svc *service.TeamService
+	svc  *service.TeamService
+	tsvc *service.TaskService
 }
 
 func limitOffset(q url.Values) (int, int) {

@@ -165,8 +165,10 @@ Numbered SQL-файлы, применяются идемпотентно при 
 - [x] **Slice 1 — Team Builder (текущий):** БД (sqlite/postgres, миграции),
   teams/segments/roles/relatives CRUD, topology, validate, error model,
   middleware, auth-hook, тесты, API-док.
-- [ ] **Slice 2 — Tasks & History:** queue_tasks, history_status,
-  POST/GET/PATCH tasks, handoff/complete, task history, dashboard/summary+tasks.
+- [x] **Slice 2 — Tasks & History (завершён 2026-10-07):** queue_tasks, history_status
+  (миграция 0002), POST/GET/PATCH tasks, handoff, auto-close parent,
+  task history, dashboard/summary+tasks. Тесты: lifecycle, transitions, handoff,
+  dashboard, HTTP roundtrip (~20 тестов).
 - [ ] **Slice 3 — Sessions & Runtime:** sessions + runtime adapters
   (process/tmux/pi, container позже), session lifecycle, watchdog events, alerts,
   dashboard/sessions+alerts, Prometheus `/metrics`.
@@ -177,9 +179,9 @@ Numbered SQL-файлы, применяются идемпотентно при 
 
 ## 13. Known risks / ограничения
 
-1. `docs/contracts/**` (openapi.yaml, api-decisions.md, error-model.md) отсутствовали —
-   создан `docs/contracts/error-model.md` + `docs/contracts/api-decisions.md` как
-   рабочая копия из `20_contract_API.md`; OpenAPI будет сгенерирован в slice 2.
+1. `docs/contracts/**` отсутствовали — созданы `error-model.md` + `api-decisions.md`
+   (рабочая копия из `20_contract_API.md`). OpenAPI — по договорённости с Lead
+   будет сгенерирован в конце проекта (весь API), не в slice 2.
 2. `docs/architecture/integration.md` отсутствует (за Lead) — зафиксировано в blockers.
 3. Контракт не задавал error-схему — предложена (ADR-003), frontend должен
    синхронизировать (влияние: парсинг ошибок).

@@ -1,7 +1,7 @@
 # Backend status
 
 ## Current phase
-implementation (slice 1 done — Team Builder + интеграционные правки по frontend; slice 2 — next)
+implementation (slice 1 done — Team Builder; **slice 2 done — Tasks & History**; slice 3 — next)
 
 ## Implemented
 - Go-модуль `daemon` в `backend/` (Go 1.24, stdlib HTTP, slog).
@@ -28,6 +28,22 @@ implementation (slice 1 done — Team Builder + интеграционные п�
 - GET /roles/{id}/config: парсинг agent.yaml (yaml.v3) с диска, пути ограничены
   `DAEMON_AGENT_SPECS_DIR` (default `agents`) + cwd; stub при отсутствии файла.
 - Error model: единый envelope, коды validation_failed/unauthorized/not_found/conflict/internal.
+
+### Slice 2 — Tasks & History (завершён 2026-10-07)
+- Миграция 0002_tasks (sqlite + postgres): `queue_tasks`, `history_status` (append-only).
+- Domain: Task (pending/in_progress/done/blocked/canceled, closure_reason, parent/subtasks),
+  HistoryEntry, AllowedTransitions.
+- Use cases (service.TaskService): CreateTask (валидация team/roles/parent),
+  UpdateTaskState (только валидные переходы; done требует closure_reason; blocked/started/completed
+  служебные поля; append history), HandoffTask (транзакция: close handed_off_to + новая задача
+  у целевой роли), авто-закрытие родителя (no_follow_on) когда все subtasks завершены,
+  GetTask (+subtasks), ListTasks (фильтры team_id/state/destination_role_id + limit/offset/total),
+  GetTaskHistory, DashboardSummary (teams/tasks; sessions/alerts = 0 до slice 3),
+  DashboardTasks (active + is_stale > 2ч + is_blocked).
+- HTTP: `GET/POST /api/v1/tasks`, `GET /tasks/{id}`, `PATCH /tasks/{id}/state`,
+  `POST /tasks/{id}/handoff`, `GET /tasks/{id}/history`,
+  `GET /api/v1/dashboard/summary`, `GET /api/v1/dashboard/tasks`.
+- 409 на переход из терминального состояния и повторный handoff; 400 на done без closure_reason.
 - Role address вычисляется сервером: `team:segment.role`.
 - Layout хранится в `config.layout` (контракт 21).
 
@@ -53,10 +69,12 @@ DAEMON_DB_DSN=sqlite:./daemon.db ./bin/daemon   # http://localhost:8080
 ```
 
 ## Validation
-- `go test ./...` — PASS (service: 13 тестов; http: вертикаль Team Builder,
-  error format, auth, health).
+- `go test ./...` — PASS (service: 13 тестов slice 1 + 5 тестов slice 2 (lifecycle/transitions,
+  parent auto-close, handoff, validation, dashboard); http: вертикаль Team Builder,
+  TestTasksHTTPFlow, error format, auth, health).
 - `go vet ./...`, `gofmt -l .`, `go build ./...` — чисто.
-- Smoke-тест живого daemon (curl create team с spec → get → validate → 404) — OK.
+- Smoke-тест живого daemon (curl: create team+spec → task → handoff → dashboard/tasks → history)
+  — OK, ответы в формате контракта (team_name/destination_role_name, closure_reason=handed_off_to).
 
 ## Frontend impact
 - Frontend (F1–F8) готов на mocks (typecheck/tests/build OK). Для real mode
@@ -69,10 +87,10 @@ DAEMON_DB_DSN=sqlite:./daemon.db ./bin/daemon   # http://localhost:8080
 
 ## Blockers
 - `docs/architecture/integration.md` отсутствует (Lead) — работаю по agents.md + 20/21.
-- OpenAPI spec — будет в slice 2.
+- OpenAPI spec — договорено с Lead: сгенерировать в конце проекта (весь API).
 - См. `_workspace/blockers.md`.
 
 ## Next step
-- Slice 2: queue_tasks + history_status: `POST/GET /api/v1/tasks`,
-  `PATCH /tasks/{id}/state`, `POST /tasks/{id}/handoff`, `GET /tasks/{id}/history`,
-  `GET /api/v1/dashboard/summary` + `/dashboard/tasks`; OpenAPI-спецификация.
+- Slice 3 (Sessions & Runtime): `sessions` + `runtime_sessions`, runtime adapters
+  (process/tmux/pi), session lifecycle, watchdog alerts, `GET /dashboard/sessions` +
+  `GET /dashboard/alerts`, Prometheus `/metrics` (если Lead подтвердит).

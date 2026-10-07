@@ -2,7 +2,8 @@
 
 ## B1. Отсутствуют документы (зафиксировано 2026-10-07, backend)
 - `docs/contracts/openapi.yaml` — отсутствовал. Создан `docs/contracts/error-model.md`
-  и `docs/contracts/api-decisions.md`; OpenAPI — запланировано (backend, slice 2).
+  и `docs/contracts/api-decisions.md`; OpenAPI — договорено с Lead: сгенерировать в конце
+  проекта (весь API), backend готов.
 - `docs/architecture/integration.md` — отсутствует (область Lead). Backend работает
   по `agents.md` + `20_contract_API.md` как единый контракт.
 - `AGENTS.md` (капсом) — отсутствует, используется `agents.md`.

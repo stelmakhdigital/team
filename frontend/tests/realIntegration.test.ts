@@ -87,4 +87,57 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
       api.teams.createRelative(team.id, { from_role_id: r.from_role_id, to_role_id: r.to_role_id, type: r.type }),
     ).rejects.toMatchObject({ status: 409, code: 'conflict' });
   }, 20_000);
+
+  it('slice 2: dashboard summary/tasks + task history (реальные endpoint UI)', async () => {
+    // summary: контрактные формы (включая alerts total/critical/warning)
+    const summary = await api.dashboard.getSummary();
+    expect(summary.teams).toHaveProperty('total');
+    expect(summary.teams).toHaveProperty('active');
+    expect(summary.tasks).toMatchObject({
+      total: expect.any(Number),
+      pending: expect.any(Number),
+      in_progress: expect.any(Number),
+      blocked: expect.any(Number),
+      done_today: expect.any(Number),
+    });
+    expect(summary.sessions).toMatchObject({
+      total: expect.any(Number),
+      running: expect.any(Number),
+      failed: expect.any(Number),
+    });
+    expect(summary.alerts).toMatchObject({
+      total: expect.any(Number),
+      critical: expect.any(Number),
+      warning: expect.any(Number),
+    });
+    expect(summary).toHaveProperty('updated_at');
+
+    // dashboard/tasks: Task-форма с именами team/role и UI-флагами
+    const dt = await api.dashboard.getTasks();
+    expect(typeof dt.total).toBe('number');
+    if (dt.tasks.length > 0) {
+      const t = dt.tasks[0];
+      expect(t).toMatchObject({
+        id: expect.any(Number),
+        team_id: expect.any(Number),
+        title: expect.any(String),
+        state: expect.any(String),
+        destination_role_name: expect.any(String),
+        is_stale: expect.any(Boolean),
+        is_blocked: expect.any(Boolean),
+      });
+    }
+
+    // task history: GET /tasks/{id}/history (контракт TaskHistoryEntry)
+    if (dt.tasks.length > 0) {
+      const h = await api.history.getTaskHistory(dt.tasks[0].id);
+      expect(Array.isArray(h.history)).toBe(true);
+      if (h.history.length > 0) {
+        expect(h.history[0]).toHaveProperty('queue_task_id');
+        expect(h.history[0]).toHaveProperty('to_state');
+        expect(h.history[0]).toHaveProperty('actor_type');
+        expect(h.history[0]).toHaveProperty('created_at');
+      }
+    }
+  }, 30_000);
 });

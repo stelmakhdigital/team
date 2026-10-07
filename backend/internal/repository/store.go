@@ -22,6 +22,8 @@ type Stores struct {
 	Segments  *SegmentRepo
 	Roles     *RoleRepo
 	Relatives *RelativeRepo
+	Tasks     *TaskRepo
+	History   *HistoryRepo
 }
 
 func NewStores(db *sql.DB) *Stores {
@@ -30,6 +32,8 @@ func NewStores(db *sql.DB) *Stores {
 		Segments:  &SegmentRepo{db: db},
 		Roles:     &RoleRepo{db: db},
 		Relatives: &RelativeRepo{db: db},
+		Tasks:     &TaskRepo{db: db},
+		History:   &HistoryRepo{db: db},
 	}
 }
 

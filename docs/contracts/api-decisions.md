@@ -38,3 +38,14 @@
     флаг `save_to_library` сейчас принимается и игнорируется.
 
 Изменения контракта (относительно 20/21): нет — только уточнения.
+
+## Slice 2: Tasks & History (2026-10-07)
+
+- Переходы состояний: `pending → in_progress|done|blocked|canceled`; `in_progress → done|blocked|canceled`; `blocked → pending|in_progress|done|canceled`. Из терминальных (`done`/`canceled`) — 409 conflict.
+- `PATCH /tasks/{id}/state` при `to_state=done` требует `closure_reason` из домена контракта → иначе 400 validation_failed.
+- `handoff` = транзакция: закрытие исходной задачи (`done`/`handed_off_to`, `closure_target_id`=новая) + создание pending-задачи у целевой роли (`source_role_id`=исходная роль).
+- Родительская задача закрывается автоматически (`done`/`no_follow_on`, actor=`daemon`), когда все subtasks в терминальных состояниях.
+- `is_stale` = `in_progress` и `updated_at` старше 2 часов; `is_blocked` = state `blocked`.
+- Dashboard: `summary` (teams/tasks/sessions=0/alerts=0 до slice 3), `tasks` = active (pending/in_progress/blocked) с team_name/role_name.
+- Миграция 0002: `queue_tasks`, `history_status` (append-only). Колонки `project_id`/`session_id` добавятся с соответствующими slice'ами.
+- История: `GET /tasks/{id}/history` — все записи, ASC (created, id), limit/offset + total.
