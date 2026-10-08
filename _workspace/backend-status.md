@@ -297,9 +297,9 @@ DAEMON_DB_DSN=sqlite:./daemon.db ./bin/daemon   # http://localhost:8080
   context-поля из JSONL (pct 30, input 60000, output 300), omit без usage.
 
 ## Next step
-- R4 (frontend) — реальные context%/tokens + live-терминал popover; мой срез готов.
+- Фронтенд R1–R5 **закрыты** (8015c81 R4, 72dc93b R5, 07ff0a1 план) — backend-хвостов по UI нет.
 - PG (опционально): rewriter + `daemon migrate pg` реализованы (B3, 2026-10-08);
-  e2e-проверка — при появлении PG-окружения. До того PG-DSN не используется.
+  e2e-проверка — при появлении PG-окружения (критерий ADR-004 п.3). До того PG-DSN не используется.
 - Prometheus `/metrics` (при необходимости; договор с lead'ом).
 - OpenAPI-спека — в конце проекта (полный API).
 
