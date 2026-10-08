@@ -63,5 +63,16 @@
   должен стримить tail файла по WS (срез R4).
 - Mock-режим: все новые поля/события покрываем в mock (принцип «mock не отстаёт»).
 
+## Статус (2026-10-08)
+- R1 ✅ 1e5501c — граф React Flow + авто-layout
+- R2 ✅ 37185c1 — edit-режим (hybrid)
+- YAML ✅ 0aac0aa — TeamSpec export/create/merge
+- R3 ✅ 28417b2 + 85f101c — токены, таблица, дашборд, dead-canvas removal
+- **Slice 7 (backend)** ✅ CLOSED: d0721cb + c36bd45 (DoD), frontend-часть 5de15e2/2749fcb,
+  lead-верификация: pong 201 + 88/88 vs :8080 (25c9465)
+- **R4 ✅ 8015c81** — live-метрики (ctx%/tokens/model, пороги 60/80) + live-терминал
+  (WS session.output, popover) на карточках; mock с метриками; 75/75
+
 ## Команда/порядок
-R1 → R2 → R4 (backend параллельно) → R3 → R5. Каждая фаза — коммит + зелёные тесты.
+R1 → R2 → YAML → R3 → Slice7/R4. Осталось: **R5 — рефакторинг** (дедупликация
+state-компонентов, чистка; canvas уже удалён). Каждая фаза — коммит + зелёные тесты.
