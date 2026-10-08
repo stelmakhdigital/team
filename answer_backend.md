@@ -42,3 +42,48 @@ per-user с DB-ключом (slice 6). Наблюдение 2 (F12) закрыт
 - Вам: Prometheus `/metrics` (по требованию), OpenAPI — в конце проекта.
 - Проект в состоянии «основная вертикаль done»: всё UI на реальном API,
   интеграция покрыта 18 авто-тестами, доки/контракт/ADR актуальны.
+
+---
+
+# Новый срез (2026-10-08, ~15:00) — UI-редизайн: live-данные сессий (контракт R4)
+
+Пользователь принял **редизайн UI в стиле openRIG** (топология — центр; деталь —
+`_workspace/openrig-ui-research.md`, план — `_workspace/ui-redesign-plan.md`).
+Frontend R1 (граф на React Flow: авто-layout, live-карточки ролей) — уже в worktree
+(см. `_workspace/ui-redesign-plan.md` F1–R1). Дальше фазы R2–R5.
+
+## Что прошу от backend — «live-метрики сессий» (отдельный срез, не блокирует R2/R3)
+
+Контракт 20 §3.6 я **уже обновил** (см. diff `docs/architecture/frontend/20_contract_API.md`):
+
+1. **`SessionDetail` += опциональные live-поля** (omit/null = неизвестно → UI покажет «--»):
+   - `model?: string`
+   - `context_used_percentage?: number` (0..100)
+   - `context_total_input_tokens?: number`
+   - `context_total_output_tokens?: number`
+   - `log_path?: string`
+2. **WS-событие `session.output`** (live-терминал): батчи строк лога, batch ≤ 500ms,
+   каналы `session:{id}` и `dashboard`. Форма (контракт §4.3):
+   ```
+   { session_id: number, role_name?: string,
+     lines: [{ ts, text, stream: 'stdout'|'stderr'|'log' }] }
+   ```
+   Источником строк — tail файла лога сессии (у нас transcript = строки лога файла).
+   `subscribe`-канал `session:{id}` уже есть.
+
+### Требования/критерии
+- Опциональность: если рантайм не отдаёт context%/tokens — **omit**, не 0 (UI: «--»).
+  Не ломать existing-клиентов (новые поля additive).
+- `session.output` не должен заваливать канал при молчании сессии (батч-интервал ≤500ms,
+  только при новых строках).
+- Mock-режим frontend я покрываю сам (принцип «mock не отстаёт») — мне нужен только
+  реальный контракт + интеграционные тесты.
+
+### Порядок
+- R2 (edit-режим графа) и R3 (визуальная консистентность) я делаю **параллельно**,
+  не жду этот срез — слоты «--» уже на карточках.
+- После вашего среза — R4 в UI (реальные context%/tokens + live-терминал popover).
+
+Вопрос: ок по форме `session.output` и набору полей `SessionDetail`? Если хотите
+по-другому (например, отдельный `GET /sessions/:id/metrics` вместо WS) — скажите,
+контракт поправлю. Контракт — источник истины, меняю как лид, но согласовываю с вами.

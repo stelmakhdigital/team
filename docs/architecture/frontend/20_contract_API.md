@@ -594,6 +594,13 @@ interface SessionDetail {
   exit_code?: number;     // после stopped/failed
   created_at: string;
   updated_at: string;
+  // Live-метрики (slice 7, добавлено 2026-10-08 — редизайн UI, openRIG-паритет).
+  // Опускаться/нуль = неизвестно (UI показывает «--»).
+  model?: string;                  // модель рантайма (если известно)
+  context_used_percentage?: number; // 0..100, использование контекста (если рантайм отдаёт)
+  context_total_input_tokens?: number;
+  context_total_output_tokens?: number;
+  log_path?: string;               // путь к файлу лога (для transcript)
 }
 
 // GET /api/v1/sessions/:id — SessionDetail (404 not_found)
@@ -1057,10 +1064,18 @@ interface WSClientMessage {
 
 // Server → Client
 interface WSServerMessage {
-  type: 'task.created' | 'task.state_changed' | 'session.started' | 
-        'session.stopped' | 'message.sent' | 'alert.created';
+  type: 'task.created' | 'task.state_changed' | 'session.started' |
+        'session.stopped' | 'session.output' | 'message.sent' | 'alert.created';
   data: any;
   timestamp: string;
+}
+
+// session.output (slice 7, добавлено 2026-10-08 — live-терминал, openRIG-паритет):
+// батчи строк лога сессии (stdout/stderr/лог), batch ≤ 500ms, каналы 'session:{id}' и 'dashboard'.
+interface SessionOutputEvent {
+  session_id: number;
+  role_name?: string;
+  lines: Array<{ ts: string; text: string; stream: 'stdout' | 'stderr' | 'log' }>;
 }
 
 // Примеры событий

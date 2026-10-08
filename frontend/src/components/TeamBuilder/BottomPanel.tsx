@@ -1,13 +1,6 @@
 import type { TopologyError, TopologyWarning } from '../../types/api';
 
 interface BottomPanelProps {
-  zoom: number;
-  onZoom: (z: number) => void;
-  onFit: () => void;
-  grid: boolean;
-  onGrid: (v: boolean) => void;
-  snap: boolean;
-  onSnap: (v: boolean) => void;
   validating: boolean;
   validation: { is_valid: boolean; errors: TopologyError[]; warnings: TopologyWarning[] } | null;
   onValidate: () => void;
@@ -18,30 +11,11 @@ interface BottomPanelProps {
 }
 
 export default function BottomPanel(props: BottomPanelProps) {
-  const { zoom, onZoom, onFit, grid, onGrid, snap, onSnap, validating, validation, onValidate, saving, onSave, onDeleteSelection, selectionLabel } = props;
+  const { validating, validation, onValidate, saving, onSave, onDeleteSelection, selectionLabel } = props;
   return (
     <div className="bottom-panel">
       <div className="bottom-left">
-        <div className="zoom-controls" aria-label="Zoom">
-          <button className="btn-icon" onClick={() => onZoom(Math.max(0.4, zoom - 0.1))} aria-label="Zoom out">
-            −
-          </button>
-          <span>{Math.round(zoom * 100)}%</span>
-          <button className="btn-icon" onClick={() => onZoom(Math.min(2, zoom + 0.1))} aria-label="Zoom in">
-            +
-          </button>
-          <button className="btn-icon" onClick={onFit} aria-label="Fit to view" title="Fit whole topology into view">
-            ⤢
-          </button>
-        </div>
-        <label className="check">
-          <input type="checkbox" checked={grid} onChange={(e) => onGrid(e.target.checked)} />
-          Grid
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={snap} onChange={(e) => onSnap(e.target.checked)} />
-          Snap
-        </label>
+        <span className="muted small">Zoom: React Flow controls (⊕/⊖), fit — автоматически</span>
       </div>
 
       <div className="bottom-center">

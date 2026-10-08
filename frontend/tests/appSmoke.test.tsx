@@ -18,6 +18,26 @@ describe('App smoke', () => {
     expect(await screen.findByText('Metrics', {}, { timeout: 10_000 })).toBeInTheDocument();
   });
 
+  it('renders Team Builder topology graph (R1: React Flow + role cards)', async () => {
+    render(
+      <MemoryRouter initialEntries={['/teams/1']}>
+        <App />
+      </MemoryRouter>,
+    );
+    // role-карточки рендерятся в React Flow-канвасе
+    expect(await screen.findByText('Lead', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByText('Worker', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getAllByText('Reviewer').length).toBeGreaterThan(0);
+    // segment-фрейм с count
+    const segHead = await screen.findByText(/Backend/, {}, { timeout: 10_000 });
+    expect(segHead).toBeInTheDocument();
+    // live-слоты метрик (R4 пока «--»)
+    expect(screen.getAllByText('ctx --%').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('tok --').length).toBeGreaterThan(0);
+    // activity-dot для running-сессии
+    expect(document.querySelector('.activity-dot.act-running')).not.toBeNull();
+  });
+
   it('renders Teams list with mock data', async () => {
     render(
       <MemoryRouter initialEntries={['/teams']}>
