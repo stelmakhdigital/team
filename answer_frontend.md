@@ -1,63 +1,48 @@
-# Ответ backend → лид (2026-10-08, ~15:40) — Slice 7 (live-метрики сессий) готов
+# Ответ backend → лид (2026-10-08, ~18:30) — DoD slice 7 закрыт
 
-## Коротко: форма `session.output` и поля `SessionDetail` — ок, реализованы как в контракте
+## 1. ✅ HTTP-интеграционные тесты — готовы (`internal/api/http/session_live_handlers_test.go`)
 
-Ваш вопрос «ок по форме?» — **да, без изменений**. Реализовано 1:1 по обновлённому
-контракту 20 §3.6/§4.3, live-проверено на :8080. WS-подход (не отдельный
-`GET /metrics`) оставлен — он уже есть в шине, и live-терминал по REST-поллингу
-был бы хуже.
+- **`TestSessionLiveFieldsHTTP`**:
+  - сессия с JSONL usage → `GET /sessions/:id`: `context_used_percentage ≈ 10`
+    (20000/200000), `context_total_input_tokens = 20000`, `context_total_output_tokens = 10`;
+  - сессия с обычным выводом (TUI-подобный, без usage) → context-поля **отсутствуют
+    в JSON** (assert absence, не 0);
+  - `log_path` — присутствует в обоих; `model` — omit для process (pi-ветка покрыта
+    unit `TestSessionModelFromPiConfig` — реальный pi в HTTP-тесте не поднимаем).
+- **`TestSessionOutputWSHTTP`** (WS e2e на httptest-сервере):
+  - connect → `subscribe ['session:{id}', 'dashboard']` → сессия пишет строки →
+    `session.output` c `lines[] = {ts ISO, text, stream:'stdout'}` (assert session_id,
+    role_name, ts, stream, timestamp);
+  - **молчание → тишина**: 1.3s без новых строк → 0 session.output;
+  - **stop → тейлер остановлен**: после `DELETE /sessions/{id}` — 0 session.output.
+- `wsCollector` дополнен `snapshot()` (безопасный скан событий).
+- `go test -count=1 ./...` — PASS (http 4.5s + service + database).
 
-## Что сделано (коммит в origin/master — см. `git log`)
+## 2. ✅ :8080 — на новом бинаре (master)
 
-**1. `SessionDetail` += опциональные live-поля** (`internal/service/session_live.go`):
-- `log_path` — всегда (`logs/sessions/session-<id>.log`);
-- `model` — только `runtime_type=pi`, из конфига сессии
-  (`configs/sessions/session-<id>.yaml`); для process/tmux — omit;
-- `context_total_input_tokens` — Σ(input_tokens + cache_read_input_tokens) по всем
-  JSONL-записям `usage` в transcript-логе;
-- `context_total_output_tokens` — Σ(output_tokens);
-- `context_used_percentage` — последняя запись: (input+cache_read)/окно*100,
-  окно = `config.context_window`, иначе 200000 (допущение задокументировано).
+Пересобрал и перезапустил (бинарь из кода master, включая фикс CreateKey ниже).
+Текущее окружение:
+- daemon: `127.0.0.1:8080`, DB `/tmp/daemon-slice7.db` (свежая), log `/tmp/daemon-slice7.log`
+- `INTEGRATION_API_KEY` = `env-live-key` (admin)
+- **ВНИМАНИЕ: БД была пересоздана — старые itest-ключи недействительны.** Новые:
+  - viewer: `sk_a2cec42fb98906866e9cce9730e729b409cb67ff72b456b0`
+  - operator: `sk_fdeddd04a882e6d3c4fba271d665e9b556b0ba249b1bb9ec`
+- Live-проверено: viewer `POST /teams` → 403, operator `POST /teams` → 201.
 
-**Честность (важно)**: ТUI-вывод pi (ANSI) usage НЕ содержит → context-поля **omit
-(не 0!)**, UI покажет «--». Заполняются, когда рантайм пишет JSONL с usage
-(формат pi JSONL `{"message":{"usage":{...}}}` / `{"usage":{...}}`). Всё additive —
-existing-клиенты не ломаются.
+## 3. ✅ Ограничение зафиксировано в доке
 
-**2. WS `session.output`** (`internal/service/session_tailer.go`):
-- тейлер transcript-лога, батчи **≤500ms**, событие **только при новых строках**
-  (молчание → тишина);
-- каналы `session:<id>` + `team:<id>` + `dashboard`;
-- `lines[] = {ts, text, stream:"stdout"}` — stdout+stderr мержены в один лог
-  (адаптеры пишут `2>&1`), поэтому stream всегда "stdout"; ts — время батча
-  (per-line ts из файла недоступен — задокументировано);
-- лимиты: 1MB/тик, 500 строк/событие, 4000 символов/строка;
-- тейлер живёт от start до stopped/failed → после stop тишина.
+`docs/contracts/api-decisions.md` (Slice 7, дополнение): тейлер в памяти —
+после рестарта демона live-терминал у выживших сессий не возобновляется
+(runtime-процессы всё равно теряют привязку к реестру; REST/transcript не страдают).
+Контракт 20 §4.3 дополнен: канал `team:{id}` — суперсет (lента активности команды).
 
-## Live-проверка (127.0.0.1:8080, свежий бинарь)
-- WS (маскированный клиент, подписка `session:<id>`+`dashboard`): 5 батчей
-  `lines=2/1/1/1/1` (live-1..live-6), `session_id`/`role_name`/`stream` корректны.
-- `GET /sessions/{id}`: `log_path` есть; plain-sh → context-поля **отсутствуют**
-  (omit); сессия с JSONL-usage → `context_used_percentage: 30`,
-  `context_total_input_tokens: 60000`, `context_total_output_tokens: 300`
-  (50000+10000 cache / 200000 = 30% ✓).
+## Бонус: найден и закоммичен регресс в `admin keys create` (6de6261)
 
-## Тесты
-`go test -count=1 ./...` — PASS (http + service + database).
-- `session_live_test.go`: usage-парсинг (JSONL top-level и message.usage),
-  window-override, cap 100%, model из pi-конфига (pi/absent/process),
-  `readNewLogLines` (partial строка, truncate/rotate, idle).
-- `TestSessionOutputEvents`: батчи, каналы session+dashboard, stream/ts, тишина после stop.
-- `TestSessionLiveMetricsView`, `TestSessionLiveMetricsNoUsage`: full path через GetSessionView.
+Ваш F14-прогон случайно обнажил баг: `INSERT INTO users ... ON CONFLICT (username)
+DO NOTHING` — второй ключ для **того же `--user`** с другой ролью молча наследовал
+роль первого ключа (operator-ключ → viewer-права → 403 на POST /teams). Поймал его,
+когда пересоздавал itest-ключи с общим `--user=fe-it`. Фикс: существующий user с
+другой ролью → явная ошибка `user "X" already has role "Y" (requested "Z")`;
+та же роль → ок. Регресс-тест `TestCreateKeyExistingUserRole`, live-проверено.
 
-## Доки
-- `docs/contracts/api-decisions.md` — раздел «Slice 7: live-метрики сессий + session.output»
-  (семантика полей, честность omit, лимиты, ts-семантика).
-- `backend/README.md` — раздел «Sessions live-метрики и live-терминал (slice 7)».
-- `_workspace/backend-status.md`, снапшет `backend.md` — обновлены.
-
-## Для R4 (frontend)
-Слоты «--» можно заменять реальными данными: подписка на `session:{id}` уже даёт
-`session.output` (live-терминал), `GET /sessions` отдаёт context%/tokens. Если
-рантайм usage не отдаёт — поля отсутсвуют (не 0), UI-логика «--» остаётся.
-Вопрос по форме закрыт, можно строить R4 поверх.
+## Статус slice 7: **DONE** (DoD закрыт). Жду ваш фронтенд-свип против :8080.

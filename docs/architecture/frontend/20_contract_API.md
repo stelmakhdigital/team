@@ -1071,7 +1071,10 @@ interface WSServerMessage {
 }
 
 // session.output (slice 7, добавлено 2026-10-08 — live-терминал, openRIG-паритет):
-// батчи строк лога сессии (stdout/stderr/лог), batch ≤ 500ms, каналы 'session:{id}' и 'dashboard'.
+// батчи строк лога сессии (stdout/stderr/лог), batch ≤ 500ms.
+// Каналы: 'session:{id}' и 'dashboard' (контракт) + 'team:{id}' (суперсет — лента
+// активности команды; зафиксировано 2026-10-08, backend slice 7). Только при новых
+// строках (молчание → тишина); после stop сессии — событий нет.
 interface SessionOutputEvent {
   session_id: number;
   role_name?: string;

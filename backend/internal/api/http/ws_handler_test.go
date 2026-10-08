@@ -76,6 +76,15 @@ func (c *wsCollector) count() int {
 	return len(c.events)
 }
 
+// snapshot — копия полученных событий (тестовый скан без блокировок/таймаутов).
+func (c *wsCollector) snapshot() []map[string]any {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]map[string]any, len(c.events))
+	copy(out, c.events)
+	return out
+}
+
 // TestWSSubscribeAndEvents — connect → событие ДО subscribe не приходит →
 // subscribe → REST-действия → события приходят по каналам.
 func TestWSSubscribeAndEvents(t *testing.T) {

@@ -389,3 +389,21 @@ History Viewer (audit + transcripts), Prometheus `/metrics`.
   the user's role`; та же роль → ок (ещё один ключ тому же user'у).
 - Регресс-тест: `TestCreateKeyExistingUserRole`. Live-проверено (viewer 403,
   operator 201, конфликт-сообщение).
+
+### Slice 7 — дополнение (2026-10-08, DoD slice 7)
+
+- **HTTP-интеграционные тесты** (`internal/api/http/session_live_handlers_test.go`):
+  - `TestSessionLiveFieldsHTTP`: JSONL usage → context-поля присутствуют
+    (pct ~10, input 20000, output 10); обычный вывод → context-поля **omit (не 0!)**;
+    `log_path` всегда; `model` omit для process.
+  - `TestSessionOutputWSHTTP`: WS e2e — subscribe `session:{id}`+dashboard →
+    `session.output` с `lines[] {ts, text, stream:'stdout'}`; молчание → тишина
+    (1.3s без событий); stop → тейлер остановлен (нет событий после).
+- **Известное ограничение (зафиксировано, не баг)**: тейлер session.output живёт
+  в памяти процесса daemon'а. После рестарта демона live-терминал у «выживших»
+  сессий НЕ возобновляется (runtime-процессы при рестарте демона в любом случае
+  теряют привязку к реестру daemon'а; transcript-файлы и REST-поля не страдают). Чинить не нужно
+  (решение лида, 2026-10-08).
+- Контракт 20 §4.3: канал `team:{id}` тоже получает `session.output`
+  (суперсет контракта: `session:{id}` + `dashboard` — контракт; `team:{id}` —
+  добавлен, лента активности команды).
