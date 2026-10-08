@@ -6,8 +6,10 @@ import { useQuery } from '../hooks/useQuery';
 import { useToast } from '../components/ui/Toast';
 import { errorMessage, ErrorState, Spinner } from '../components/ui/States';
 import { validateTopologyGraph } from '../lib/topology';
-import type { ValidateTopologyResponse } from '../types/api';
+import type { RelativeType, ValidateTopologyResponse } from '../types/api';
 import TopologyCanvas, { type TopologySelection } from '../components/Topology/TopologyCanvas';
+import { autoLayoutMoves } from '../components/Topology/layout/autoLayout';
+import Toolbar from '../components/TeamBuilder/Toolbar';
 import ConfigPanel, { type ConfigSelection } from '../components/TeamBuilder/ConfigPanel';
 import BottomPanel from '../components/TeamBuilder/BottomPanel';
 
@@ -19,6 +21,8 @@ export default function TeamBuilderPage() {
 
   const [selection, setSelection] = useState<TopologySelection>(null);
   const [validation, setValidation] = useState<ValidateTopologyResponse | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [connectType, setConnectType] = useState<RelativeType>('delegates_to');
 
   const commitRefetch = useCallback(() => refetch(), [refetch]);
 
@@ -36,6 +40,11 @@ export default function TeamBuilderPage() {
   const moveSegment = useMutation(
     (segmentId: number, req: Parameters<typeof api.teams.updateSegmentLayout>[1]) => api.teams.updateSegmentLayout(segmentId, req),
   );
+  const createSegment = useMutation((req: Parameters<typeof api.teams.createSegment>[1]) => api.teams.createSegment(id, req));
+  const createRole = useMutation(
+    (segmentId: number, req: Parameters<typeof api.teams.createRole>[1]) => api.teams.createRole(segmentId, req),
+  );
+  const createRelative = useMutation((req: Parameters<typeof api.teams.createRelative>[1]) => api.teams.createRelative(id, req));
   const deleteRelative = useMutation((rid: number) => api.teams.deleteRelative(rid));
   const validate = useMutation(() => api.teams.validateTopology(id));
   const save = useMutation(() => api.teams.saveTopology(id, { save_to_library: false }));
@@ -56,6 +65,56 @@ export default function TeamBuilderPage() {
       commitRefetch();
     } catch {
       toast('error', errorMessage(moveSegment.error ?? new Error('Failed to move segment')));
+      commitRefetch();
+    }
+  };
+
+  const onConnect = async (fromRoleId: number, toRoleId: number) => {
+    try {
+      await createRelative.mutate({ from_role_id: fromRoleId, to_role_id: toRoleId, type: connectType });
+      toast('success', `Connection created (${connectType})`);
+      commitRefetch();
+    } catch {
+      toast('error', errorMessage(createRelative.error ?? new Error('Failed to create connection')));
+    }
+  };
+
+  const onDropSegment = async (pos: { x: number; y: number }, name: string) => {
+    try {
+      await createSegment.mutate({ name, layout: { x: pos.x, y: pos.y } });
+      toast('success', `Segment '${name}' added`);
+      commitRefetch();
+    } catch {
+      toast('error', errorMessage(createSegment.error ?? new Error('Failed to add segment')));
+    }
+  };
+
+  const onDropRole = async (pos: { x: number; y: number }, segmentId: number | null, name: string, agentSpec?: string) => {
+    if (segmentId == null) {
+      toast('error', 'Drop the role inside a segment');
+      return;
+    }
+    try {
+      await createRole.mutate(segmentId, { name, agent_spec: agentSpec ?? 'pi-worker', layout: { x: pos.x, y: pos.y } });
+      toast('success', `Role '${name}' added`);
+      commitRefetch();
+    } catch {
+      toast('error', errorMessage(createRole.error ?? new Error('Failed to add role')));
+    }
+  };
+
+  const applyAutoLayout = async () => {
+    if (!data) return;
+    const ops = autoLayoutMoves(segments, roles, relatives);
+    const jobs: Array<Promise<unknown>> = [];
+    for (const s of ops.segments) jobs.push(moveSegment.mutate(s.segmentId, { position: s.position, size: s.size }));
+    for (const r of ops.roles) jobs.push(moveRole.mutate(r.roleId, { position: r.position }));
+    try {
+      await Promise.all(jobs);
+      toast('success', 'Auto layout applied');
+      commitRefetch();
+    } catch {
+      toast('error', 'Auto layout failed — some positions not saved');
       commitRefetch();
     }
   };
@@ -119,20 +178,32 @@ export default function TeamBuilderPage() {
           <Link to="/teams" className="crumb">Teams</Link> / {data.team.name}
         </h1>
         <div className="head-actions">
-          <span className="muted small">topology: auto-layout (R1) — edit mode: R2</span>
+          <span className="muted small">{editMode ? 'edit mode — drag nodes / palette / connect' : 'topology: auto-layout'}</span>
+          <button className="btn" onClick={applyAutoLayout} title="Recompute auto layout and save positions">
+            ✨ Auto layout
+          </button>
+          <button className={editMode ? 'btn btn-primary' : 'btn'} onClick={() => setEditMode((v) => !v)} aria-pressed={editMode}>
+            {editMode ? '✓ Done' : '✎ Edit'}
+          </button>
         </div>
       </div>
 
-      <div className="builder">
+      <div className={editMode ? 'builder builder--edit' : 'builder'}>
+        {editMode && <Toolbar connectType={connectType} onConnectType={(t) => setConnectType(t as RelativeType)} />}
+
         <div className="builder-main">
           <div className="topology-canvas-wrap">
             <div className="topology-canvas">
               <TopologyCanvas
                 data={data}
+                editMode={editMode}
                 selection={selection}
                 onSelect={setSelection}
                 onRoleMoved={onRoleMoved}
                 onSegmentMoved={onSegmentMoved}
+                onConnect={onConnect}
+                onDropSegment={onDropSegment}
+                onDropRole={onDropRole}
               />
             </div>
             {localHints && (localHints.errors.length > 0 || localHints.warnings.length > 0) && (

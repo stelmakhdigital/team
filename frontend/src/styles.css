@@ -301,13 +301,15 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 /* ---------- builder (team builder) ---------- */
 
 .page-builder { display: flex; flex-direction: column; height: calc(100vh - 0px); }
-/* R1: 2 колонки (канвас + конфиг); палитра вернётся в R2 (3-я колонка) */
+/* R1: 2 колонки (канвас + конфиг); палитра в edit-режиме (R2) → 3 колонки */
 .builder { display: grid; grid-template-columns: 1fr 300px; gap: 14px; flex: 1; min-height: 0; }
+.builder--edit { grid-template-columns: 210px 1fr 300px; }
 .builder-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
 @media (max-width: 1200px) {
-  .builder { grid-template-columns: 1fr; }
-  .builder .config-panel { display: none; }
+  .builder, .builder--edit { grid-template-columns: 1fr; }
+  .builder .config-panel, .builder--edit .config-panel { display: none; }
+  .builder--edit .toolbar { display: none; }
 }
 
 .toolbar { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow-y: auto; }

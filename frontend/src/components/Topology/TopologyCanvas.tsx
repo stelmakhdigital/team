@@ -9,6 +9,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  useReactFlow,
   type Edge,
   type Node,
 } from '@xyflow/react';
@@ -18,7 +19,21 @@ import { computeTopologyLayout, ROLE_H, ROLE_W, type TopologyLayoutResult } from
 import { RoleNode } from './nodes/RoleNode';
 import { SegmentGroupNode } from './nodes/SegmentGroupNode';
 import { TaskEdge } from './edges/TaskEdge';
+import { DRAG_TYPES } from '../TeamBuilder/palette';
 import '../../topology.css';
+
+interface DropPayload {
+  name: string;
+  agent_spec?: string;
+}
+function parsePayload(raw: string): DropPayload {
+  try {
+    const p = JSON.parse(raw) as DropPayload;
+    return { name: p.name || 'Untitled', agent_spec: p.agent_spec };
+  } catch {
+    return { name: 'Untitled' };
+  }
+}
 
 const nodeTypes = { role: RoleNode, segment: SegmentGroupNode };
 const edgeTypes = { task: TaskEdge };
@@ -43,6 +58,9 @@ interface Props {
   onSelect?: (sel: TopologySelection) => void;
   onRoleMoved?: (roleId: number, pos: { x: number; y: number }) => void; // абсолютные координаты
   onSegmentMoved?: (segmentId: number, pos: { x: number; y: number }) => void;
+  onConnect?: (fromRoleId: number, toRoleId: number) => void;
+  onDropSegment?: (pos: { x: number; y: number }, name: string) => void;
+  onDropRole?: (pos: { x: number; y: number }, segmentId: number | null, name: string, agentSpec?: string) => void;
 }
 
 interface InnerProps extends Props {
@@ -56,9 +74,13 @@ function TopologyCanvasInner({
   onSelect,
   onRoleMoved,
   onSegmentMoved,
+  onConnect,
+  onDropSegment,
+  onDropRole,
   tl,
 }: InnerProps) {
   const { segments, roles, relatives, layout } = data;
+  const { screenToFlowPosition } = useReactFlow();
 
   const { nodes, edges } = useMemo(() => {
     const segNodes: Node[] = segments.map((s) => {
@@ -111,6 +133,35 @@ function TopologyCanvasInner({
     return { nodes: [...segNodes, ...roleNodes], edges: relEdges };
   }, [segments, roles, relatives, layout, selection, editMode, tl]);
 
+  // DnD из палитры (HTML5): screen → flow координаты; роль — только внутрь segment
+  const onDragOver = (e: React.DragEvent) => {
+    if (!editMode) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const onDrop = (e: React.DragEvent) => {
+    if (!editMode) return;
+    e.preventDefault();
+    const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    if (e.dataTransfer.types.includes(DRAG_TYPES.segment)) {
+      const payload = parsePayload(e.dataTransfer.getData(DRAG_TYPES.segment));
+      onDropSegment?.({ x: Math.round(pos.x), y: Math.round(pos.y) }, payload.name);
+      return;
+    }
+    if (e.dataTransfer.types.includes(DRAG_TYPES.role)) {
+      const payload = parsePayload(e.dataTransfer.getData(DRAG_TYPES.role));
+      const host = segments.find((s) => {
+        const p = tl.segments.get(s.id);
+        return p && pos.x >= p.x && pos.x <= p.x + p.width && pos.y >= p.y && pos.y <= p.y + p.height;
+      });
+      onDropRole?.({ x: Math.round(pos.x), y: Math.round(pos.y) }, host?.id ?? null, payload.name, payload.agent_spec);
+    }
+  };
+  const handleConnect = (c: { source?: string; target?: string }) => {
+    if (!c.source?.startsWith('role:') || !c.target?.startsWith('role:')) return;
+    onConnect?.(Number(c.source.slice(5)), Number(c.target.slice(5)));
+  };
+
   return (
     <ReactFlow
       nodes={nodes}
@@ -125,6 +176,9 @@ function TopologyCanvasInner({
       nodesConnectable={editMode}
       elementsSelectable
       deleteKeyCode={null}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onConnect={handleConnect}
       onNodeClick={(_e, n) => {
         if (n.type === 'role') onSelect?.({ type: 'role', id: Number(n.id.slice(5)) });
         else if (n.type === 'segment') onSelect?.({ type: 'segment', id: Number(n.id.slice(4)) });
@@ -136,9 +190,9 @@ function TopologyCanvasInner({
         if (n.type === 'role') {
           const p = tl.roles.get(roleId);
           const sp = p?.parentId != null ? tl.segments.get(p.parentId) : undefined;
-          if (sp) onRoleMoved?.(roleId, { x: n.position.x + sp.x, y: n.position.y + sp.y });
+          if (sp) onRoleMoved?.(roleId, { x: Math.round(n.position.x + sp.x), y: Math.round(n.position.y + sp.y) });
         } else if (n.type === 'segment') {
-          onSegmentMoved?.(Number(n.id.slice(4)), { x: n.position.x, y: n.position.y });
+          onSegmentMoved?.(Number(n.id.slice(4)), { x: Math.round(n.position.x), y: Math.round(n.position.y) });
         }
       }}
       proOptions={{ hideAttribution: true }}

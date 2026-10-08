@@ -38,6 +38,21 @@ describe('App smoke', () => {
     expect(document.querySelector('.activity-dot.act-running')).not.toBeNull();
   });
 
+  it('Team Builder edit mode: toggle reveals palette, nodes become draggable', async () => {
+    render(
+      <MemoryRouter initialEntries={['/teams/1']}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByText('Lead', {}, { timeout: 10_000 });
+    // до edit: палитры нет
+    expect(screen.queryByLabelText('Builder palette')).toBeNull();
+    // включаем edit
+    (await screen.findByRole('button', { name: /edit/i })).click();
+    expect(await screen.findByLabelText('Builder palette', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
+  });
+
   it('renders Teams list with mock data', async () => {
     render(
       <MemoryRouter initialEntries={['/teams']}>

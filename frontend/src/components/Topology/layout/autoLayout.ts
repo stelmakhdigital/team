@@ -157,6 +157,38 @@ export function hasSavedLayout(layout?: TopologyLayout): boolean {
 }
 
 /**
+ * «Reset to auto»: операции PATCH, которые записывают авто-layout как сохранённый.
+ * (API не имеет «clear layout» — сохраняем вычисленные позиции.)
+ * Standalone-роли (без segment) не включаются — RoleLayout требует segment_id.
+ */
+export interface LayoutMoveOps {
+  segments: Array<{ segmentId: number; position: { x: number; y: number }; size: { width: number; height: number } }>;
+  roles: Array<{ roleId: number; position: { x: number; y: number } }>;
+}
+
+export function autoLayoutMoves(
+  segments: Segment[],
+  roles: Role[],
+  relatives: Relative[],
+): LayoutMoveOps {
+  const res = computeTopologyLayout(segments, roles, relatives);
+  const segOps: LayoutMoveOps['segments'] = [];
+  const roleOps: LayoutMoveOps['roles'] = [];
+  for (const s of segments) {
+    const p = res.segments.get(s.id);
+    if (p) segOps.push({ segmentId: s.id, position: { x: p.x, y: p.y }, size: { width: p.width, height: p.height } });
+  }
+  for (const r of roles) {
+    const p = res.roles.get(r.id);
+    if (p?.parentId != null) {
+      const sp = res.segments.get(p.parentId);
+      if (sp) roleOps.push({ roleId: r.id, position: { x: sp.x + p.x, y: sp.y + p.y } });
+    }
+  }
+  return { segments: segOps, roles: roleOps };
+}
+
+/**
  * Основной вход: расчёт позиций.
  * `layout` — сохранённый пользовательский layout (hybrid: побеждает, если есть).
  */

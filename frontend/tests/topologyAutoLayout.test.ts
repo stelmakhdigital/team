@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Relative, Role, Segment } from '../src/types/api';
 import {
+  autoLayoutMoves,
   computeTopologyLayout,
   memberPosition,
   measureSegment,
@@ -177,5 +178,35 @@ describe('computeTopologyLayout', () => {
     const res = computeTopologyLayout([], [], []);
     expect(res.segments.size).toBe(0);
     expect(res.roles.size).toBe(0);
+  });
+});
+
+describe('autoLayoutMoves (reset-to-auto)', () => {
+  const A = seg(1, 'orch');
+  const B = seg(2, 'dev');
+  const r1 = role(1, 1, 'lead');
+  const r2 = role(2, 2, 'impl');
+
+  it('абсолютные позиции ролей = segment.pos + relative', () => {
+    const ops = autoLayoutMoves([B, A], [r2, r1], [rel(1, 1, 2, 'delegates_to')]);
+    expect(ops.segments).toHaveLength(2);
+    expect(ops.roles).toHaveLength(2);
+    for (const r of ops.roles) {
+      const segOp = ops.segments.find((s) => s.segmentId === (r.roleId === 1 ? 1 : 2))!;
+      expect(r.position.x).toBeGreaterThanOrEqual(segOp.position.x);
+      expect(r.position.y).toBeGreaterThanOrEqual(segOp.position.y);
+    }
+  });
+
+  it('standalone-роли не включаются (нет segment_id)', () => {
+    const orphan = role(9, 99, 'free');
+    const ops = autoLayoutMoves([A], [r1, orphan], []);
+    expect(ops.roles.map((r) => r.roleId)).toEqual([1]);
+  });
+
+  it('идемпотентен: повторный расчёт даёт те же позиции', () => {
+    const a = autoLayoutMoves([B, A], [r2, r1], [rel(1, 1, 2, 'delegates_to')]);
+    const b = autoLayoutMoves([B, A], [r2, r1], [rel(1, 1, 2, 'delegates_to')]);
+    expect(a).toEqual(b);
   });
 });
