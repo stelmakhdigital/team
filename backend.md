@@ -32,9 +32,9 @@
   PostgreSQL по DSN. Зависимости: `modernc.org/sqlite`,
   `github.com/jackc/pgx/v5/stdlib`, `gopkg.in/yaml.v3`,
   **`github.com/gorilla/websocket v1.5.3`** (slice 5a, WS).
-- Git: репозиторий существует. Коммиты — за пользователем/лидом, я не коммичу.
-  На момент снимка: **много незакоммиченных изменений** (slices 2–6; slice 2
-  был закоммичен лидом как «Backend slice 2 + lead integration»).
+- Git: репозиторий существует. **2026-10-08: весь WIP (slices 3–6 + PG-опция) закоммичен
+  и запушен (коммит `4c472e3`, origin master)** — по просьбе пользователя.
+  Дальше коммиты — только при новых изменениях.
 
 ## 3. Что сделано (статус слайсов)
 - **Slice 1 — Team Builder**: DONE (CRUD, topology, validate, agent specs,
