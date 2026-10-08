@@ -140,4 +140,18 @@ describe('App smoke', () => {
     expect(screen.getAllByText('pi-go-backend').length).toBeGreaterThan(0);
     expect(screen.getAllByText('running').length).toBeGreaterThan(0);
   }, 15_000);
+
+  it('R4: role cards show live metrics (ctx%/tokens/model) from sessions', async () => {
+    render(
+      <MemoryRouter initialEntries={['/teams/1']}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByText('Lead', {}, { timeout: 10_000 });
+    // live-метрики из mock-сессий (slice 7): Lead 42%, Worker 67%
+    expect(await screen.findByText('ctx 42%', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByText('ctx 67%')).toBeInTheDocument();
+    expect(screen.getByText('tok 85k')).toBeInTheDocument();
+    expect(screen.getAllByText('anthropic/claude-sonnet').length).toBeGreaterThan(0);
+  }, 15_000);
 });

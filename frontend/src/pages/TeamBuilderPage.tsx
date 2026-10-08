@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
+import { useWebSocket } from '../hooks/useWebSocket';
 import { useToast } from '../components/ui/Toast';
 import { errorMessage, ErrorState, Spinner } from '../components/ui/States';
 import { validateTopologyGraph } from '../lib/topology';
@@ -33,6 +34,42 @@ export default function TeamBuilderPage() {
   const navigate = useNavigate();
 
   const commitRefetch = useCallback(() => refetch(), [refetch]);
+
+  // R4 (slice 7): live-сессии роли (ctx%/tokens/model) + live-терминал (session.output)
+  const sessionsQ = useQuery(`team.sessions.${id}`, () => api.sessions.list({ team_id: id }), [id]);
+  // опрос: context%/tokens меняются со временем (WS даёт только терминал)
+  useEffect(() => {
+    const t = setInterval(() => sessionsQ.refetch(), 5000);
+    return () => clearInterval(t);
+  }, [sessionsQ]);
+
+  const [outputs, setOutputs] = useState<Map<number, string[]>>(() => new Map());
+  const outputsRef = useRef(outputs);
+  outputsRef.current = outputs;
+  const { onMessage: setWs } = useWebSocket([`team:${id}`]);
+  useEffect(() => {
+    setWs((m) => {
+      if (m.type === 'session.output') {
+        const sid = (m.data as { session_id: number }).session_id;
+        const lines = (m.data as { lines?: Array<{ text: string }> }).lines ?? [];
+        if (lines.length === 0) return;
+        setOutputs((prev) => {
+          const next = new Map(prev);
+          const cur = next.get(sid) ?? [];
+          next.set(sid, [...cur, ...lines.map((l) => l.text)].slice(-200));
+          return next;
+        });
+      } else if (m.type === 'session.started' || m.type === 'session.stopped') {
+        sessionsQ.refetch();
+      }
+    });
+  }, [sessionsQ]);
+
+  const liveSessions = useMemo(() => {
+    const map = new Map<number, NonNullable<typeof sessionsQ.data>['sessions'][number]>();
+    for (const s of sessionsQ.data?.sessions ?? []) map.set(s.role_id, s);
+    return map;
+  }, [sessionsQ.data]);
 
   const segments = data?.segments ?? [];
   const roles = data?.roles ?? [];
@@ -225,6 +262,8 @@ export default function TeamBuilderPage() {
                   onConnect={onConnect}
                   onDropSegment={onDropSegment}
                   onDropRole={onDropRole}
+                  liveSessions={liveSessions}
+                  outputs={outputs}
                 />
               </div>
             ) : (

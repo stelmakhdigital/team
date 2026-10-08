@@ -14,7 +14,7 @@ import {
   type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { GetTopologyResponse, Relative } from '../../types/api';
+import type { GetTopologyResponse, Relative, SessionDetail } from '../../types/api';
 import { computeTopologyLayout, ROLE_H, ROLE_W, type TopologyLayoutResult } from './layout/autoLayout';
 import { RoleNode } from './nodes/RoleNode';
 import { SegmentGroupNode } from './nodes/SegmentGroupNode';
@@ -61,11 +61,17 @@ interface Props {
   onConnect?: (fromRoleId: number, toRoleId: number) => void;
   onDropSegment?: (pos: { x: number; y: number }, name: string) => void;
   onDropRole?: (pos: { x: number; y: number }, segmentId: number | null, name: string, agentSpec?: string) => void;
+  /** R4: live-сессии по role_id (GET /sessions) → ctx%/tokens/model на карточках */
+  liveSessions?: Map<number, SessionDetail>;
+  /** R4: строки live-терминала по session_id (WS session.output) */
+  outputs?: Map<number, string[]>;
 }
 
 interface InnerProps extends Props {
   tl: TopologyLayoutResult;
 }
+
+const MAX_TERM_LINES = 120;
 
 function TopologyCanvasInner({
   data,
@@ -77,6 +83,8 @@ function TopologyCanvasInner({
   onConnect,
   onDropSegment,
   onDropRole,
+  liveSessions,
+  outputs,
   tl,
 }: InnerProps) {
   const { segments, roles, relatives, layout } = data;
@@ -101,6 +109,9 @@ function TopologyCanvasInner({
     const roleNodes: Node[] = roles.map((r) => {
       const p = tl.roles.get(r.id);
       const parent = p?.parentId ?? null;
+      // R4: live-метрики/терминал по сессии роли (если есть)
+      const sess = liveSessions?.get(r.id);
+      const out = sess ? outputs?.get(sess.id) : undefined;
       return {
         id: `role:${r.id}`,
         type: 'role',
@@ -109,7 +120,16 @@ function TopologyCanvasInner({
         height: ROLE_H,
         parentId: parent != null ? `seg:${parent}` : undefined,
         extent: parent != null ? ('parent' as const) : undefined,
-        data: { role: r, selected: selection?.type === 'role' && selection.id === r.id, editMode },
+        data: {
+          role: r,
+          selected: selection?.type === 'role' && selection.id === r.id,
+          editMode,
+          ctxPct: sess?.context_used_percentage ?? null,
+          tokensIn: sess?.context_total_input_tokens ?? null,
+          tokensOut: sess?.context_total_output_tokens ?? null,
+          model: sess?.model ?? null,
+          output: out ? out.slice(-MAX_TERM_LINES) : undefined,
+        },
         draggable: editMode,
         selectable: true,
         connectable: editMode,
@@ -131,7 +151,7 @@ function TopologyCanvasInner({
     });
 
     return { nodes: [...segNodes, ...roleNodes], edges: relEdges };
-  }, [segments, roles, relatives, layout, selection, editMode, tl]);
+  }, [segments, roles, relatives, layout, selection, editMode, tl, liveSessions, outputs]);
 
   // DnD из палитры (HTML5): screen → flow координаты; роль — только внутрь segment
   const onDragOver = (e: React.DragEvent) => {

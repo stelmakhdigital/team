@@ -282,3 +282,61 @@
   padding: 3px 7px;
   pointer-events: none;
 }
+
+/* ---------- R4: live-метрики + live-терминал (session.output) ---------- */
+.role-node-metrics .ctx.ctx-ok { color: var(--emerald); }
+.role-node-metrics .ctx.ctx-warn { color: var(--amber); }
+.role-node-metrics .ctx.ctx-crit { color: var(--red); animation: ctx-blink 1.6s ease-in-out infinite; }
+@keyframes ctx-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) {
+  .role-node-metrics .ctx.ctx-crit { animation: none; }
+}
+
+/* live-терминал: popover при hover (openRIG TerminalPreview) */
+.role-term {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 30;
+  width: 190px;
+  max-width: 90%;
+  background: rgba(2, 6, 23, 0.96);
+  border: 1px solid var(--border, #2d333b);
+  border-left: 2px solid var(--emerald, #10b981);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.role-node:hover .role-term,
+.role-node:focus-within .role-term {
+  opacity: 1;
+  transform: translateY(0);
+}
+.role-term-head {
+  padding: 3px 7px;
+  font-size: 9px;
+  color: var(--emerald, #10b981);
+  border-bottom: 1px solid var(--border, #2d333b);
+  letter-spacing: 0.03em;
+}
+.role-term-body {
+  padding: 5px 7px;
+  max-height: 96px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.role-term-line {
+  font-size: 9px;
+  line-height: 1.45;
+  color: var(--text, #e6edf3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.role-term-line.dim { color: var(--dim, #64748b); }

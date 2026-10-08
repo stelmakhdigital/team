@@ -339,6 +339,12 @@ function seed(): DB {
       uptime_seconds: 10_800,
       cpu_percent: 12.4,
       memory_bytes: 512 * 1024 * 1024,
+      // slice 7: live-метрики (pi — известны; контракт 20 §3.6)
+      model: 'anthropic/claude-sonnet',
+      context_used_percentage: 42,
+      context_total_input_tokens: 84_000,
+      context_total_output_tokens: 1_200,
+      log_path: 'mock/logs/session-1.log',
     },
     {
       id: 2,
@@ -354,6 +360,12 @@ function seed(): DB {
       uptime_seconds: 7_200,
       cpu_percent: 48.1,
       memory_bytes: 1024 * 1024 * 1024,
+      // slice 7: live-метрики (pi) — 67% → amber-порог
+      model: 'anthropic/claude-sonnet',
+      context_used_percentage: 67,
+      context_total_input_tokens: 134_000,
+      context_total_output_tokens: 3_400,
+      log_path: 'mock/logs/session-2.log',
     },
     {
       id: 3,
