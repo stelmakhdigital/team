@@ -5,16 +5,25 @@ import { describe, expect, it } from 'vitest';
 import { createRealAdapter } from '../src/api/real';
 
 // Интеграция идёт напрямую на живой daemon (не через Vite-прокси).
-// getApiConfig() читает import.meta.env в момент запроса.
+// Базовый URL настраивается: INTEGRATION_BASE_URL (default http://localhost:8080);
+// если демон с DAEMON_API_KEYS — INTEGRATION_API_KEY (заголовок X-API-Key).
+declare const process: { env: Record<string, string | undefined> };
+const BASE = process.env.INTEGRATION_BASE_URL ?? 'http://localhost:8080';
+const API_KEY = process.env.INTEGRATION_API_KEY;
 if (typeof import.meta.env !== 'undefined') {
-  import.meta.env.VITE_API_BASE_URL = 'http://localhost:8080';
+  import.meta.env.VITE_API_BASE_URL = BASE;
+  if (API_KEY) import.meta.env.VITE_API_KEY = API_KEY;
 }
+const WS_URL = `${BASE.replace(/^http/, 'ws')}/ws`;
 
 const backendAvailable = await (async () => {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 1500);
-    const res = await fetch('http://localhost:8080/healthz', { signal: ctrl.signal });
+    const res = await fetch(`${BASE}/healthz`, {
+      signal: ctrl.signal,
+      headers: API_KEY ? { 'X-API-Key': API_KEY } : undefined,
+    });
     clearTimeout(t);
     return res.ok;
   } catch {
@@ -275,5 +284,338 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
     const h = await api.history.getTaskHistory(created.id);
     expect(h.history.some((e) => e.to_state === 'in_progress')).toBe(true);
     expect(h.history.some((e) => e.to_state === 'done')).toBe(true);
+  }, 30_000);
+
+  // ---- slice 4: Message Center ----
+
+  it('slice 4: messages — direct + broadcast + list filters', async () => {
+    const teams = await api.teams.getTeams();
+    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const topo = await api.teams.getTopology(team.id);
+    const [roleA] = [topo.roles[0]];
+
+    // direct: to_role_id обязателен, delivered_to = [role]
+    const direct = await api.messages.sendMessage({
+      team_id: team.id,
+      type: 'direct',
+      to_role_id: roleA.id,
+      body: `IT direct ${Date.now()}`,
+    });
+    expect(direct.status).toBe('sent');
+    expect(direct.delivered_to).toEqual([roleA.id]);
+
+    // broadcast: без to_role_id, доставлено всем ролям команды
+    const broadcast = await api.messages.sendMessage({ team_id: team.id, type: 'broadcast', body: 'IT broadcast' });
+    expect(broadcast.status).toBe('sent');
+    expect(broadcast.delivered_to).toHaveLength(topo.roles.length);
+
+    // type system/watchdog — только серверные → 400
+    await expect(
+      api.messages.sendMessage({ team_id: team.id, type: 'system' as never, body: 'nope' }),
+    ).rejects.toMatchObject({ status: 400, code: 'validation_failed' });
+
+    // list: фильтр team_id, формы (is_mine, to_role_name; from_role_name у оператора
+    // omitempty в текущем билде — фикс зафиксирован в answer_backend.md, slice 6)
+    const list = await api.messages.getMessages({ team_id: team.id, limit: 50 });
+    expect(list.total).toBeGreaterThanOrEqual(2);
+    expect(list.messages.every((m) => m.team_id === team.id)).toBe(true);
+    const d = list.messages.find((m) => m.id === direct.id);
+    expect(d?.to_role_id).toBe(roleA.id);
+    expect(d?.to_role_name).toBe(roleA.name);
+    expect(d?.is_mine).toBe(true);
+    expect(d?.from_role_name ?? 'You').toBe('You');
+    expect(list.messages.some((m) => m.id === broadcast.id && m.type === 'broadcast')).toBe(true);
+  }, 20_000);
+
+  it('slice 4: chatrooms — авто-создание (team + segments), send + list', async () => {
+    // отдельная свежая команда: chatroom-имя фиксируется при создании, rename команды
+    // (save c name) его не обновляет
+    const stamp = Date.now();
+    const team = await api.teams.createTeam({
+      name: `IT-chat-${stamp}`,
+      spec: {
+        segments: [{ name: 'Backend', layout: { x: 0, y: 0, width: 300, height: 200 } }],
+        roles: [
+          { name: 'Lead', agent_spec: 'pi-lead', segment: 'Backend', layout: { x: 30, y: 40 } },
+          { name: 'Worker', agent_spec: 'pi-worker', segment: 'Backend', layout: { x: 30, y: 100 } },
+        ],
+        relatives: [{ from: 'Backend.Lead', to: 'Backend.Worker', type: 'delegates_to' } as never],
+      } as never,
+    });
+    const topo = await api.teams.getTopology(team.id);
+
+    const rooms = await api.messages.getChatrooms();
+    const teamRooms = rooms.chatrooms.filter((r) => r.team_id === team.id);
+    // team-level room + по одному на сегмент
+    expect(teamRooms.length).toBeGreaterThanOrEqual(1 + topo.segments.length);
+    const teamRoom = teamRooms.find((r) => !r.segment_id);
+    expect(teamRoom?.name).toBe(team.name);
+    expect(teamRoom?.members_count).toBe(topo.roles.length);
+    const segName = topo.segments[0]?.name;
+    const segRoom = teamRooms.find((r) => r.segment_id === topo.segments[0]?.id);
+    expect(segRoom?.name).toBe(`${segName}-general`);
+
+    // send + list: is_mine, from_role_name="You"
+    const sent = await api.messages.sendChatroomMessage(teamRoom!.id, { body: `IT room ${Date.now()}` });
+    expect(sent.status).toBe('sent');
+    const msgs = await api.messages.getChatroomMessages(teamRoom!.id);
+    expect(msgs.messages.some((m) => m.body === `IT room ${Date.now()}` || m.id === sent.id)).toBe(true);
+    const mine = msgs.messages.find((m) => m.id === sent.id);
+    expect(mine?.is_mine).toBe(true);
+    expect(mine?.from_role_name).toBe('You');
+  }, 20_000);
+
+  // ---- slice 5a: Workflows ----
+
+  it('slice 5a: workflows CRUD (blocks: индексы в POST, реальные id в connections) + drag', async () => {
+    const teams = await api.teams.getTeams();
+    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+
+    // create ± blocks/connections: from/to в POST /workflows — 0-based индексы массива blocks
+    const created = await api.workflows.createWorkflow({
+      team_id: team.id,
+      name: `IT-flow-${Date.now()}`,
+      blocks: [
+        { type: 'task', position: { x: 100, y: 100 }, config: { prompt: 'do' }, label: 'Step1' },
+        { type: 'decision', position: { x: 300, y: 100 }, config: {}, label: 'Gate' },
+        { type: 'agent', position: { x: 500, y: 100 }, config: {}, label: 'Do' },
+      ],
+      connections: [
+        { from_block_id: 0, to_block_id: 1 },
+        { from_block_id: 1, to_block_id: 2, condition: 'pass' },
+      ],
+    });
+    expect(created.status).toBe('created');
+
+    const wf = await api.workflows.getWorkflow(created.id);
+    expect(wf.workflow.id).toBe(created.id);
+    expect(wf.workflow.team_id).toBe(team.id);
+    expect(wf.blocks).toHaveLength(3);
+    expect(wf.blocks[0]).toMatchObject({ type: 'task', label: 'Step1' });
+    // индексы 0/1/2 → реальные id блоков 1..3
+    expect(wf.connections).toHaveLength(2);
+    const [c1, c2] = wf.connections;
+    expect([c1.from_block_id, c1.to_block_id]).toEqual([wf.blocks[0].id, wf.blocks[1].id]);
+    expect(c2.condition).toBe('pass');
+
+    // отдельный block + connection (реальные id)
+    const extra = await api.workflows.createBlock(created.id, { type: 'manual', position: { x: 700, y: 100 }, config: {}, label: 'Extra' });
+    expect(extra.status).toBe('created');
+    const conn = await api.workflows.createConnection(created.id, { from_block_id: wf.blocks[2].id, to_block_id: extra.id, condition: 'ok' });
+    expect(conn.status).toBe('created');
+
+    // PATCH block (drag): changes.position/config old/new
+    const upd = await api.workflows.updateBlock(created.id, wf.blocks[0].id, {
+      position: { x: 120, y: 140 },
+      config: { prompt: 'do2' },
+    });
+    expect(upd.status).toBe('updated');
+    expect(upd.changes.position).toMatchObject({
+      old: { x: 100, y: 100 },
+      new: { x: 120, y: 140 },
+    });
+    expect(upd.changes.config?.new).toMatchObject({ prompt: 'do2' });
+
+    // list: фильтр team_id
+    const list = await api.workflows.getWorkflows({ team_id: team.id });
+    expect(list.workflows.some((w) => w.id === created.id)).toBe(true);
+  }, 30_000);
+
+  // ---- slice 5b: Library ----
+
+  it('slice 5b: library — save → list → get → apply (new team + merge) + save_to_library', async () => {
+    const stamp = Date.now();
+    const teams = await api.teams.getTeams();
+    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+
+    // save (snapshot команды)
+    const saved = await api.library.saveToLibrary({
+      type: 'team',
+      source_id: team.id,
+      name: `IT-snap-${stamp}`,
+      group: 'IT-tests',
+      is_public: true,
+      tags: ['it'],
+    });
+    expect(saved.status).toBe('saved');
+    expect(saved.library_item_id).toBe(saved.id);
+
+    // unique (type, name) → 409
+    await expect(
+      api.library.saveToLibrary({ type: 'team', source_id: team.id, name: `IT-snap-${stamp}`, group: 'IT-tests' }),
+    ).rejects.toMatchObject({ status: 409, code: 'conflict' });
+
+    // list: фильтр type + item в списке, groups посчитаны
+    const list = await api.library.getLibrary({ type: 'team' });
+    const item = list.items.find((i) => i.id === saved.id);
+    expect(item).toMatchObject({ type: 'team', name: `IT-snap-${stamp}`, group: 'IT-tests', is_public: true, downloads_count: 0 });
+    expect(list.groups.some((g) => g.name === 'IT-tests' && g.items_count >= 1)).toBe(true);
+
+    // get: item + spec (снапшот: segments/roles/relatives) + versions
+    const got = await api.library.getLibraryItem(saved.id);
+    expect(got.item.id).toBe(saved.id);
+    expect(got.spec).toHaveProperty('segments');
+    expect(got.spec).toHaveProperty('roles');
+    expect(got.spec).toHaveProperty('relatives');
+    expect(Array.isArray(got.versions)).toBe(true);
+    expect(got.versions.length).toBeGreaterThanOrEqual(1);
+
+    // apply без target → новая команда (overrides.name), downloads_count++
+    const applied = await api.library.applyLibrary(saved.id, { overrides: { name: `IT-applied-${stamp}` } });
+    expect(applied.status).toBe('applied');
+    expect(applied.created_resources?.teams).toHaveLength(1);
+    const newTeam = await api.teams.getTeam(applied.created_resources!.teams![0]);
+    expect(newTeam.team.name).toBe(`IT-applied-${stamp}`);
+    expect((await api.library.getLibraryItem(saved.id)).item.downloads_count).toBe(1);
+
+    // apply c target → merge (не ошибка)
+    const merged = await api.library.applyLibrary(saved.id, { target_team_id: team.id });
+    expect(merged.status).toBe('merged');
+
+    // save_to_library в POST /teams/{id}/save → library_item_id
+    // (имя item = "team-<team name>", unique (type,name) → сначала уникальное имя, иначе 409)
+    const uniqueName = `IT-lib-${stamp}`;
+    await api.teams.saveTopology(team.id, { name: uniqueName });
+    const savedTeam = await api.teams.saveTopology(team.id, {
+      save_to_library: true,
+      library_group: 'IT-tests',
+    });
+    expect(savedTeam.status).toBe('saved');
+    expect(typeof savedTeam.library_item_id).toBe('number');
+    const savedItem = await api.library.getLibraryItem(savedTeam.library_item_id!);
+    expect(savedItem.item.name).toBe(`team-${uniqueName}`);
+  }, 30_000);
+
+  it('slice 5b: library apply — workflow требует target_team_id; role/segment → 400', async () => {
+    const teams = await api.teams.getTeams();
+    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const stamp = Date.now();
+
+    // workflow: save → apply c target → applied; без target → 400
+    const wf = await api.workflows.createWorkflow({ team_id: team.id, name: `IT-libwf-${stamp}`, blocks: [] });
+    const item = await api.library.saveToLibrary({ type: 'workflow', source_id: wf.id, name: `IT-libwf-${stamp}` });
+    await expect(api.library.applyLibrary(item.id, {})).rejects.toMatchObject({ status: 400 });
+    // повторный apply того же workflow в ту же команду → 409 (уже существует)
+    await expect(api.library.applyLibrary(item.id, { target_team_id: team.id })).rejects.toMatchObject({ status: 409 });
+  }, 20_000);
+
+  // ---- slice 5b: audit + metrics ----
+
+  it('slice 5b: audit log — запись после действия + фильтр action', async () => {
+    const teams = await api.teams.getTeams();
+    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const before = await api.history.getAuditLog({ action: 'library.save', limit: 1 });
+    // любое успешное POST → запись в audit
+    await api.library.saveToLibrary({
+      type: 'team',
+      source_id: team.id,
+      name: `IT-audit-${Date.now()}`,
+      group: 'IT-tests',
+    });
+    const log = await api.history.getAuditLog({ action: 'library.save', limit: 50 });
+    expect(log.total).toBeGreaterThanOrEqual(before.total + 1);
+    expect(log.entries.length).toBeGreaterThanOrEqual(1);
+    const e = log.entries[0];
+    expect(e.action).toBe('library.save');
+    expect(e).toHaveProperty('timestamp');
+    expect(e).toHaveProperty('user_name');
+    expect(e).toHaveProperty('ip_address');
+  }, 20_000);
+
+  it('slice 5b: dashboard/metrics — 12 точек × 5 серий, ranges', async () => {
+    for (const range of ['1h', '24h', '7d'] as const) {
+      const m = await api.dashboard.getMetrics({ range });
+      expect(m.time_range).toHaveProperty('start');
+      expect(m.time_range).toHaveProperty('end');
+      const keys: Array<keyof typeof m.metrics> = [
+        'tasks_created',
+        'tasks_completed',
+        'sessions_active',
+        'queue_size',
+        'llm_tokens',
+      ];
+      for (const k of keys) {
+        expect(m.metrics[k]).toHaveLength(12);
+        expect(m.metrics[k][0]).toHaveProperty('timestamp');
+        expect(typeof m.metrics[k][0].value).toBe('number');
+      }
+    }
+  }, 20_000);
+
+  // ---- slice 5a: WS dashboard channel ----
+
+  it('slice 5a: WS /ws — subscribe dashboard → task.created при создании задачи', async () => {
+    const teams = await api.teams.getTeams();
+    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const topo = await api.teams.getTopology(team.id);
+    const stamp = Date.now();
+
+    // Гонки: (1) event, опубликованный до того, как сервер прочитал subscribe,
+    // теряется → пауза после subscribe; (2) event может прийти раньше HTTP-ответа
+    // на create (сервер публикует до/вместе с ответом) → матчим event по заранее
+    // известному title задачи (id известен только после POST-ответа).
+    // Не пришёл за 4 c — следующая задача (до 5 ретраев).
+    // ВАЖНО: все обработчики назначаются до каких-либо await.
+    const WS = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+    expect(WS, 'global WebSocket (node >= 21)').toBeDefined();
+
+    await new Promise<void>((resolve, reject) => {
+      let ws: any;
+      let settled = false;
+      let expectTitle: string | null = null;
+      let retries = 0;
+      const st = `${stamp}-${Date.now() % 1000}`;
+      const fail = (e: Error) => {
+        if (settled) return;
+        settled = true;
+        try { ws?.close(); } catch { /* ignore */ }
+        reject(e);
+      };
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        try { ws?.close(); } catch { /* ignore */ }
+        resolve();
+      };
+      const overall = setTimeout(() => fail(new Error('WS overall timeout')), 25_000);
+
+      const createNext = async () => {
+        const title = `IT-ws-${st}-${retries}`;
+        expectTitle = title;
+        const created = await api.tasks.create({
+          team_id: team.id,
+          destination_role_id: topo.roles[0].id,
+          title,
+        });
+        expect(created.state).toBe('pending');
+        // event не пришёл за 4 c — следующая задача (до 5 ретраев)
+        setTimeout(() => {
+          if (!settled && expectTitle === title) {
+            retries += 1;
+            if (retries > 5) fail(new Error('WS: task.created не получен после 6 попыток'));
+            else void createNext();
+          }
+        }, 4_000);
+      };
+
+      ws = new WS!(WS_URL);
+      ws.onmessage = (ev: MessageEvent) => {
+        const m = JSON.parse(String(ev.data));
+        if (m.type !== 'task.created') return; // события приходят только по подписанным каналам
+        if (m.data?.title === expectTitle) {
+          expect(m.data.state).toBe('pending');
+          expect(typeof m.data.task_id).toBe('number');
+          expect(typeof m.timestamp).toBe('string');
+          clearTimeout(overall);
+          done();
+        }
+      };
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'subscribe', channels: ['dashboard'] }));
+        // пауза: ждём, пока сервер прочитает subscribe, — event после неё не потеряется
+        setTimeout(() => { if (!settled && expectTitle === null) { retries = 1; void createNext(); } }, 500);
+      };
+      ws.onerror = () => fail(new Error('WS error'));
+    });
   }, 30_000);
 });

@@ -836,6 +836,46 @@ export function createMockAdapter(): Api {
         });
         return { id, status: 'saved', library_item_id: id };
       },
+
+      async applyLibrary(id, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const item = db.library.find((i) => i.id === id);
+        if (!item) throw new ApiClientError(404, 'not_found', `Library item ${id} not found`);
+        if (item.type === 'role' || item.type === 'segment') {
+          throw new ApiClientError(400, 'validation_failed', `apply is not supported for type "${item.type}" yet`);
+        }
+        item.downloads_count += 1;
+        if (item.type === 'workflow') {
+          if (!req?.target_team_id) {
+            throw new ApiClientError(400, 'validation_failed', 'target_team_id is required for workflow apply');
+          }
+          if (!db.teams.some((t) => t.id === req.target_team_id)) {
+            throw new ApiClientError(404, 'not_found', `Team ${req.target_team_id} not found`);
+          }
+          return { status: 'applied', updated_resources: { teams: [req.target_team_id] } };
+        }
+        // type === 'team'
+        if (req?.target_team_id) {
+          if (!db.teams.some((t) => t.id === req.target_team_id)) {
+            throw new ApiClientError(404, 'not_found', `Team ${req.target_team_id} not found`);
+          }
+          return { status: 'merged', updated_resources: { teams: [req.target_team_id] } };
+        }
+        const teamId = nextId();
+        db.teams.push({
+          id: teamId,
+          name: (req?.overrides?.name as string) ?? `${item.name} (applied)`,
+          state: 'active',
+          segments_count: 0,
+          roles_count: 0,
+          created_at: now(),
+          updated_at: now(),
+        });
+        recalcTeamCounts();
+        return { status: 'applied', created_resources: { teams: [teamId] } };
+      },
     },
 
     history: {

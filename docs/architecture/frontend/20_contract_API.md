@@ -532,7 +532,7 @@ interface WatchdogAlert {
 #### 3.5 Метрики (для графиков)
 
 ```typescript
-// GET /api/v1/dashboard/metrics
+// GET /api/v1/dashboard/metrics?range=1h|24h|7d (default 24h; всегда 12 точек)
 interface GetMetricsResponse {
   time_range: {
     start: string;

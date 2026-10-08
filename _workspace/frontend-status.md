@@ -1,9 +1,9 @@
 # Frontend status
 
 ## Current phase
-implementation (F1–F10 done; весь UI интегрирован с реальным backend — backend дошил slice 5
-во время фронт-аудита 2026-10-08: metrics/audit/library/messages/ws live; audit-фиксы: WS-бейдж честный,
-404-панели → "not available yet", canvas fit-to-view)
+implementation (F1–F12 done; весь UI интегрирован с реальным backend; интеграционные тесты
+slice 4–5 автоматизированы: 15 интеграционных, 45/45 total; integration.md написан;
+next: RBAC-ветки после коммита slice 6)
 
 ## Implemented
 - docs/architecture/frontend.md — архитектура и frontend-план (F1–F9)
@@ -40,6 +40,15 @@ implementation (F1–F10 done; весь UI интегрирован с реал�
      показывал только левый верхний угол, контент обрезался — «графическое редактирование некорректно».
   Verified: role/segment-drag (PATCH), HTML5 DnD из палитры, connect, config, save/validate — работают.
   Тесты: 37/37 (+3 unit для contentBounds).
+- F12 интеграционные тесты slice 4–5 (2026-10-08): `tests/realIntegration.test.ts` 7 → **15**
+  (messages direct/broadcast/filters + system→400; chatrooms авто-создание + send/list;
+  workflows CRUD + индексы connections в POST + drag-patch old/new; library save/409/list/get
+  spec/apply new+merge + save_to_library→library_item_id + workflow-apply 400/409; audit
+  запись+фильтр; metrics 12×5 × ranges; WS subscribe dashboard → task.created).
+  Фасад: `Api.library.applyLibrary` (POST /library/{id}/apply, real+mock),
+  `Api.dashboard.getMetrics({range})`. Тесты идемпотентны (stamp-имена IT-*),
+  автоскип без daemon; настраиваются `INTEGRATION_BASE_URL` / `INTEGRATION_API_KEY`
+  (порт :8080 можно делить с backend-агентом — я гонял на :8081). Итог: 45/45.
 - F9 (infra): UI готов к запуску в обоих режимах — `npm run dev` (mock, default, .env создан);
   real mode: same-origin + Vite-прокси `/api`,`/ws`,`/healthz` → backend (BACKEND_URL,
   default :8080) — CORS в dev не нужен; default base URL/ws URL = same-origin.
@@ -68,7 +77,7 @@ implementation (F1–F10 done; весь UI интегрирован с реал�
 - `GET /api/v1/tasks` (list + фильтры), `POST /api/v1/tasks`, `GET /api/v1/tasks/:id`
 - `PATCH /api/v1/tasks/:id/state`, `POST /api/v1/tasks/:id/handoff`, `GET /api/v1/tasks/:id/history`
 - `GET/POST /api/v1/messages`, `GET /api/v1/chatrooms`, `GET/POST /api/v1/chatrooms/:id/messages`
-- `GET/POST /api/v1/library`, `GET /api/v1/library/:id`
+- `GET/POST /api/v1/library`, `GET /api/v1/library/:id`, `POST /api/v1/library/:id/apply`
 - `GET /api/v1/audit`, `GET /api/v1/tasks/:id/history`
 - `GET/POST /api/v1/workflows`, `GET /api/v1/workflows/:id`, `POST …/blocks`, `POST …/connections`, `PATCH …/blocks/:blockId`
 - WS: `ws://…/ws` subscribe channels
@@ -92,23 +101,25 @@ npm run build      # production build
 
 ## Validation
 - typecheck: OK
-- unit/component tests: OK (vitest, 37 тестов: topology + contentBounds, errors, mock-контракт (вкл. tasks lifecycle), UI states, app smoke (Dashboard/Teams/Tasks), real-integration×7)
-- production build: OK (78 KB gzip)
-- интеграция с живым backend: OK (Team Builder vertical, slice 2: dashboard summary/tasks + task history, slice 3: sessions lifecycle + history/transcript + alerts, tasks lifecycle: create/state/handoff)
+- unit/component tests: OK (vitest, 45 тестов: topology + contentBounds, errors, mock-контракт (вкл. tasks lifecycle), UI states, app smoke (Dashboard/Teams/Tasks), real-integration×15)
+- production build: OK (81.9 KB gzip)
+- интеграция с живым backend: OK (Team Builder vertical, slice 2: dashboard summary/tasks + task history, slice 3: sessions lifecycle + history/transcript + alerts, tasks lifecycle, slice 4: messages/chatrooms, slice 5: workflows/library/audit/metrics/WS)
+
+## Docs (лид)
+- `docs/architecture/integration.md` — написан 2026-10-08 (модель, auth, ошибки, WS,
+  интеграционные тесты, как поднять backend, протокол синхронизации).
 
 ## Backend impact
-- СДЕЛАНО (контракт 20 обновлён, лид 2026-10-07): `GET /api/v1/workflows` задокументирован (2.0) — ждём реализацию в slice 5 (blockers #3)
-- СДЕЛАНО (контракт 20, лид): RelativeSpec = адресный формат `from`/`to` (blockers #8 — закрыть)
-- СДЕЛАНО (контракт 20, лид): раздел 3.6 Session lifecycle (POST/GET/DELETE /sessions) — формы зафиксированы по live-проверке
-- Осталось у backend: `GET /sessions/:id/transcript` — нет поля `total` (контракт 20 §6.4 требует `{transcript, total, has_more}`)
-- Контракт 21: request'ы содержат поле `layout` — backend принимает (slice 1), ok
-- Error-модель: envelope `error.code/message/request_id` — frontend flex-parse + `validation_failed` обработаны (blockers #2 — закрыть)
-- Auth: `X-API-Key` реализован с обеих сторон (blockers #1 — закрыть)
+- Slice 4–5: форматы сходятся; наблюдения (non-blocking) в `answer_backend.md`:
+  from_role_name omitempty в GET /messages; имя item `"team-<name>"` в save_to_library;
+  chatroom last_message (optional) не возвращается.
+- Slice 6 (RBAC): когда закоммитится — прогнать 15 интеграционных тестов с DB-ключом,
+  добавить ветки 403 `forbidden` (viewer/operator).
 
 ## Blockers
 - см. _workspace/blockers.md
 
 ## Next step
-- Slice 4 (Messages) и slice 5 (Workflows/Library/WS/audit/metrics) — **backend дошлился** (live 2026-10-08);
-  frontend переключить на real + интеграционные тесты (Messages/Workflows/Library/audit/metrics/WS).
-- Backend: `transcript.total` (non-blocking).
+- RBAC: ветка `forbidden` в error-обработчике + интеграционные тесты 403 (после коммита slice 6).
+- (не-blocking) real-интеграция WorkflowEditor drag (PATCH block — endpoint уже покрыт тестом)
+  и apply-library из LibraryPage (applyLibrary уже в фасадe).

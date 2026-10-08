@@ -23,6 +23,7 @@ import type {
   GetLibraryItemResponse,
   GetLibraryParams,
   GetLibraryResponse,
+  GetMetricsParams,
   GetMetricsResponse,
   GetMessagesParams,
   GetMessagesResponse,
@@ -49,6 +50,8 @@ import type {
   HandoffTaskRequest,
   HandoffTaskResponse,
   Task,
+  ApplyLibraryItemRequest,
+  ApplyLibraryItemResponse,
   SaveToLibraryRequest,
   SaveToLibraryResponse,
   SaveTopologyRequest,
@@ -110,7 +113,7 @@ export interface Api {
     getTasks(): Promise<GetTasksResponse>;
     getSessions(): Promise<GetSessionsResponse>;
     getAlerts(): Promise<GetAlertsResponse>;
-    getMetrics(): Promise<GetMetricsResponse>;
+    getMetrics(params?: GetMetricsParams): Promise<GetMetricsResponse>;
   };
   sessions: {
     list(params?: ListSessionsParams): Promise<ListSessionsResponse>;
@@ -136,6 +139,7 @@ export interface Api {
     getLibrary(params?: GetLibraryParams): Promise<GetLibraryResponse>;
     getLibraryItem(id: number): Promise<GetLibraryItemResponse>;
     saveToLibrary(req: SaveToLibraryRequest): Promise<SaveToLibraryResponse>;
+    applyLibrary(id: number, req: ApplyLibraryItemRequest): Promise<ApplyLibraryItemResponse>;
   };
   history: {
     getTaskHistory(taskId: number): Promise<GetTaskHistoryResponse>;

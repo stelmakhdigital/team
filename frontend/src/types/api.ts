@@ -648,6 +648,10 @@ export interface GetMetricsResponse {
   };
 }
 
+export interface GetMetricsParams {
+  range?: '1h' | '24h' | '7d';
+}
+
 // ---- Session lifecycle (backend slice 3) ----
 
 export interface CreateSessionRequest {
@@ -847,6 +851,25 @@ export interface SaveToLibraryResponse {
   id: number;
   status: 'saved';
   library_item_id: number;
+}
+
+export interface ApplyLibraryItemRequest {
+  target_team_id?: number; // если применяем к существующей команде
+  overrides?: Record<string, unknown>;
+}
+
+export interface ApplyLibraryItemResponse {
+  status: 'applied' | 'merged';
+  created_resources?: {
+    teams?: number[];
+    segments?: number[];
+    roles?: number[];
+  };
+  updated_resources?: {
+    teams?: number[];
+    segments?: number[];
+    roles?: number[];
+  };
 }
 
 export interface LibraryVersion {

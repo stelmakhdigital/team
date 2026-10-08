@@ -36,7 +36,7 @@ export function createRealAdapter(): Api {
       getTasks: () => http(`${B}/dashboard/tasks`),
       getSessions: () => http(`${B}/dashboard/sessions`),
       getAlerts: () => http(`${B}/dashboard/alerts`),
-      getMetrics: () => http(`${B}/dashboard/metrics`),
+      getMetrics: (params) => http(`${B}/dashboard/metrics${toQuery({ range: params?.range })}`),
     },
     sessions: {
       list: (params) => http(`${B}/sessions${toQuery({ team_id: params?.team_id, role_id: params?.role_id, state: params?.state })}`),
@@ -87,6 +87,7 @@ export function createRealAdapter(): Api {
         })}`),
       getLibraryItem: (id) => http(`${B}/library/${id}`),
       saveToLibrary: (req) => http(`${B}/library`, { method: 'POST', body: req }),
+      applyLibrary: (id, req) => http(`${B}/library/${id}/apply`, { method: 'POST', body: req }),
     },
     history: {
       getTaskHistory: (id) => http(`${B}/tasks/${id}/history`),

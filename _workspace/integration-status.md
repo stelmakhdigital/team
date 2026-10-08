@@ -15,11 +15,11 @@
 | Tasks & History | done (slice 2) | done (mock+real, UI /tasks: create/state/handoff) | ready (§3.7) | **done** (real, incl. lifecycle UI) | — |
 | Dashboard | done (slice 3: summary+tasks+sessions+alerts) | done (mock+real) | ready | **done** (summary, tasks, sessions, alerts) | metrics — slice 5 |
 | Sessions (runtime) | done (slice 3: lifecycle, reaper, watchdog) | done (mock+real: Api.sessions list/create/get/stop, HistoryPage на реальных id) | ready (3.6 добавлен) | **done** (real, e2e: start→stop, crash→failed+alert) | transcript без `total` (контракт требует) |
-| Message Center | done (slice 4: messages, chatrooms, event bus) | **done (real, verified live 2026-10-08)** | ready (уточнения в api-decisions) | **done (real)** | unread_count=0 до RBAC (slice 6) |
+| Message Center | done (slice 4: messages, chatrooms, event bus; slice 6: unread_count per user) | **done (real, verified live 2026-10-08)** | ready (уточнения в api-decisions) | **done (real)** | mark-read: GET /chatrooms/{id}/messages (DB-ключ с user) |
 | WS (real-time) | done (slice 5a: /ws, subscribe channels, EventBus) | **done (real, verified live: 101 Switching Protocols, badge connected)** | ready | **done (real)** | gorilla: read-таймаут «корruptит» соединение (документировано) |
 | Workflows (список + редактор) | done (slice 5a: CRUD workflows/blocks/connections) | **done (real, verified live 2026-10-08)** | ready (уточнения в api-decisions) | **done (real)** | connections в POST /workflows — индексы blocks |
 | Library | done (slice 5b: save/get/apply team+workflow) | **done (real, verified live 2026-10-08)** | ready (role/segment — next) | **done (real)** | apply для type role/segment — 400 (следующий шаг) |
-| History Viewer (audit + metrics + transcripts) | done (slice 5b: audit log, dashboard/metrics, transcript total) | **done (real, verified live 2026-10-08)** | ready | **done (real)** | audit: user_id/api_key_id — slice 6 (RBAC); llm_tokens = 0 |
+| History Viewer (audit + metrics + transcripts) | done (slice 5b: audit log, dashboard/metrics, transcript total; slice 6: user_id/api_key_id) | **done (real, verified live 2026-10-08)** | ready | **done (real)** | llm_tokens = 0 |
 | Frontend UI-audit (2026-10-08) | — | **done** | — | **done** | WS-бейдж честный; 404→Unavailable; canvas авто-fit + Fit-кнопка (F11) |
 
 ## Integration verification (lead, 2026-10-07)
@@ -49,6 +49,46 @@ Backend endpoint slice 1 (все под `/api/v1`):
 `DELETE /relatives/{id}` · `GET /healthz` · `GET /readyz`
 
 ## API change log
+
+### 2026-10-08 — lead: интеграционные тесты frontend slice 4–5 (автотесты, форматы не меняются)
+- `frontend/tests/realIntegration.test.ts`: **7 → 15 тестов** (45/45 всего): +messages
+  (direct/broadcast/filters, system→400), +chatrooms (авто-создание, send/list),
+  +workflows (CRUD, индексы connections в POST, drag-patch old/new), +library
+  (save/409/list/get spec/apply new+merge, save_to_library→library_item_id,
+  workflow-apply 400/409), +audit (запись+фильтр), +metrics (12×5, ranges),
+  +WS dashboard-канал (subscribe → task.created).
+- Фасад (контракт уже предусматривал): `Api.library.applyLibrary` (POST /library/{id}/apply,
+  real+mock), `Api.dashboard.getMetrics({range})`. Контракт 20 §3.5: зафиксирован
+  `?range=1h|24h|7d`.
+- Инфраструктура: тесты принимают `INTEGRATION_BASE_URL` (default :8080) и
+  `INTEGRATION_API_KEY` — демон можно делить (lead гонял на :8081, не трогая демон
+  backend'а на :8080 с auth).
+- Наблюдения для backend (non-blocking, см. answer_backend.md): from_role_name omitempty
+  в GET /messages; имя item `"team-<name>"` в save_to_library (уточнение для контракта);
+  chatroom last_message не возвращается (optional).
+- Написан `docs/architecture/integration.md` (лид-обязанность, blockers B1).
+- Validation: typecheck OK; 45/45 (два прогона); production build OK (81.9 KB gzip).
+
+### 2026-10-08 — backend slice 6: Security (RBAC + api_keys + secrets) (ничего не ломается)
+- **Auth/RBAC** (ТЗ 06 §2.1): auth включается при `DAEMON_API_KEYS` **или** при api_keys в БД.
+  Env-ключи = admin; DB-ключи `sk_...` (CLI `daemon admin keys create --name --role [--user] [--expires]`,
+  list/revoke) — привязаны к user + роли (admin/operator/viewer). В БД — sha256-хэш.
+  Нет права → **403 `forbidden`** (новый код; error-model.md дополнен). Роли:
+  admin (все), operator (без config.update), viewer (read-only).
+- **Audit** (20 §6.3): `GET /audit` записей += `user_id`, `api_key_id` (для DB-ключей);
+  env-ключ — `user_name: "operator:<4 hex>"` (без user_id), как раньше.
+- **unread_count** (20 §4.2): теперь реальный для аутентифицированного user (DB-ключ):
+  `chatroom_reads`; `GET /chatrooms/{id}/messages` помечает чат прочитанным (side-effect).
+  Без user (env-ключ / auth выключен) — 0.
+- **Secrets** (ТЗ 06 §4): `secrets` (AES-256-GCM, `DAEMON_SECRET_KEY`); service-уровень,
+  HTTP-эндпоинтов нет (нет в контракте).
+- **Frontend impact**: ноль для mock-режима. Real: с включённым auth — ключ обязателен
+  (формат как раньше: X-API-Key / Bearer / ?api_key=); новый код `forbidden` (403)
+  — flex-парсер обработает как generic. unread_count заполнится, только если
+  frontend ходит с DB-ключом (user) — через CLI key.
+- Validation: gofmt/vet/test PASS (+TestRBACViewerForbidden, +security_service_test).
+  Live 127.0.0.1:8080: viewer GET 200/POST 403, operator 201, PATCH config 403/200 (admin),
+  audit user_id/api_key_id, unread 0→1→0.
 
 ### 2026-10-08 — frontend: UI-audit (headless, скриншоты) + фиксы F11
 - Аудит: real+mock, все 7 страниц. «Не всё грузится» = 404 на slice-5 endpoints (backend
@@ -268,7 +308,8 @@ Backend endpoint slice 1 (все под `/api/v1`):
   /`build` — все зелёные; production build 81 KB gzip.
 
 ## Next steps (sync)
-- Frontend: интеграционные тесты real-эндпоинтов slice 4–5 (messages/chatrooms, workflows,
-  library save/apply, audit, metrics, WS dashboard-канал) — форматы live-проверены, осталось
-  добавить автотесты.
-- Backend: WS read-ping (gorilla); `unread_count` (RBAC, slice 6); apply library для role/segment.
+- Frontend: (не-blocking) ветка `forbidden` (403) в error-обработчике + RBAC-тесты
+  (viewer→403, operator→403 на config.update) после коммита slice 6;
+  real-интеграция WorkflowEditor drag (PATCH block) и apply-library из LibraryPage.
+- Backend: library apply для role/segment (400 → поддержка); Prometheus `/metrics` (по требованию);
+  OpenAPI — в конце проекта.

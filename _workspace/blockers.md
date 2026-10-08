@@ -4,7 +4,7 @@
 - `docs/contracts/openapi.yaml` — отсутствовал. Создан `docs/contracts/error-model.md`
   и `docs/contracts/api-decisions.md`; OpenAPI — договорено с Lead: сгенерировать в конце
   проекта (весь API), backend готов.
-- `docs/architecture/integration.md` — отсутствует (область Lead). Backend работает
+- `docs/architecture/integration.md` — CLOSED (2026-10-08, лид): написан. Backend работает
   по `agents.md` + `20_contract_API.md` как единый контракт.
 - `AGENTS.md` (капсом) — отсутствует, используется `agents.md`.
 - `_workspace/frontend-status.md` / `_workspace/integration-status.md` — отсутствовали,
@@ -14,7 +14,10 @@
 Решено: ADR-003. Нужно подтвердить Frontend Engineer'ом.
 
 ## OQ1. Auth для UI
-Пока без auth (локально). Требуется решение Lead: когда включаем API-ключи/RBAC?
+FAZE 0 (без ключей) — локальная разработка, по-прежнему. Slice 6 (2026-10-08): auth включается
+при `DAEMON_API_KEYS` **или** api_keys в БД (CLI `daemon admin keys`); RBAC-роли
+admin/operator/viewer, 403 `forbidden`; audit user_id/api_key_id. Решение lead'а нужно
+только для выбора дефолтного режима продакшена (env-ключ vs DB-ключи).
 
 ## OQ2. DELETE /api/v1/teams/{id}
 Интерпретировано как archive (по 01_daemon.md). Требуется подтверждение.
