@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import { EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
+import {  EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError , Badge } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 
@@ -114,7 +114,7 @@ export default function LibraryPage() {
             {list.data?.items.map((item) => (
               <button key={item.id} className="card library-card" onClick={() => setDetailId(item.id)}>
                 <div className="library-card-head">
-                  <span className="badge badge-type-{item.type}">{item.type}</span>
+                  <Badge kind="type" value={item.type} />
                   <span className="muted small">v{item.version}</span>
                 </div>
                 <h3>{item.name}</h3>

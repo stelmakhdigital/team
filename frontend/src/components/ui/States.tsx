@@ -81,6 +81,36 @@ export function ErrorState({ error, onRetry }: { error: ErrorInfo; onRetry?: () 
   );
 }
 
+/** Единый status-badge (R5-рефакторинг: раньше 5 разных паттернов
+ * `badge badge-…` расписаны по 10 местам, 2 из них битые — без backticks).
+ *
+ * kind:
+ *  - 'task'   — задачи/сессии/подзадачи: badge-{pending|in_progress|blocked|done|canceled|running|stopped|failed|sent}
+ *  - 'entity' — команды/воркфлоу/роли:   badge-state-{active|stopped|archived|inactive|blocked}
+ *  - 'sev'    — алерты:                  badge-sev-{critical|high|medium|low|info}
+ *  - 'type'   — библиотека:              badge-type-{team|workflow|role|segment}
+ *  - 'warn'   — предупреждение:          badge-warn
+ */
+export function Badge({ kind, value, children, title }: {
+  kind: 'task' | 'entity' | 'sev' | 'type' | 'warn';
+  value?: string;
+  children?: ReactNode;
+  title?: string;
+}) {
+  const cls =
+    kind === 'task' ? `badge badge-${value}` :
+    kind === 'entity' ? `badge badge-state-${value}` :
+    kind === 'sev' ? `badge badge-sev-${value ?? 'info'}` :
+    kind === 'type' ? `badge badge-type-${value}` :
+    'badge badge-warn';
+  const shown = children ?? (value ?? (kind === 'sev' ? 'info' : ''));
+  return (
+    <span className={cls} title={title}>
+      {shown}
+    </span>
+  );
+}
+
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiClientError) return err.message;
   if (err instanceof Error) return err.message;

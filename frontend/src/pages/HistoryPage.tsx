@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
-import { EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
+import {  EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError , Badge } from '../components/ui/States';
 import { formatDateTime, formatRelative } from '../lib/format';
 
 export default function HistoryPage() {
@@ -74,7 +74,7 @@ export default function HistoryPage() {
                       </td>
                       <td className="muted">{e.resource ?? '—'}</td>
                       <td>
-                        <span className={`badge badge-sev-${e.severity ?? 'info'}`}>{e.severity ?? 'info'}</span>
+                        <Badge kind="sev" value={e.severity ?? 'info'} />
                       </td>
                     </tr>
                   ))}

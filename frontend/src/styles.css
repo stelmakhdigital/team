@@ -157,6 +157,10 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 .badge-done, .badge-running, .badge-sent { color: var(--green); border-color: var(--green); }
 .badge-warn { color: var(--yellow); border-color: var(--yellow); }
 .badge-state-active { color: var(--green); border-color: var(--green); }
+.badge-state-inactive { color: var(--muted); border-color: var(--muted); }
+.badge-state-blocked { color: var(--red); border-color: var(--red); }
+.badge-stopped { color: var(--muted); border-color: var(--muted); }
+.badge-idle { color: var(--muted); border-color: var(--muted); }
 .badge-state-stopped, .badge-state-archived { color: var(--muted); }
 .badge-sev-critical { color: #fff; background: var(--red); border-color: var(--red); }
 .badge-sev-high { color: var(--red); border-color: var(--red); }

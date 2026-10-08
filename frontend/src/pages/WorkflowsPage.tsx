@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import { EmptyState, ErrorState, errorMessage, Spinner } from '../components/ui/States';
+import {  EmptyState, ErrorState, errorMessage, Spinner , Badge } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 
@@ -68,7 +68,7 @@ export default function WorkflowsPage() {
                   </td>
                   <td>team #{w.team_id}</td>
                   <td>
-                    <span className={`badge badge-state-${w.state}`}>{w.state}</span>
+                    <Badge kind="entity" value={w.state} />
                   </td>
                   <td className="muted">{formatRelative(w.updated_at)}</td>
                 </tr>

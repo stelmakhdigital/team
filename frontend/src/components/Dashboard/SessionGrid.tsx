@@ -1,8 +1,9 @@
+import { memo } from 'react';
 import type { Session } from '../../types/api';
 import { formatBytes, formatUptime } from '../../lib/format';
 import { EmptyState } from '../ui/States';
 
-export default function SessionGrid({ sessions }: { sessions: Session[] }) {
+function SessionGridInner({ sessions }: { sessions: Session[] }) {
   if (sessions.length === 0) {
     return <EmptyState title="No sessions" hint="Agent sessions will appear here when teams start." />;
   }
@@ -33,3 +34,5 @@ export default function SessionGrid({ sessions }: { sessions: Session[] }) {
     </div>
   );
 }
+
+export default memo(SessionGridInner);

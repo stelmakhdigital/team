@@ -1,8 +1,9 @@
+import { memo } from 'react';
 import type { Task } from '../../types/api';
 import { formatRelative } from '../../lib/format';
-import { EmptyState } from '../ui/States';
+import { Badge, EmptyState } from '../ui/States';
 
-export default function TaskList({ tasks }: { tasks: Task[] }) {
+function TaskListInner({ tasks }: { tasks: Task[] }) {
   if (tasks.length === 0) {
     return <EmptyState title="No active tasks" hint="Tasks created by leads will appear here." />;
   }
@@ -26,14 +27,14 @@ export default function TaskList({ tasks }: { tasks: Task[] }) {
               <td>
                 <div className="task-title">
                   {t.title}
-                  {t.is_stale && <span className="badge badge-warn" title="Not updated for more than 2h">stale</span>}
+                  {t.is_stale && <Badge kind="warn" title="Not updated for more than 2h">stale</Badge>}
                 </div>
                 <div className="muted small">#{t.id} · priority {t.priority}</div>
               </td>
               <td>{t.team_name}</td>
               <td>{t.destination_role_name}</td>
               <td>
-                <span className={`badge badge-${t.state}`}>{t.state}</span>
+                <Badge kind="task" value={t.state} />
               </td>
               <td>
                 {t.progress !== undefined ? (
@@ -52,3 +53,5 @@ export default function TaskList({ tasks }: { tasks: Task[] }) {
     </div>
   );
 }
+
+export default memo(TaskListInner);

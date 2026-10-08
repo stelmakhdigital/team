@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import { EmptyState, ErrorState, errorMessage, Spinner } from '../components/ui/States';
+import {  EmptyState, ErrorState, errorMessage, Spinner , Badge } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 import type { Team } from '../types/api';
@@ -18,7 +18,7 @@ function TeamRow({ team }: { team: Team }) {
         <div className="muted small">{team.description}</div>
       </td>
       <td>
-        <span className={`badge badge-state-${team.state}`}>{team.state}</span>
+        <Badge kind="entity" value={team.state} />
       </td>
       <td>{team.segments_count}</td>
       <td>{team.roles_count}</td>

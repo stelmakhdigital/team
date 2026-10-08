@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import { EmptyState, ErrorState, errorMessage, Spinner } from '../components/ui/States';
+import { Badge, EmptyState, ErrorState, errorMessage, Spinner } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatDateTime, formatRelative } from '../lib/format';
 import { CLOSURE_REASONS, TASK_TRANSITIONS, isTerminalTaskState } from '../lib/task';
@@ -193,10 +193,10 @@ function TaskRow({
           {task.source_role_name && <div className="muted small">from {task.source_role_name}</div>}
         </td>
         <td>
-          <span className={`badge badge-${task.state}`}>
+          <Badge kind="task" value={task.state}>
             {task.state}
             {task.is_stale ? ' · stale' : ''}
-          </span>
+          </Badge>
         </td>
         <td className="muted">{task.priority}</td>
         <td className="muted">{formatRelative(task.updated_at)}</td>
@@ -269,7 +269,7 @@ function TaskDetail({ taskId }: { taskId: number }) {
         <ul className="subtask-list">
           {detail.data!.subtasks.map((s) => (
             <li key={s.id}>
-              <span className={`badge badge-${s.state}`}>{s.state}</span> {s.title}
+              <Badge kind="task" value={s.state} /> {s.title}
               <span className="muted small"> → {s.destination_role_name}</span>
             </li>
           ))}

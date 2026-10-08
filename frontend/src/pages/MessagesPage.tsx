@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import { ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
+import { Badge, ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 
@@ -85,7 +85,7 @@ export default function MessagesPage() {
                   </div>
                   <div className="muted small">
                     {c.last_message ? `${c.last_message.from_role_name}: ${c.last_message.body.slice(0, 40)}` : 'no messages'}
-                    {c.unread_count > 0 && <span className="badge badge-warn">{c.unread_count} new</span>}
+                    {c.unread_count > 0 && <Badge kind="warn">{c.unread_count} new</Badge>}
                   </div>
                 </button>
               </li>

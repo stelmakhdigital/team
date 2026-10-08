@@ -1,6 +1,7 @@
 // Таблица топологии (R3, референс openRIG Table view): альтернатива графику
 // и fallback на узких экранах.
 import type { Role, Segment } from '../../types/api';
+import { Badge } from '../ui/States';
 
 interface Props {
   segments: Segment[];
@@ -58,7 +59,7 @@ export default function TopologyTableView({ segments, roles, onSelect }: Props) 
                   {r.profile && <span className="mono badge">{r.profile}</span>}
                 </td>
                 <td className="mono dim">{segName.get(r.segment_id) ?? `#${r.segment_id}`}</td>
-                <td><span className={`badge badge-state-${r.state}`}>{r.state}</span></td>
+                <td><Badge kind="entity" value={r.state} /></td>
                 <td className="mono dim">{r.session ? r.session.state : 'no session'}</td>
                 <td className="mono dim">{r.agent_spec}</td>
                 <td className="mono dim">{act === 'running' && up ? up : '—'}</td>

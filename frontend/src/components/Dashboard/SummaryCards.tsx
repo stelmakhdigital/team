@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import type { DashboardSummaryResponse } from '../../types/api';
 import { formatRelative } from '../../lib/format';
 
-export default function SummaryCards({ summary }: { summary: DashboardSummaryResponse }) {
+function SummaryCardsInner({ summary }: { summary: DashboardSummaryResponse }) {
   const cards = [
     { label: 'Teams', value: `${summary.teams.active}/${summary.teams.total}`, sub: 'active / total' },
     {
@@ -35,3 +36,5 @@ export default function SummaryCards({ summary }: { summary: DashboardSummaryRes
     </section>
   );
 }
+
+export default memo(SummaryCardsInner);
