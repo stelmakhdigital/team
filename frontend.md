@@ -1,6 +1,6 @@
 # Frontend — роль и статус (точка восстановления сессии)
 
-> Файл для восстановления работы. **Последнее обновление: 2026-10-08, ~11:10 (после F12, коммит см. ниже; до него `57aed07`/`ba52616`).**
+> Файл для восстановления работы. **Последнее обновление: 2026-10-08, ~11:15 (после F12, коммит `83d8c92` pushed).**
 > Рабочая зона: `frontend/**` (плюс статус-файлы `_workspace/frontend-status.md`, `_workspace/integration-status.md`, `_workspace/blockers.md`, доки `docs/architecture/frontend.md`, `docs/architecture/integration.md` (владею как лид), контракт `docs/architecture/frontend/20_contract_API.md` + `21_team_builder.md`).
 > Роль: **frontend-инженер + lead-интегратор** (могу менять любые файлы для интеграции,
 > но рабочую зону backend не трогаю — бекенду отдаю списки в `answer_backend.md`, читаю его отчёты в `answer_frontend.md`).
@@ -43,7 +43,7 @@
   настраиваются `INTEGRATION_BASE_URL` (default :8080) / `INTEGRATION_API_KEY`.
 
 ## 3. Текущий статус (2026-10-08, ~11:10)
-- Git: HEAD — коммит F12 (sm. `git log --oneline -3`); до него `57aed07` (docs), `ba52616` (F11).
+- Git: HEAD = **`83d8c92`** (F12, pushed); до него: `57aed07` (docs), `ba52616` (F11).
 - Тесты: **45/45** (30 unit + 15 интеграционных против живого daemon; автоскип без daemon); typecheck OK; production build OK (81.9 KB gzip). Два последовательных прогона зелёные.
 - **Backend-агент активен (2026-10-08, ~10:56+)**: в WIP — **slice 6 (RBAC + api_keys + secrets)**;
   его демон на :8080 (`./bin/daemon`, DB `/tmp/daemon-slice6.db`, `DAEMON_API_KEYS` — auth ВКЛ).
@@ -107,5 +107,5 @@ LD_LIBRARY_PATH=/tmp/pwlibs/extracted/usr/lib/x86_64-linux-gnu node /tmp/shots/<
 ## 7. Как восстановить сессию
 1. Прочитать этот файл + `_workspace/integration-status.md` (таблица + последние 2–3 записи change-log) + `_workspace/blockers.md` + `answer_backend.md` (мой последний ответ backend'у).
 2. `cd frontend && npm test` — ожидается **45/45** (интеграционные скипаются без daemon; поднять по п.5, `INTEGRATION_BASE_URL=http://localhost:8081`).
-3. `git log --oneline -3` — HEAD = коммит F12 (или новее, если продолжил).
+3. `git log --oneline -3` — HEAD должен быть `83d8c92` (или новее, если продолжил).
 4. Дальше — «Следующие шаги» (п.3): RBAC-ветки после коммита slice 6, WorkflowEditor drag, apply-library из UI.
