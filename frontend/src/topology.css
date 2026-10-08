@@ -18,27 +18,27 @@
   font-family: inherit;
 }
 
-.topology-canvas .react-flow__controls {
+.topology-canvas .react-flow__controls, .workflow-canvas .react-flow__controls {
   background: var(--panel, rgba(15, 23, 42, 0.9));
   border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
-.topology-canvas .react-flow__controls-button {
+.topology-canvas .react-flow__controls-button, .workflow-canvas .react-flow__controls-button {
   background: transparent;
   border-bottom: 1px solid var(--border, rgba(148, 163, 184, 0.12));
   width: 28px;
   height: 26px;
 }
-.topology-canvas .react-flow__controls-button svg {
+.topology-canvas .react-flow__controls-button svg, .workflow-canvas .react-flow__controls-button svg {
   fill: var(--muted, #94a3b8);
 }
-.topology-canvas .react-flow__controls-button:hover {
+.topology-canvas .react-flow__controls-button:hover, .workflow-canvas .react-flow__controls-button:hover {
   background: rgba(148, 163, 184, 0.12);
 }
 
-.topology-canvas .react-flow__minimap {
+.topology-canvas .react-flow__minimap, .workflow-canvas .react-flow__minimap {
   background: var(--panel, rgba(15, 23, 42, 0.9));
   border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
   border-radius: 8px;
@@ -344,3 +344,117 @@
   text-overflow: ellipsis;
 }
 .role-term-line.dim { color: var(--dim, #64748b); }
+
+/* ---------- R6.4: workflow editor (React Flow) ---------- */
+.workflow-canvas {
+  flex: 1;
+  min-height: 420px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.wf-builder .builder-main { position: relative; }
+
+.wf-node {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(6px);
+  padding: 5px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  box-sizing: border-box;
+}
+.wf-node.wf-selected { border-color: rgba(56, 189, 248, 0.9); box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35); }
+.wf-node-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.wf-node-icon { font-size: 13px; flex-shrink: 0; }
+.wf-node-label { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wf-node-sub { display: flex; gap: 8px; font-size: 9px; color: var(--dim); }
+.wf-node-summary { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.wf-task { border-color: rgba(56, 189, 248, 0.4); }
+.wf-task .wf-node-icon { color: var(--sky); }
+.wf-decision { border-color: rgba(245, 158, 11, 0.5); }
+.wf-decision .wf-node-icon { color: var(--amber); }
+.wf-parallel { border-color: rgba(167, 139, 250, 0.5); }
+.wf-parallel .wf-node-icon { color: var(--violet); }
+.wf-loop { border-color: rgba(16, 185, 129, 0.5); }
+.wf-loop .wf-node-icon { color: var(--emerald); }
+.wf-agent { border-color: rgba(59, 130, 246, 0.5); }
+.wf-agent .wf-node-icon { color: var(--blue); }
+.wf-manual { border-color: rgba(148, 163, 184, 0.4); }
+.wf-manual .wf-node-icon { color: var(--muted); }
+
+.wf-icon-task { color: var(--sky); }
+.wf-icon-decision { color: var(--amber); }
+.wf-icon-parallel { color: var(--violet); }
+.wf-icon-loop { color: var(--emerald); }
+.wf-icon-agent { color: var(--blue); }
+.wf-icon-manual { color: var(--muted); }
+
+.wf-palette-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-panel-2);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.wf-palette-item:hover { border-color: var(--accent); }
+
+.wf-handle {
+  width: 8px;
+  height: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--dim);
+}
+.wf-handle-edit { border-color: var(--sky); background: rgba(56, 189, 248, 0.4); }
+
+.wf-config { display: flex; flex-direction: column; gap: 12px; }
+.wf-config-actions { display: flex; gap: 8px; }
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: var(--red);
+}
+.btn-danger:hover { background: rgba(239, 68, 68, 0.22); }
+
+.ws-err { color: var(--red); border-color: var(--red); }
+
+/* workflow-канвас responsive: 100% (старый фикс 1400x900 убран) */
+@media (max-width: 1200px) {
+  .wf-builder { grid-template-columns: 1fr !important; }
+  .wf-builder .toolbar {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    z-index: 90;
+    width: min(260px, 80vw);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    border-radius: 0;
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.4);
+  }
+  .wf-builder.drawer-open-palette .toolbar { transform: translateX(0); }
+}
+
+@media (max-width: 1200px) {
+  .wf-fab {
+    display: flex;
+    position: fixed;
+    bottom: 76px;
+    left: 14px;
+    z-index: 80;
+  }
+  .wf-fab .btn { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); }
+}

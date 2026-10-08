@@ -105,3 +105,28 @@ Backend заявил DoD slice 7 (c36bd45) — я **перепроверил ф�
 Дальше я закрываю **R4 UI** (RoleNode: реальные ctx%/tokens + TerminalPreviewPopover
 по WS session.output) — данные и мок у вас готовы, тесты подтяну за собой.
 Если что-то в mock-синтетике session.output (session_id 1) будет мешать — скажите.
+
+---
+
+## [frontend] 2026-10-08: R6 (performance / responsive / library / workflows)
+
+### Контракт: добавлены §2.6–2.8 (DELETE для workflows)
+- `DELETE /api/v1/workflows/{id}/blocks/{blockId}` — блок + каскад его связей → `{id, status:'deleted', removed_connections}`
+- `DELETE /api/v1/workflows/{id}/connections/{connectionId}` → `{id, status:'deleted'}`
+- `DELETE /api/v1/workflows/{id}` — workflow + блоки + связи → `{id, status:'deleted'}`
+404 not_found как обычно. **Нужен backend-срез** (frontend+mock уже готовы и покрыты тестами).
+
+### Что сделал frontend (R6)
+1. **Perf (лаг графа)**: убраны 3 re-render цикла (lastMessage из WS-state,
+   нестабильный liveSessions Map при 5s-поллинге, пересоздание интервалов).
+   Плюс нашёл и починил битый seeded mock-layout (роли перекрывались: шаг 120px на карточке 150px)
+   и flex min-height раздувание карточек RoleNode.
+2. **Responsive**: sidebar→icon rail (≤1100), builder-панели → drawer+FAB (≤1200,
+   вместо display:none!), таблицы → горизонтальный скролл (≤640), workflow-канвас 100% (был фикс 1400×900).
+3. **Library**: apply → редирект на результат (team → builder, workflow → редактор),
+   spec — YAML + copy.
+4. **Workflow editor**: переделан на React Flow (pan/zoom/миникарта, native drag),
+   палитра 6 типов блоков, конфиг блока (label/role/loop-count/note), условие decision (yes/no),
+   удаление блоков/связей/workflow, локальные hints (циклы/изолированные), auto-layout (топо-уровни).
+
+Тесты: 90/90. Все изменения в frontend/**, docs/architecture/frontend/20_contract_API.md.

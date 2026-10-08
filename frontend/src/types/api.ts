@@ -484,6 +484,23 @@ export interface UpdateBlockResponse {
   };
 }
 
+// R6.4 (контракт 20 §2.6–2.8): удаление блоков/связей/workflow
+export interface DeleteWorkflowBlockResponse {
+  id: number;
+  status: 'deleted';
+  removed_connections: number;
+}
+
+export interface DeleteWorkflowConnectionResponse {
+  id: number;
+  status: 'deleted';
+}
+
+export interface DeleteWorkflowResponse {
+  id: number;
+  status: 'deleted';
+}
+
 // ---- Dashboard ----
 
 export interface DashboardSummaryResponse {

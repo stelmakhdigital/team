@@ -573,6 +573,45 @@ export function createMockAdapter(): Api {
         if (req.label !== undefined) block.label = req.label;
         return { id: block.id, status: 'updated', changes };
       },
+
+      // R6.4 (контракт 20 §2.6–2.8)
+      async deleteBlock(workflowId, blockId) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const block = db.blocks.find((b) => b.id === blockId && b.workflow_id === workflowId);
+        if (!block) throw new ApiClientError(404, 'not_found', 'Block not found');
+        const removed = db.connections.filter(
+          (c) => c.workflow_id === workflowId && (c.from_block_id === blockId || c.to_block_id === blockId),
+        );
+        db.connections = db.connections.filter(
+          (c) => !(c.workflow_id === workflowId && (c.from_block_id === blockId || c.to_block_id === blockId)),
+        );
+        db.blocks = db.blocks.filter((b) => b.id !== blockId);
+        return { id: blockId, status: 'deleted', removed_connections: removed.length };
+      },
+
+      async deleteConnection(workflowId, connectionId) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const conn = db.connections.find((c) => c.id === connectionId && c.workflow_id === workflowId);
+        if (!conn) throw new ApiClientError(404, 'not_found', 'Connection not found');
+        db.connections = db.connections.filter((c) => c.id !== connectionId);
+        return { id: connectionId, status: 'deleted' };
+      },
+
+      async deleteWorkflow(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const wf = db.workflows.find((w) => w.id === id);
+        if (!wf) throw new ApiClientError(404, 'not_found', 'Workflow not found');
+        db.blocks = db.blocks.filter((b) => b.workflow_id !== id);
+        db.connections = db.connections.filter((c) => c.workflow_id !== id);
+        db.workflows = db.workflows.filter((w) => w.id !== id);
+        return { id, status: 'deleted' };
+      },
     },
 
     dashboard: {

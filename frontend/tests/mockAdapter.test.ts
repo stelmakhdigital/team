@@ -153,6 +153,29 @@ describe('MockAdapter contract compatibility', () => {
     expect(closed.task.closure_target_id).toBe(res.new_task_id);
   }, 30_000);
 
+  it('workflow R6.4: delete block removes its connections; delete connection/workflow', async () => {
+    const api = createMockAdapter();
+    const wf = await api.workflows.createWorkflow({ team_id: 1, name: 'del-test' });
+    const b1 = await api.workflows.createBlock(wf.id, { type: 'task', position: { x: 0, y: 0 }, config: {} });
+    const b2 = await api.workflows.createBlock(wf.id, { type: 'agent', position: { x: 1, y: 0 }, config: {} });
+    const c1 = await api.workflows.createConnection(wf.id, { from_block_id: b1.id, to_block_id: b2.id });
+    // delete connection
+    const d1 = await api.workflows.deleteConnection(wf.id, c1.id);
+    expect(d1.status).toBe('deleted');
+    // recreate + delete block (каскад по связям)
+    await api.workflows.createConnection(wf.id, { from_block_id: b1.id, to_block_id: b2.id });
+    const d2 = await api.workflows.deleteBlock(wf.id, b1.id);
+    expect(d2.status).toBe('deleted');
+    expect(d2.removed_connections).toBe(1);
+    const got = await api.workflows.getWorkflow(wf.id);
+    expect(got.blocks.map((b) => b.id)).toEqual([b2.id]);
+    expect(got.connections.length).toBe(0);
+    // delete workflow
+    const d3 = await api.workflows.deleteWorkflow(wf.id);
+    expect(d3.status).toBe('deleted');
+    await expect(api.workflows.getWorkflow(wf.id)).rejects.toMatchObject({ status: 404 });
+  });
+
   it('library apply: 404 / team new / team merge / workflow target / segment merge / role apply', async () => {
     const api = createMockAdapter();
 

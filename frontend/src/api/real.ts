@@ -30,6 +30,9 @@ export function createRealAdapter(): Api {
       createBlock: (workflowId, req) => http(`${B}/workflows/${workflowId}/blocks`, { method: 'POST', body: req }),
       createConnection: (workflowId, req) => http(`${B}/workflows/${workflowId}/connections`, { method: 'POST', body: req }),
       updateBlock: (workflowId, blockId, req) => http(`${B}/workflows/${workflowId}/blocks/${blockId}`, { method: 'PATCH', body: req }),
+      deleteBlock: (workflowId, blockId) => http(`${B}/workflows/${workflowId}/blocks/${blockId}`, { method: 'DELETE' }),
+      deleteConnection: (workflowId, connectionId) => http(`${B}/workflows/${workflowId}/connections/${connectionId}`, { method: 'DELETE' }),
+      deleteWorkflow: (id) => http(`${B}/workflows/${id}`, { method: 'DELETE' }),
     },
     dashboard: {
       getSummary: () => http(`${B}/dashboard/summary`),

@@ -77,5 +77,13 @@
 
 **Весь план R1→R5 завершён (2026-10-08).**
 
+## R6 (2026-10-08): performance + responsive + library + workflows
+- **R6.1 perf** (dd47d32): 3 re-render цикла убраны (WS lastMessage, liveSessions Map, интервалы)
+- **R6.2 responsive** (6a72bf8): sidebar→rail ≤1100, builder-панели→drawer+FAB ≤1200,
+  таблицы scroll ≤640; фикс overlap карточек (flex min-height + seeded mock-layout)
+- **R6.3 library** + **R6.4 workflows** (этот коммит): apply→редирект, YAML spec,
+  workflow editor на React Flow (палитра, конфиг блоков, decision yes/no, delete,
+  hints, auto-layout), контракт §2.6–2.8 (DELETE, ждём backend-срез)
+
 ## Команда/порядок
 R1 → R2 → YAML → R3 → Slice7/R4 → R5 — **всё сделано**. Каждая фаза — коммит + зелёные тесты.

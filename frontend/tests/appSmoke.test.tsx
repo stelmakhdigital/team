@@ -141,6 +141,18 @@ describe('App smoke', () => {
     expect(screen.getAllByText('running').length).toBeGreaterThan(0);
   }, 15_000);
 
+  it('R6.4: workflow editor renders blocks/connections on canvas', async () => {
+    render(
+      <MemoryRouter initialEntries={['/workflows/1']}>
+        <App />
+      </MemoryRouter>,
+    );
+    // блоки из mock (React Flow): Implement / Review OK? / Escalate
+    expect(await screen.findByText('Implement', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByText('Review OK?')).toBeInTheDocument();
+    expect(screen.getByText('Escalate')).toBeInTheDocument();
+  }, 15_000);
+
   it('R4: role cards show live metrics (ctx%/tokens/model) from sessions', async () => {
     render(
       <MemoryRouter initialEntries={['/teams/1']}>

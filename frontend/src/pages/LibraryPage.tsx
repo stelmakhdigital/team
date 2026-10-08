@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import YAML from 'yaml';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
@@ -33,8 +35,36 @@ export default function LibraryPage() {
     api.library.applyLibrary(itemId, req),
   );
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const saveTeam = teams.data?.teams.find((t) => t.id === saveTeamId) ?? teams.data?.teams[0];
+
+  // R6.3: после apply — редирект на результат (команда → builder, workflow → редактор)
+  const openResult = async (item: { id: number; type: string; name: string }, targetTeamId?: number, newTeamId?: number) => {
+    list.refetch();
+    teams.refetch();
+    if (item.type === 'team') {
+      if (newTeamId) navigate(`/teams/${newTeamId}`);
+      else if (targetTeamId) navigate(`/teams/${targetTeamId}`);
+      return;
+    }
+    if (targetTeamId) {
+      if (item.type === 'workflow') {
+        try {
+          const wf = await api.workflows.getWorkflows({ team_id: targetTeamId });
+          const found = wf.workflows.find((w) => w.name === item.name);
+          if (found) {
+            toast('success', `Workflow "${item.name}" created — opening editor`);
+            navigate(`/workflows/${found.id}`);
+            return;
+          }
+        } catch {
+          /* fallback: открыть team */
+        }
+      }
+      navigate(`/teams/${targetTeamId}`);
+    }
+  };
 
   return (
     <div className="page">
@@ -159,9 +189,9 @@ export default function LibraryPage() {
                     onClick={async () => {
                       try {
                         const res = await apply.mutate(detail.data!.item.id, {});
-                        toast('success', `Applied as new team (id ${res.created_resources?.teams?.[0] ?? '?'})`);
-                        list.refetch();
-                        teams.refetch();
+                        const newId = res.created_resources?.teams?.[0];
+                        toast('success', `Applied as new team (id ${newId ?? '?'})`);
+                        await openResult(detail.data!.item, undefined, newId);
                       } catch (e) {
                         toast('error', e instanceof Error ? e.message : 'Failed to apply');
                       }
@@ -231,8 +261,7 @@ export default function LibraryPage() {
                         if (!applyTargetId) return;
                         try {
                           await apply.mutate(detail.data!.item.id, { target_team_id: applyTargetId });
-                          toast('success', 'Workflow applied');
-                          list.refetch();
+                          await openResult(detail.data!.item, applyTargetId);
                         } catch (e) {
                           toast('error', e instanceof Error ? e.message : 'Failed to apply');
                         }
@@ -271,7 +300,7 @@ export default function LibraryPage() {
                         try {
                           const res = await apply.mutate(detail.data!.item.id, { target_team_id: applyTargetId });
                           toast('success', `${detail.data!.item.type} applied (status: ${res.status})`);
-                          list.refetch();
+                          await openResult(detail.data!.item, applyTargetId);
                         } catch (e) {
                           toast('error', e instanceof Error ? e.message : 'Failed to apply');
                         }
@@ -297,7 +326,22 @@ export default function LibraryPage() {
                 ))}
               </ul>
               <h4>Spec</h4>
-              <pre className="spec-pre">{JSON.stringify(detail.data.spec, null, 2)}</pre>
+              <pre className="spec-pre">
+                {YAML.stringify(detail.data.spec)}
+                <button
+                  className="btn btn-small spec-copy"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(YAML.stringify(detail.data!.spec));
+                      toast('success', 'Spec copied to clipboard');
+                    } catch {
+                      toast('error', 'Clipboard unavailable');
+                    }
+                  }}
+                >
+                  ⧉ Copy
+                </button>
+              </pre>
             </div>
           )}
         </aside>

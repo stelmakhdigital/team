@@ -259,18 +259,20 @@ function seed(): DB {
   ];
 
   t.blocks = [
-    { id: 1, workflow_id: 1, type: 'task', position: { x: 80, y: 120 }, config: { assignee: 'Backend.Lead' }, label: 'Implement', created_at: iso(60 * 24 * 2) },
+    { id: 1, workflow_id: 1, type: 'task', position: { x: 80, y: 120 }, config: { role: 'Backend.Lead' }, label: 'Implement', created_at: iso(60 * 24 * 2) },
     { id: 2, workflow_id: 1, type: 'agent', position: { x: 340, y: 120 }, config: { role: 'Backend.Worker' }, label: 'Worker runs', created_at: iso(60 * 24 * 2) },
     { id: 3, workflow_id: 1, type: 'decision', position: { x: 600, y: 120 }, config: {}, label: 'Review OK?', created_at: iso(60 * 24 * 2) },
     { id: 4, workflow_id: 1, type: 'task', position: { x: 860, y: 60 }, config: {}, label: 'Deploy', created_at: iso(60 * 24 * 2) },
     { id: 5, workflow_id: 2, type: 'task', position: { x: 100, y: 100 }, config: {}, label: 'Fix', created_at: iso(60 * 20) },
+    // R6.4: 'no' → manual (escalation) — демо без цикла
+    { id: 6, workflow_id: 1, type: 'manual', position: { x: 600, y: 300 }, config: { note: 'Human review' }, label: 'Escalate', created_at: iso(60 * 24 * 2) },
   ];
 
   t.connections = [
     { id: 1, workflow_id: 1, from_block_id: 1, to_block_id: 2, created_at: iso(60 * 24 * 2) },
     { id: 2, workflow_id: 1, from_block_id: 2, to_block_id: 3, created_at: iso(60 * 24 * 2) },
     { id: 3, workflow_id: 1, from_block_id: 3, to_block_id: 4, condition: 'yes', created_at: iso(60 * 24 * 2) },
-    { id: 4, workflow_id: 1, from_block_id: 3, to_block_id: 2, condition: 'no', created_at: iso(60 * 24 * 2) },
+    { id: 4, workflow_id: 1, from_block_id: 3, to_block_id: 6, condition: 'no', created_at: iso(60 * 24 * 2) },
   ];
 
   const mkTask = (

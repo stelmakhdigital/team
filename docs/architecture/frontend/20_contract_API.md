@@ -405,6 +405,40 @@ interface UpdateBlockResponse {
 }
 ```
 
+#### 2.6 Удалить блок (добавлено 2026-10-08, R6.4)
+
+```typescript
+// DELETE /api/v1/workflows/:workflowId/blocks/:blockId
+// Удаляет блок и ВСЕ его связи (каскад). 404 not_found — блок/воркфлоу нет.
+interface DeleteWorkflowBlockResponse {
+  id: number;
+  status: 'deleted';
+  removed_connections: number;  // сколько связей удалено каскадом
+}
+```
+
+#### 2.7 Удалить связь (добавлено 2026-10-08, R6.4)
+
+```typescript
+// DELETE /api/v1/workflows/:workflowId/connections/:connectionId
+// 404 not_found — связь/воркфлоу нет.
+interface DeleteWorkflowConnectionResponse {
+  id: number;
+  status: 'deleted';
+}
+```
+
+#### 2.8 Удалить workflow (добавлено 2026-10-08, R6.4)
+
+```typescript
+// DELETE /api/v1/workflows/:workflowId
+// Удаляет workflow + все его блоки и связи. 404 not_found — нет.
+interface DeleteWorkflowResponse {
+  id: number;
+  status: 'deleted';
+}
+```
+
 
 ______________________________________________________________________
 

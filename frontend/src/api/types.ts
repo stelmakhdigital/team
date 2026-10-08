@@ -62,6 +62,9 @@ import type {
   SendMessageResponse,
   UpdateBlockRequest,
   UpdateBlockResponse,
+  DeleteWorkflowBlockResponse,
+  DeleteWorkflowConnectionResponse,
+  DeleteWorkflowResponse,
   UpdateRoleConfigRequest,
   UpdateRoleConfigResponse,
   UpdateRoleLayoutRequest,
@@ -107,6 +110,9 @@ export interface Api {
     createBlock(workflowId: number, req: CreateBlockRequest): Promise<CreateBlockResponse>;
     createConnection(workflowId: number, req: CreateConnectionRequest): Promise<CreateConnectionResponse>;
     updateBlock(workflowId: number, blockId: number, req: UpdateBlockRequest): Promise<UpdateBlockResponse>;
+    deleteBlock(workflowId: number, blockId: number): Promise<DeleteWorkflowBlockResponse>;
+    deleteConnection(workflowId: number, connectionId: number): Promise<DeleteWorkflowConnectionResponse>;
+    deleteWorkflow(id: number): Promise<DeleteWorkflowResponse>;
   };
   dashboard: {
     getSummary(): Promise<DashboardSummaryResponse>;
