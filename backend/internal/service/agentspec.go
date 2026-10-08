@@ -122,7 +122,12 @@ func (s *TeamService) LoadAgentSpec(specPath string) (*AgentSpec, []SpecProfile)
 	if specPath == "" {
 		return &AgentSpec{Name: "", PiConfig: stub.PiConfig, Startup: stub.Startup}, []SpecProfile{}
 	}
-	abs, err := filepath.Abs(specPath)
+	// резолв с fallback по расширениям ("pi-lead" → agents/pi-lead.yaml)
+	resolved := s.resolveAgentSpecPath(specPath)
+	if resolved == "" {
+		return stub, []SpecProfile{}
+	}
+	abs, err := filepath.Abs(resolved)
 	if err != nil || !s.pathAllowed(abs) {
 		return stub, []SpecProfile{}
 	}

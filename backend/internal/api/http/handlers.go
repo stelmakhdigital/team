@@ -13,8 +13,16 @@ import (
 const rfc3339 = time.RFC3339
 
 type handlers struct {
-	svc  *service.TeamService
-	tsvc *service.TaskService
+	svc    *service.TeamService
+	tsvc   *service.TaskService
+	ssvc   *service.SessionService
+	msvc   *service.MessageService
+	wsvc   *service.WorkflowService
+	lsvc   *service.LibraryService
+	asvc   *service.AuditService
+	msvcM  *service.MetricsService
+	alerts *service.AlertStoreRef
+	events *service.EventBus
 }
 
 func limitOffset(q url.Values) (int, int) {
@@ -380,6 +388,39 @@ type layoutPosition struct {
 	Y float64 `json:"y"`
 }
 
+// segmentLayoutView — контракт 21 §5: SegmentLayout {segment_id, position{x,y,width,height}, collapsed}.
+type segmentLayoutView struct {
+	SegmentID int64          `json:"segment_id"`
+	Position  segmentPosView `json:"position"`
+	Collapsed bool           `json:"collapsed"`
+}
+
+type segmentPosView struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+}
+
+func toSegmentLayoutView(id int64, l *service.Layout) segmentLayoutView {
+	v := segmentLayoutView{SegmentID: id}
+	if l == nil {
+		return v
+	}
+	v.Position = segmentPosView{X: l.X, Y: l.Y, Width: l.Width, Height: l.Height}
+	if l.Collapsed != nil {
+		v.Collapsed = *l.Collapsed
+	}
+	return v
+}
+
+func toRolePositionView(l *service.Layout) layoutPosition {
+	if l == nil {
+		return layoutPosition{}
+	}
+	return layoutPosition{X: l.X, Y: l.Y}
+}
+
 type updateSegmentLayoutBody struct {
 	Position layoutPosition `json:"position"`
 	Size     *struct {
@@ -417,7 +458,8 @@ func (h *handlers) UpdateSegmentLayout(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": id, "status": "updated",
-		"previous_layout": res.PreviousLayout, "new_layout": res.NewLayout,
+		"previous_layout": toSegmentLayoutView(id, res.PreviousLayout),
+		"new_layout":      toSegmentLayoutView(id, res.NewLayout),
 	})
 }
 
@@ -446,7 +488,8 @@ func (h *handlers) UpdateRoleLayout(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": id, "status": "updated",
-		"previous_position": res.PreviousPosition, "new_position": res.NewPosition,
+		"previous_position": toRolePositionView(res.PreviousPosition),
+		"new_position":      toRolePositionView(res.NewPosition),
 	})
 }
 
@@ -666,9 +709,11 @@ func (h *handlers) SaveTopology(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Name          string `json:"name"`
-		Description   string `json:"description"`
-		SaveToLibrary bool   `json:"save_to_library"`
+		Name          string        `json:"name"`
+		Description   string        `json:"description"`
+		SaveToLibrary bool          `json:"save_to_library"`
+		Segments      []saveNodeRef `json:"segments"` // I1
+		Roles         []saveNodeRef `json:"roles"`    // I1
 	}
 	if r.ContentLength > 0 {
 		if err := decodeJSON(r, &body); err != nil {
@@ -676,16 +721,54 @@ func (h *handlers) SaveTopology(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	segNames := make([]string, 0, len(body.Segments))
+	for _, sg := range body.Segments {
+		segNames = append(segNames, sg.Name)
+	}
+	roleNames := make([]string, 0, len(body.Roles))
+	for _, rl := range body.Roles {
+		roleNames = append(roleNames, rl.Name)
+	}
 	res, err := h.svc.SaveTopology(r.Context(), service.SaveTopologyRequest{
-		TeamID: id, Name: body.Name, Description: body.Description, SaveToLibrary: body.SaveToLibrary,
+		TeamID: id, Name: body.Name, Description: body.Description,
+		SaveToLibrary: body.SaveToLibrary, Segments: segNames, Roles: roleNames,
 	})
 	if err != nil {
 		writeError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	// slice 5b: save_to_library — снапшот команды в библиотеку
+	var libraryItemID *int64
+	if body.SaveToLibrary && h.lsvc != nil {
+		team, terr := h.svc.GetTeam(r.Context(), id)
+		if terr == nil {
+			name := "team-" + team.Team.Name
+			var desc *string
+			if team.Team.Description != "" {
+				desc = &team.Team.Description
+			}
+			if item, serr := h.lsvc.Save(r.Context(), service.SaveToLibraryRequest{
+				Type: models.LibTeam, SourceID: id, Name: name,
+				Description: desc,
+			}); serr == nil {
+				libraryItemID = &item.ID
+			}
+			// ошибка save-в-library не ломает save (логгится в audit)
+		}
+	}
+	out := map[string]any{
 		"team_id": res.TeamID, "status": "saved", "validation": res.Validation,
-	})
+	}
+	if libraryItemID != nil {
+		out["library_item_id"] = *libraryItemID
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// saveNodeRef — элемент segments/roles в payload save (I1).
+type saveNodeRef struct {
+	Segment string `json:"segment"`
+	Name    string `json:"name"`
 }
 
 func roleView(role *models.Role, segmentName string) map[string]any {

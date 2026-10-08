@@ -79,5 +79,6 @@ func parseIDParam(s string) (int64, error) {
 
 var (
 	errUnauthorized  = &service.AppError{Code: "unauthorized", Status: 401, Message: "missing or invalid X-API-Key"}
+	errForbidden     = &service.AppError{Code: "forbidden", Status: 403, Message: "insufficient permissions"}
 	errInternalPanic = &service.AppError{Code: "internal", Status: 500, Message: "internal server error (panic recovered)"}
 )

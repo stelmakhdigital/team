@@ -18,22 +18,49 @@ type DBTX interface {
 
 // Stores — конретные репозитории над одним *sql.DB.
 type Stores struct {
-	Teams     *TeamRepo
-	Segments  *SegmentRepo
-	Roles     *RoleRepo
-	Relatives *RelativeRepo
-	Tasks     *TaskRepo
-	History   *HistoryRepo
+	Teams          *TeamRepo
+	Segments       *SegmentRepo
+	Roles          *RoleRepo
+	Relatives      *RelativeRepo
+	Tasks          *TaskRepo
+	History        *HistoryRepo
+	Sessions       *SessionRepo
+	SessionHistory *SessionHistoryRepo
+	Watchdog       *WatchdogRepo
+	// Slice 4 — Message Center
+	Messages         *MessageRepo
+	Chatrooms        *ChatroomRepo
+	ChatroomMessages *ChatroomMessageRepo
+	// Slice 5 — Workflows
+	Workflows           *WorkflowRepo
+	WorkflowBlocks      *WorkflowBlockRepo
+	WorkflowConnections *WorkflowConnectionRepo
+	// Slice 5b — Library + Audit
+	Library         *LibraryRepo
+	LibraryVersions *LibraryVersionRepo
+	Audit           *AuditRepo
 }
 
 func NewStores(db *sql.DB) *Stores {
 	return &Stores{
-		Teams:     &TeamRepo{db: db},
-		Segments:  &SegmentRepo{db: db},
-		Roles:     &RoleRepo{db: db},
-		Relatives: &RelativeRepo{db: db},
-		Tasks:     &TaskRepo{db: db},
-		History:   &HistoryRepo{db: db},
+		Teams:               &TeamRepo{db: db},
+		Segments:            &SegmentRepo{db: db},
+		Roles:               &RoleRepo{db: db},
+		Relatives:           &RelativeRepo{db: db},
+		Tasks:               &TaskRepo{db: db},
+		History:             &HistoryRepo{db: db},
+		Sessions:            &SessionRepo{db: db},
+		SessionHistory:      &SessionHistoryRepo{db: db},
+		Watchdog:            &WatchdogRepo{db: db},
+		Messages:            &MessageRepo{db: db},
+		Chatrooms:           &ChatroomRepo{db: db},
+		ChatroomMessages:    &ChatroomMessageRepo{db: db},
+		Workflows:           &WorkflowRepo{db: db},
+		WorkflowBlocks:      &WorkflowBlockRepo{db: db},
+		WorkflowConnections: &WorkflowConnectionRepo{db: db},
+		Library:             &LibraryRepo{db: db},
+		LibraryVersions:     &LibraryVersionRepo{db: db},
+		Audit:               &AuditRepo{db: db},
 	}
 }
 

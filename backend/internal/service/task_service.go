@@ -32,15 +32,22 @@ type historyStore interface {
 }
 
 type TaskService struct {
-	db      *sql.DB
-	teams   teamStore
-	roles   roleStore
-	tasks   taskStore
-	history historyStore
+	db       *sql.DB
+	teams    teamStore
+	roles    roleStore
+	tasks    taskStore
+	history  historyStore
+	sessions sessionStore
+	alerts   *repository.WatchdogRepo
+	// Bus — real-time события (task.created/task.state_changed); nil = без событий.
+	Bus *EventBus
 }
 
 func NewTaskService(db *sql.DB, s *repository.Stores) *TaskService {
-	return &TaskService{db: db, teams: s.Teams, roles: s.Roles, tasks: s.Tasks, history: s.History}
+	return &TaskService{
+		db: db, teams: s.Teams, roles: s.Roles, tasks: s.Tasks, history: s.History,
+		sessions: s.Sessions, alerts: s.Watchdog,
+	}
 }
 
 // ---------- Create ----------
@@ -113,10 +120,12 @@ func (s *TaskService) CreateTask(ctx context.Context, req CreateTaskRequest) (*m
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	s.Bus.Publish(newEvent("task.created", map[string]any{
+		"task_id": task.ID, "team_id": team.ID,
+		"title": task.Title, "state": string(task.State),
+	}, fmt.Sprintf("team:%d", team.ID), fmt.Sprintf("task:%d", task.ID)))
 	return task, nil
 }
-
-// ---------- State transitions ----------
 
 type UpdateTaskStateRequest struct {
 	ID              int64                 `json:"-"`
@@ -223,6 +232,10 @@ func (s *TaskService) UpdateTaskState(ctx context.Context, req UpdateTaskStateRe
 		return nil, err
 	}
 	updated.UpdatedAt = now
+	s.Bus.Publish(newEvent("task.state_changed", map[string]any{
+		"task_id": updated.ID, "from_state": from,
+		"to_state": string(updated.State), "updated_at": now.Format(rfc3339),
+	}, fmt.Sprintf("team:%d", updated.TeamID), fmt.Sprintf("task:%d", updated.ID)))
 	return &updated, nil
 }
 
@@ -501,12 +514,42 @@ func (s *TaskService) DashboardSummary(ctx context.Context) (*DashboardSummary, 
 	if err != nil {
 		return nil, err
 	}
+	sessTotal, err := s.sessions.CountByStates(ctx, s.db,
+		models.SessionStarting, models.SessionRunning, models.SessionIdle,
+		models.SessionStopping, models.SessionStopped, models.SessionFailed)
+	if err != nil {
+		return nil, err
+	}
+	sessActive, err := s.sessions.CountByStates(ctx, s.db,
+		models.SessionStarting, models.SessionRunning, models.SessionIdle)
+	if err != nil {
+		return nil, err
+	}
+	sessFailed, err := s.sessions.CountByStates(ctx, s.db, models.SessionFailed)
+	if err != nil {
+		return nil, err
+	}
+	alertsTotal, err := s.alerts.CountAll(ctx, s.db)
+	if err != nil {
+		return nil, err
+	}
+	alertsCritical, err := s.alerts.CountBySeverity(ctx, s.db, "critical")
+	if err != nil {
+		return nil, err
+	}
+	// "warning" в summary = алерты уровня high (контракт не имеет severity warning)
+	alertsWarning, err := s.alerts.CountBySeverity(ctx, s.db, "high")
+	if err != nil {
+		return nil, err
+	}
 	return &DashboardSummary{
 		Teams: DashboardTeams{Total: total, Active: active},
 		Tasks: DashboardTasks{
 			Total: pending + inProgress + blocked, Pending: pending,
 			InProgress: inProgress, Blocked: blocked, DoneToday: doneToday,
 		},
+		Sessions:  DashboardZero{Total: sessTotal, Running: sessActive, Failed: sessFailed},
+		Alerts:    DashboardAlerts{Total: alertsTotal, Critical: alertsCritical, Warning: alertsWarning},
 		UpdatedAt: time.Now().UTC().Format(rfc3339),
 	}, nil
 }

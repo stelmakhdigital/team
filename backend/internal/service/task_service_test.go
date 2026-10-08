@@ -2,6 +2,8 @@ package service_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"daemon/internal/database"
@@ -23,6 +25,15 @@ func setupTaskEnv(t *testing.T) (*service.TeamService, *service.TaskService, con
 	}
 	stores := repository.NewStores(db)
 	svc := service.NewTeamService(db, stores)
+	svc.SpecsDir = t.TempDir()
+	for _, n := range []string{"role_a.yaml", "role_b.yaml"} {
+		if err := os.MkdirAll(filepath.Join(svc.SpecsDir, "agents"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(svc.SpecsDir, "agents", n), []byte("name: "+n+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	tsvc := service.NewTaskService(db, stores)
 	return svc, tsvc, context.Background()
 }

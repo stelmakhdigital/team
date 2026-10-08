@@ -23,7 +23,18 @@ func newTestService(t *testing.T) *service.TeamService {
 	if err := database.Migrate(context.Background(), db, "sqlite"); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	return service.NewTeamService(db, repository.NewStores(db))
+	svc := service.NewTeamService(db, repository.NewStores(db))
+	svc.SpecsDir = t.TempDir()
+	return svc
+}
+
+// specFile — создаёт agent_spec-файл в SpecsDir и возвращает его имя (для CreateRole, I4).
+func specFile(t *testing.T, svc *service.TeamService, name string) string {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(svc.SpecsDir, name), []byte("name: "+name+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return name
 }
 
 func ctx() context.Context { return context.Background() }
@@ -144,7 +155,7 @@ func TestCreateRole(t *testing.T) {
 	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
 	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "backend"})
 
-	role, err := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "lead", AgentSpec: "agents/lead.yaml"})
+	role, err := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "lead", AgentSpec: specFile(t, svc, "lead.yaml")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,13 +163,17 @@ func TestCreateRole(t *testing.T) {
 		t.Fatalf("bad address %q", role.Address)
 	}
 
-	_, err = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "lead", AgentSpec: "x"})
+	_, err = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "lead", AgentSpec: specFile(t, svc, "x.yaml")})
 	isAppErr(t, err, "conflict")
 
 	_, err = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "r2"})
 	isAppErr(t, err, "validation_failed")
 
-	_, err = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: 9999, Name: "r3", AgentSpec: "x"})
+	// I4: несуществующий agent_spec → 404
+	_, err = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "r3", AgentSpec: "definitely-missing.yaml"})
+	isAppErr(t, err, "not_found")
+
+	_, err = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: 9999, Name: "r4", AgentSpec: specFile(t, svc, "y.yaml")})
 	isAppErr(t, err, "not_found")
 }
 
@@ -168,8 +183,8 @@ func TestCreateRelative(t *testing.T) {
 	svc := newTestService(t)
 	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
 	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "s"})
-	r1, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "a", AgentSpec: "x"})
-	r2, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "b", AgentSpec: "x"})
+	r1, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "a", AgentSpec: specFile(t, svc, "x.yaml")})
+	r2, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "b", AgentSpec: specFile(t, svc, "y.yaml")})
 
 	rel, err := svc.CreateRelative(ctx(), service.CreateRelativeRequest{
 		TeamID: team.ID, FromRoleID: r1.ID, ToRoleID: r2.ID, Type: models.RelDelegatesTo,
@@ -190,7 +205,7 @@ func TestCreateRelative(t *testing.T) {
 	// чужая роль
 	otherTeam, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "other"})
 	oseg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: otherTeam.ID, Name: "s"})
-	or, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: oseg.ID, Name: "c", AgentSpec: "x"})
+	or, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: oseg.ID, Name: "c", AgentSpec: specFile(t, svc, "z.yaml")})
 	_, err = svc.CreateRelative(ctx(), service.CreateRelativeRequest{
 		TeamID: team.ID, FromRoleID: r1.ID, ToRoleID: or.ID, Type: models.RelDelegatesTo,
 	})
@@ -210,7 +225,7 @@ func TestUpdateRoleConfig(t *testing.T) {
 	svc := newTestService(t)
 	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
 	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "s"})
-	role, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "a", AgentSpec: "old.yaml"})
+	role, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "a", AgentSpec: specFile(t, svc, "old.yaml")})
 
 	profile := "debug"
 	res, err := svc.UpdateRoleConfig(ctx(), service.UpdateRoleConfigRequest{
@@ -235,7 +250,7 @@ func TestUpdateLayouts(t *testing.T) {
 	svc := newTestService(t)
 	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
 	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "s"})
-	role, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "a", AgentSpec: "x"})
+	role, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "a", AgentSpec: specFile(t, svc, "x.yaml")})
 
 	// segment layout
 	segRes, err := svc.UpdateSegmentLayout(ctx(), service.UpdateSegmentLayoutRequest{
@@ -269,6 +284,79 @@ func TestUpdateLayouts(t *testing.T) {
 	}
 	if len(topo.Layout.Roles) != 1 || topo.Layout.Roles[0].Position.Y != 6 {
 		t.Fatalf("topology role layout bad: %+v", topo.Layout.Roles)
+	}
+}
+
+// Регресс (отчёт frontend, slice 1):
+// 1) PATCH segment layout: previous ≠ new (старое значение сохраняется);
+// 2) topology layout.relatives содержит ВСЕ relatives (path опционально);
+// 3) create-ответ: layout не null сразу после создания (без DB roundtrip).
+func TestSlice1LayoutRegressions(t *testing.T) {
+	svc := newTestService(t)
+	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
+
+	// 3) create с layout → в-памяти layout доступен сразу
+	seg, err := svc.CreateSegment(ctx(), service.CreateSegmentRequest{
+		TeamID: team.ID, Name: "s",
+		Layout: &service.Layout{X: 10, Y: 20, Width: 100, Height: 80},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := service.LayoutFromConfig(seg.Config); l == nil || l.X != 10 {
+		t.Fatalf("segment create: layout missing in memory: %+v", seg.Config)
+	}
+	r1, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{
+		SegmentID: seg.ID, Name: "a",
+		AgentSpec: specFile(t, svc, "a.yaml"), Layout: &service.Layout{X: 1, Y: 2},
+	})
+	if l := service.LayoutFromConfig(r1.Config); l == nil || l.X != 1 {
+		t.Fatalf("role create: layout missing in memory: %+v", r1.Config)
+	}
+	r2, _ := svc.CreateRole(ctx(), service.CreateRoleRequest{
+		SegmentID: seg.ID, Name: "b", AgentSpec: specFile(t, svc, "b.yaml"),
+	})
+	rel, err := svc.CreateRelative(ctx(), service.CreateRelativeRequest{
+		TeamID: team.ID, FromRoleID: r1.ID, ToRoleID: r2.ID, Type: models.RelDelegatesTo,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2) topology: relative без path тоже в layout.relatives
+	topo, err := svc.GetTopology(ctx(), team.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(topo.Layout.Relatives) != 1 || topo.Layout.Relatives[0].RelativeID != rel.ID {
+		t.Fatalf("layout.relatives: %+v", topo.Layout.Relatives)
+	}
+	if topo.Layout.Relatives[0].Path != nil {
+		t.Fatalf("path should be nil/omitted: %+v", topo.Layout.Relatives[0].Path)
+	}
+
+	// 1) PATCH: previous ≠ new
+	res, err := svc.UpdateSegmentLayout(ctx(), service.UpdateSegmentLayoutRequest{
+		ID: seg.ID, Position: service.Position{X: 99, Y: 98},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.PreviousLayout == nil || res.PreviousLayout.X != 10 || res.PreviousLayout.Width != 100 {
+		t.Fatalf("previous_layout wrong: %+v", res.PreviousLayout)
+	}
+	if res.NewLayout.X != 99 || res.NewLayout.Y != 98 {
+		t.Fatalf("new_layout wrong: %+v", res.NewLayout)
+	}
+	// повторный PATCH: previous = предыдущее new
+	res2, err := svc.UpdateSegmentLayout(ctx(), service.UpdateSegmentLayoutRequest{
+		ID: seg.ID, Position: service.Position{X: 1, Y: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.PreviousLayout.X != 99 {
+		t.Fatalf("previous after second patch = %+v, want X=99", res2.PreviousLayout)
 	}
 }
 
@@ -358,9 +446,71 @@ func TestValidateTopologyValid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !resp.IsValid {
-		t.Fatalf("expected valid, got errors=%+v", resp.Errors)
+	if !resp.IsValid || !resp.Valid {
+		t.Fatalf("expected valid (is_valid+valid), got errors=%+v", resp.Errors)
 	}
+}
+
+// I2: пустая команда → is_valid=false, valid=false + NOT_EMPTY.
+func TestValidateTopologyEmpty(t *testing.T) {
+	svc := newTestService(t)
+	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "empty"})
+	resp, err := svc.ValidateTopology(ctx(), service.ValidateTopologyRequest{TeamID: team.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.IsValid || resp.Valid {
+		t.Fatalf("expected invalid, got %+v", resp)
+	}
+	found := false
+	for _, e := range resp.Errors {
+		if e.Code == "NOT_EMPTY" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected NOT_EMPTY error, got %+v", resp.Errors)
+	}
+}
+
+// I1: save с неизвестными сегментом/ролью → 400 validation_failed + details.
+func TestSaveTopologyUnknownNodes(t *testing.T) {
+	svc := newTestService(t)
+	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
+	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "core"})
+	_, _ = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "lead", AgentSpec: specFile(t, svc, "lead.yaml")})
+
+	res, err := svc.SaveTopology(ctx(), service.SaveTopologyRequest{TeamID: team.ID, Segments: []string{"core"}, Roles: []string{"lead"}})
+	if err != nil {
+		t.Fatalf("save known nodes: %v", err)
+	}
+	if res == nil || res.Validation == nil {
+		t.Fatal("bad save result")
+	}
+
+	_, err = svc.SaveTopology(ctx(), service.SaveTopologyRequest{
+		TeamID: team.ID, Segments: []string{"ghost-seg"}, Roles: []string{"ghost-role"},
+	})
+	if err == nil {
+		t.Fatal("expected error for unknown nodes")
+	}
+	app, ok := err.(*service.AppError)
+	if !ok || app.Code != "validation_failed" || app.Status != 400 {
+		t.Fatalf("bad error: %+v", err)
+	}
+	details, ok := app.Details["errors"].([]service.FieldError)
+	if !ok || len(details) != 2 {
+		t.Fatalf("expected 2 field errors, got %+v", app.Details)
+	}
+}
+
+// I4: CreateRole с несуществующим agent_spec → 404 not_found.
+func TestCreateRoleMissingSpec(t *testing.T) {
+	svc := newTestService(t)
+	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
+	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "s"})
+	_, err := svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "lead", AgentSpec: "agents/definitely-missing.yaml"})
+	isAppErr(t, err, "not_found")
 }
 
 // ---------- Archive / 404 ----------
@@ -454,7 +604,7 @@ func TestListTeams(t *testing.T) {
 	svc := newTestService(t)
 	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
 	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "s"})
-	_, _ = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "a", AgentSpec: "x"})
+	_, _ = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "a", AgentSpec: specFile(t, svc, "x.yaml")})
 
 	teams, total, err := svc.ListTeams(ctx(), 50, 0)
 	if err != nil {

@@ -337,7 +337,7 @@ Backend endpoint slice 1 (все под `/api/v1`):
 ## Next steps (sync)
 - Frontend: после коммита slice 6 — финальный свип (55 тестов) и фиксация в статусе;
   при желании — ack subscribe в WS (сейчас задокументировано: event до subscribe теряется).
-- Backend: **коммит slice 6** (WIP живёт в рабочем дереве; интеграционные прогоны — по WIP);
-  chatroom `last_message` (optional, nice-to-have); Prometheus `/metrics` (по требованию);
-  OpenAPI — в конце проекта; PG-миграция (`?`→`$N`) — при появлении PG-окружения
-  (лид-решение B3: out-of-scope до этого).
+- Backend: **коммит slice 6 + rewriter/migrate pg** (WIP живёт в рабочем дереве);
+  `last_message` — live-подтверждено, работает (наблюдение было против старого бинаря);
+  Prometheus `/metrics` (по требованию); OpenAPI — в конце проекта;
+  PG: rewriter + `daemon migrate pg` готовы (2026-10-08), e2e — при появлении PG-окружения (B3).

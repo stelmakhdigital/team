@@ -15,7 +15,9 @@ import (
 //   - "postgres://..." или "postgresql://..."
 func Open(dsn string) (*sql.DB, error) {
 	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
-		db, err := sql.Open("pgx", dsn)
+		// "pgx-rewrite" = pgx stdlib + трансляция `?` → `$N` (см. pgx_rewriter.go):
+		// репозитории написаны с sqlite-плейсхолдерами, pgx v5 их не понимает.
+		db, err := sql.Open("pgx-rewrite", dsn)
 		if err != nil {
 			return nil, fmt.Errorf("open postgres: %w", err)
 		}

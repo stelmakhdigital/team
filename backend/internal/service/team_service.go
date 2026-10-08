@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"daemon/internal/models"
 	"daemon/internal/repository"
@@ -47,12 +49,18 @@ type relativeStore interface {
 	UpdateConfig(ctx context.Context, tx repository.DBTX, id int64, cfg map[string]any) error
 }
 
+// chatRoomStore — создание chatroom'ов при создании команды/сегмента (slice 4).
+type chatRoomStore interface {
+	Create(ctx context.Context, tx repository.DBTX, c *models.Chatroom) error
+}
+
 type TeamService struct {
 	db        *sql.DB
 	teams     teamStore
 	segments  segmentStore
 	roles     roleStore
 	relatives relativeStore
+	chatRooms chatRoomStore
 	// SpecsDir — корень для чтения agent.yaml (GET /roles/{id}/config).
 	SpecsDir string
 }
@@ -64,6 +72,7 @@ func NewTeamService(db *sql.DB, s *repository.Stores) *TeamService {
 		segments:  s.Segments,
 		roles:     s.Roles,
 		relatives: s.Relatives,
+		chatRooms: s.Chatrooms,
 		SpecsDir:  "agents",
 	}
 }
@@ -244,6 +253,13 @@ func (s *TeamService) CreateTeam(ctx context.Context, req CreateTeamRequest) (*m
 		return nil, err
 	}
 
+	// Slice 4: team-level chatroom (имя = имя команды, как в mock-фронте).
+	if err := s.chatRooms.Create(ctx, tx, &models.Chatroom{
+		TeamID: team.ID, Name: team.Name, Topic: ptr("Whole team"),
+	}); err != nil {
+		return nil, err
+	}
+
 	if req.Spec != nil {
 		if err := s.applySpec(ctx, tx, team, req.Spec); err != nil {
 			return nil, err
@@ -268,6 +284,13 @@ func (s *TeamService) applySpec(ctx context.Context, tx repository.DBTX, team *m
 			if repository.IsUniqueViolation(err) {
 				return NewConflict(fmt.Sprintf("segment %q already exists", ss.Name))
 			}
+			return err
+		}
+		// Slice 4: segment-level chatroom "<segment>-general".
+		if err := s.chatRooms.Create(ctx, tx, &models.Chatroom{
+			TeamID: team.ID, SegmentID: &seg.ID, Name: ss.Name + "-general",
+			Topic: ptr(capFirst(ss.Name) + " channel"),
+		}); err != nil {
 			return err
 		}
 		segIDs[ss.Name] = seg.ID
@@ -360,6 +383,170 @@ type CreateSegmentRequest struct {
 	Layout      *Layout        `json:"layout,omitempty"`
 }
 
+// MergeSpecResult — что создано при merge.
+type MergeSpecResult struct {
+	Segments []int64
+	Roles    []int64
+}
+
+// MergeSpecRequest — merge spec в существующую команду (library apply).
+type MergeSpecRequest struct {
+	TeamID int64     `json:"-"`
+	Spec   *TeamSpec `json:"spec"`
+}
+
+// MergeSpec — добавляет отсутствующие сегменты/роли/relatives из spec в команду
+// (library apply, контракт 20 §5.4). Существующие (по имени) пропускаются.
+func (s *TeamService) MergeSpec(ctx context.Context, req MergeSpecRequest) (*MergeSpecResult, error) {
+	team, err := s.requireActiveTeam(ctx, req.TeamID)
+	if err != nil {
+		return nil, err
+	}
+	spec := req.Spec
+	if err := validateSpec(spec); err != nil {
+		return nil, err
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	existingSegs, err := s.segments.ListByTeam(ctx, tx, team.ID)
+	if err != nil {
+		return nil, err
+	}
+	segIDByName := map[string]int64{}
+	for _, seg := range existingSegs {
+		segIDByName[seg.Name] = seg.ID
+	}
+	existingRoles, err := s.roles.ListByTeam(ctx, tx, team.ID)
+	if err != nil {
+		return nil, err
+	}
+	roleIDBySegName := map[string]int64{}
+	segIDByRoleID := map[int64]int64{}
+	for _, r := range existingRoles {
+		// имя сегмента для ключа
+		if id, ok := segIDByName[roleSegmentName(existingSegs, r.SegmentID)]; ok {
+			_ = id
+		}
+		_ = r
+	}
+	// проще: карта segID -> name
+	nameBySegID := map[int64]string{}
+	for _, seg := range existingSegs {
+		nameBySegID[seg.ID] = seg.Name
+	}
+	for _, r := range existingRoles {
+		roleIDBySegName[nameBySegID[r.SegmentID]+"."+r.Name] = r.ID
+		segIDByRoleID[r.ID] = r.SegmentID
+	}
+
+	res := &MergeSpecResult{}
+	for _, ss := range spec.Segments {
+		if _, ok := segIDByName[ss.Name]; ok {
+			continue
+		}
+		seg := &models.Segment{TeamID: team.ID, Name: ss.Name, Description: ss.Description, Config: ss.Config}
+		if ss.Layout != nil {
+			seg.Config = setLayout(seg.Config, ss.Layout)
+		}
+		if err := s.segments.Create(ctx, tx, seg); err != nil {
+			if repository.IsUniqueViolation(err) {
+				// уже создана (гонка) — берём существующую
+				if existing, err2 := s.segments.ListByTeam(ctx, tx, team.ID); err2 == nil {
+					for _, e := range existing {
+						if e.Name == ss.Name {
+							segIDByName[ss.Name] = e.ID
+						}
+					}
+				}
+				continue
+			}
+			return nil, err
+		}
+		segIDByName[ss.Name] = seg.ID
+		res.Segments = append(res.Segments, seg.ID)
+		// segment chatroom
+		if err := s.chatRooms.Create(ctx, tx, &models.Chatroom{
+			TeamID: team.ID, SegmentID: &seg.ID, Name: ss.Name + "-general",
+			Topic: ptr(capFirst(ss.Name) + " channel"),
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, rs := range spec.Roles {
+		key := rs.Segment + "." + rs.Name
+		if _, ok := roleIDBySegName[key]; ok {
+			continue
+		}
+		segID, ok := segIDByName[rs.Segment]
+		if !ok {
+			return nil, NewValidation(fmt.Sprintf("role %q: segment %q not found and not created", rs.Name, rs.Segment))
+		}
+		role := &models.Role{
+			TeamID: team.ID, SegmentID: segID,
+			Name: rs.Name, Address: team.Name + ":" + rs.Segment + "." + rs.Name,
+			AgentSpec: rs.AgentSpec, Profile: rs.Profile, Config: rs.Config,
+		}
+		if rs.Layout != nil {
+			role.Config = setLayout(role.Config, rs.Layout)
+		}
+		if err := s.roles.Create(ctx, tx, role); err != nil {
+			if repository.IsUniqueViolation(err) {
+				continue
+			}
+			return nil, err
+		}
+		roleIDBySegName[key] = role.ID
+		res.Roles = append(res.Roles, role.ID)
+	}
+
+	// relatives: от "segment.role" к id
+	roleIDByKey := map[string]int64{}
+	for _, r := range existingRoles {
+		roleIDByKey[nameBySegID[r.SegmentID]+"."+r.Name] = r.ID
+	}
+	for k, v := range roleIDBySegName {
+		roleIDByKey[k] = v
+	}
+	for _, rs := range spec.Relatives {
+		fromID, ok := roleIDByKey[rs.From]
+		if !ok {
+			return nil, NewValidation(fmt.Sprintf("relative: role %q not found in team or spec", rs.From))
+		}
+		toID, ok := roleIDByKey[rs.To]
+		if !ok {
+			return nil, NewValidation(fmt.Sprintf("relative: role %q not found in team or spec", rs.To))
+		}
+		rel := &models.Relative{TeamID: team.ID, FromRoleID: fromID, ToRoleID: toID, Type: rs.Type, Config: rs.Config}
+		if err := s.createRelativeOnTx(ctx, tx, rel); err != nil {
+			var appErr *AppError
+			if errors.As(err, &appErr) && appErr.Code == "conflict" {
+				continue // relative уже есть
+			}
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func roleSegmentName(segs []*models.Segment, segID int64) string {
+	for _, s := range segs {
+		if s.ID == segID {
+			return s.Name
+		}
+	}
+	return ""
+}
+
 func (s *TeamService) CreateSegment(ctx context.Context, req CreateSegmentRequest) (*models.Segment, error) {
 	if req.Name == "" {
 		return nil, NewValidation("invalid request", []FieldError{{Field: "name", Reason: "required"}})
@@ -385,10 +572,29 @@ func (s *TeamService) CreateSegment(ctx context.Context, req CreateSegmentReques
 		}
 		return nil, err
 	}
+	// Slice 4: segment-level chatroom "<segment>-general".
+	if err := s.chatRooms.Create(ctx, tx, &models.Chatroom{
+		TeamID: team.ID, SegmentID: &seg.ID, Name: seg.Name + "-general",
+		Topic: ptr(capFirst(seg.Name) + " channel"),
+	}); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return seg, nil
+}
+
+// capFirst — заглавная первая буква (для topic'а chatroom'а).
+func capFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	b := []byte(s)
+	if b[0] >= 'a' && b[0] <= 'z' {
+		b[0] -= 'a' - 'A'
+	}
+	return string(b)
 }
 
 type CreateRoleRequest struct {
@@ -406,6 +612,10 @@ func (s *TeamService) CreateRole(ctx context.Context, req CreateRoleRequest) (*m
 	}
 	if req.AgentSpec == "" {
 		return nil, NewValidation("invalid request", []FieldError{{Field: "agent_spec", Reason: "required"}})
+	}
+	// I4: agent_spec должен ссылаться на существующий файл (SpecsDir/<path> или <path> от cwd).
+	if !s.agentSpecExists(req.AgentSpec) {
+		return nil, NewNotFound("agent_spec " + req.AgentSpec)
 	}
 	seg, err := s.segments.GetByID(ctx, s.db, req.SegmentID)
 	if err != nil {
@@ -608,9 +818,13 @@ func (s *TeamService) UpdateSegmentLayout(ctx context.Context, req UpdateSegment
 		return nil, err
 	}
 	previous := getLayout(seg.Config)
-	next := previous
-	if next == nil {
-		next = &Layout{}
+	// Копия: previous должен остаться старым значением (фикс previous==new).
+	next := &Layout{}
+	if previous != nil {
+		*next = *previous
+	}
+	if len(next.Path) > 0 {
+		next.Path = append([]Point{}, next.Path...)
 	}
 	next.X, next.Y = req.Position.X, req.Position.Y
 	if req.Size != nil {
@@ -784,11 +998,15 @@ func (s *TeamService) GetTopology(ctx context.Context, teamID int64) (*Topology,
 	}
 	for _, rw := range detail.Relatives {
 		topo.Relatives = append(topo.Relatives, rw.Relative)
-		if l := getLayout(rw.Relative.Config); l != nil && l.Path != nil {
-			topo.Layout.Relatives = append(topo.Layout.Relatives, RelativeLayout{
-				RelativeID: rw.ID, FromRoleID: rw.FromRoleID, ToRoleID: rw.ToRoleID, Path: l.Path,
-			})
+		// Контракт 21 §1: каждый relative присутствует в layout.relatives,
+		// path — опционально (path? в RelativeLayout).
+		var path []Point
+		if l := getLayout(rw.Relative.Config); l != nil {
+			path = l.Path
 		}
+		topo.Layout.Relatives = append(topo.Layout.Relatives, RelativeLayout{
+			RelativeID: rw.ID, FromRoleID: rw.FromRoleID, ToRoleID: rw.ToRoleID, Path: path,
+		})
 	}
 	return topo, nil
 }
@@ -809,15 +1027,18 @@ func (s *TeamService) GetRoleConfig(ctx context.Context, roleID int64) (*models.
 }
 
 type SaveTopologyRequest struct {
-	TeamID        int64  `json:"-"`
-	Name          string `json:"name,omitempty"`
-	Description   string `json:"description,omitempty"`
-	SaveToLibrary bool   `json:"save_to_library,omitempty"` // библиотека — slice 5; флаг принимается
+	TeamID        int64    `json:"-"`
+	Name          string   `json:"name,omitempty"`
+	Description   string   `json:"description,omitempty"`
+	SaveToLibrary bool     `json:"save_to_library,omitempty"` // библиотека — slice 5; флаг принимается
+	Segments      []string `json:"-"`                         // I1: имена сегментов из payload (проверяются на существование)
+	Roles         []string `json:"-"`                         // I1: имена ролей из payload (проверяются на существование)
 }
 
 type SaveTopologyResult struct {
-	TeamID     int64                     `json:"team_id"`
-	Validation *ValidateTopologyResponse `json:"validation"`
+	TeamID        int64                     `json:"team_id"`
+	Validation    *ValidateTopologyResponse `json:"validation"`
+	LibraryItemID *int64                    `json:"library_item_id,omitempty"` // при save_to_library (slice 5b)
 }
 
 // SaveTopology — сохранение топологии: обновление meta команды (опц.) + валидация.
@@ -826,6 +1047,38 @@ func (s *TeamService) SaveTopology(ctx context.Context, req SaveTopologyRequest)
 	team, err := s.requireActiveTeam(ctx, req.TeamID)
 	if err != nil {
 		return nil, err
+	}
+
+	// I1: неизвестные сегменты/роли в payload — 400 validation_failed с details.
+	if len(req.Segments) > 0 || len(req.Roles) > 0 {
+		detail, err := s.GetTeam(ctx, req.TeamID)
+		if err != nil {
+			return nil, err
+		}
+		segNames := map[string]bool{}
+		roleNames := map[string]bool{}
+		for _, sg := range detail.Segments {
+			segNames[sg.Name] = true
+		}
+		for _, rl := range detail.Roles {
+			roleNames[rl.Name] = true
+		}
+		var fe []FieldError
+		for i, name := range req.Segments {
+			if !segNames[name] {
+				fe = append(fe, FieldError{Field: fmt.Sprintf("segments[%d].name", i),
+					Reason: fmt.Sprintf("unknown segment %q in team %q", name, team.Name)})
+			}
+		}
+		for i, name := range req.Roles {
+			if !roleNames[name] {
+				fe = append(fe, FieldError{Field: fmt.Sprintf("roles[%d].name", i),
+					Reason: fmt.Sprintf("unknown role %q in team %q", name, team.Name)})
+			}
+		}
+		if len(fe) > 0 {
+			return nil, NewValidation("save: unknown segments or roles in payload", fe)
+		}
 	}
 
 	if req.Name != "" || req.Description != "" {
@@ -852,6 +1105,31 @@ func (s *TeamService) SaveTopology(ctx context.Context, req SaveTopologyRequest)
 		return nil, err
 	}
 	return &SaveTopologyResult{TeamID: req.TeamID, Validation: validation}, nil
+}
+
+// resolveAgentSpecPath — резолвит agent_spec в существующий файл.
+// Кандидаты: <p>, <p>.yaml, <p>.yml и те же в SpecsDir (frontend шлёт имена
+// без расширения, напр. "pi-lead"). Возвращает "" если файл не найден.
+func (s *TeamService) resolveAgentSpecPath(specPath string) string {
+	names := []string{specPath, specPath + ".yaml", specPath + ".yml"}
+	roots := []string{""}
+	if s.SpecsDir != "" && !filepath.IsAbs(specPath) {
+		roots = append(roots, s.SpecsDir)
+	}
+	for _, root := range roots {
+		for _, n := range names {
+			candidate := filepath.Join(root, n)
+			if st, err := os.Stat(candidate); err == nil && !st.IsDir() {
+				return candidate
+			}
+		}
+	}
+	return ""
+}
+
+// agentSpecExists — I4: файл agent_spec существует (см. resolveAgentSpecPath).
+func (s *TeamService) agentSpecExists(specPath string) bool {
+	return s.resolveAgentSpecPath(specPath) != ""
 }
 
 // ---------- Внутреннее ----------

@@ -9,9 +9,22 @@ import (
 )
 
 type Options struct {
-	Logger  *slog.Logger
-	APIKeys []string
-	DB      *sql.DB
+	Logger *slog.Logger
+	DB     *sql.DB
+	// Slice 3 — Sessions & Runtime
+	Sessions *service.SessionService
+	Alerts   *service.AlertStoreRef
+	// Slice 4 — Message Center
+	Messages *service.MessageService
+	// Slice 5 — Workflows + WebSocket
+	Workflows *service.WorkflowService
+	Events    *service.EventBus
+	// Slice 5b — Library + Audit + Metrics
+	Library *service.LibraryService
+	Audit   *service.AuditService
+	Metrics *service.MetricsService
+	// Slice 6 — Security (RBAC, api_keys)
+	Auth *service.AuthService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -20,7 +33,9 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	if logger == nil {
 		logger = slog.Default()
 	}
-	h := &handlers{svc: svc, tsvc: tsvc}
+	h := &handlers{svc: svc, tsvc: tsvc, ssvc: opts.Sessions, msvc: opts.Messages,
+		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
+		events: opts.Events, alerts: opts.Alerts}
 
 	mux := http.NewServeMux()
 
@@ -63,25 +78,60 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("POST /api/v1/tasks/{id}/handoff", h.HandoffTask)
 	mux.HandleFunc("GET /api/v1/tasks/{id}/history", h.GetTaskHistory)
 
-	// Slice 2 — Dashboard (sessions/alerts — slice 3)
+	// Slice 2 — Dashboard
 	mux.HandleFunc("GET /api/v1/dashboard/summary", h.DashboardSummary)
 	mux.HandleFunc("GET /api/v1/dashboard/tasks", h.DashboardTasks)
 
+	// Slice 3 — Sessions & Runtime
+	mux.HandleFunc("GET /api/v1/sessions", h.ListSessions)
+	mux.HandleFunc("POST /api/v1/sessions", h.CreateSession)
+	mux.HandleFunc("GET /api/v1/sessions/{id}", h.GetSession)
+	mux.HandleFunc("DELETE /api/v1/sessions/{id}", h.StopSession)
+	mux.HandleFunc("GET /api/v1/sessions/{id}/history", h.GetSessionHistory)
+	mux.HandleFunc("GET /api/v1/sessions/{id}/transcript", h.GetTranscript)
+	mux.HandleFunc("GET /api/v1/dashboard/sessions", h.DashboardSessions)
+	mux.HandleFunc("GET /api/v1/dashboard/alerts", h.DashboardAlerts)
+	mux.HandleFunc("GET /api/v1/watchdog/events", h.WatchdogEvents)
+	mux.HandleFunc("POST /api/v1/watchdog/events/{id}/read", h.MarkAlertRead)
+
+	// Slice 4 — Message Center
+	mux.HandleFunc("GET /api/v1/messages", h.ListMessages)
+	mux.HandleFunc("POST /api/v1/messages", h.SendMessage)
+	mux.HandleFunc("GET /api/v1/chatrooms", h.ListChatrooms)
+	mux.HandleFunc("GET /api/v1/chatrooms/{id}/messages", h.GetChatroomMessages)
+	mux.HandleFunc("POST /api/v1/chatrooms/{id}/messages", h.SendChatroomMessage)
+
+	// Slice 5 — Workflows
+	mux.HandleFunc("GET /api/v1/workflows", h.ListWorkflows)
+	mux.HandleFunc("POST /api/v1/workflows", h.CreateWorkflow)
+	mux.HandleFunc("GET /api/v1/workflows/{id}", h.GetWorkflow)
+	mux.HandleFunc("POST /api/v1/workflows/{id}/blocks", h.CreateWorkflowBlock)
+	mux.HandleFunc("POST /api/v1/workflows/{id}/connections", h.CreateWorkflowConnection)
+	mux.HandleFunc("PATCH /api/v1/workflows/{id}/blocks/{blockId}", h.UpdateWorkflowBlock)
+
+	// Slice 5 — WebSocket (real-time события)
+	mux.HandleFunc("GET /ws", h.HandleWS)
+
+	// Slice 5b — Library
+	mux.HandleFunc("GET /api/v1/library", h.ListLibrary)
+	mux.HandleFunc("POST /api/v1/library", h.SaveToLibrary)
+	mux.HandleFunc("GET /api/v1/library/{id}", h.GetLibraryItem)
+	mux.HandleFunc("POST /api/v1/library/{id}/apply", h.ApplyLibraryItem)
+
+	// Slice 5b — History Viewer: audit log + metrics
+	mux.HandleFunc("GET /api/v1/audit", h.ListAudit)
+	mux.HandleFunc("GET /api/v1/dashboard/metrics", h.DashboardMetrics)
+
 	var chain http.Handler = mux
-	chain = authMW(validKeySet(opts.APIKeys), chain)
+	if opts.Audit != nil {
+		chain = auditMW(opts.Audit, logger, chain)
+	}
+	// Slice 6: auth (аутентификация + RBAC) снаружи — audit видит AuthContext
+	if opts.Auth != nil {
+		chain = authMW(opts.Auth, logger, chain)
+	}
 	chain = loggingMW(logger, chain)
 	chain = recoveryMW(logger, chain)
 	chain = requestIDMW(chain)
 	return chain
-}
-
-func validKeySet(keys []string) map[string]bool {
-	if len(keys) == 0 {
-		return nil
-	}
-	set := make(map[string]bool, len(keys))
-	for _, k := range keys {
-		set[k] = true
-	}
-	return set
 }

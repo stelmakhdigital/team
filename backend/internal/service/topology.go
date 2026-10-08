@@ -17,8 +17,29 @@ func setLayout(cfg map[string]any, l *Layout) map[string]any {
 	for k, v := range cfg {
 		out[k] = v
 	}
-	out["layout"] = l
+	out["layout"] = layoutMap(l)
 	return out
+}
+
+// layoutMap — сериализуемое представление layout в config (map, а не struct:
+// иначе LayoutFromConfig ломается до DB roundtrip — фикс "layout: null после create").
+func layoutMap(l *Layout) map[string]any {
+	m := map[string]any{"x": l.X, "y": l.Y, "width": l.Width, "height": l.Height}
+	if l.Collapsed != nil {
+		m["collapsed"] = *l.Collapsed
+	}
+	if len(l.Path) > 0 {
+		pts := make([]any, 0, len(l.Path))
+		for _, p := range l.Path {
+			pts = append(pts, map[string]any{"x": p.X, "y": p.Y})
+		}
+		m["path"] = pts
+	}
+	if l.HasLabel {
+		m["label_x"] = l.LabelX
+		m["label_y"] = l.LabelY
+	}
+	return m
 }
 
 // LayoutFromConfig — публичный доступ к layout из config (для HTTP-слоя).
@@ -104,6 +125,7 @@ type CheckLoc struct {
 
 type ValidateTopologyResponse struct {
 	IsValid  bool            `json:"is_valid"`
+	Valid    bool            `json:"valid"` // алиас is_valid (контракт frontend)
 	Errors   []TopologyCheck `json:"errors"`
 	Warnings []TopologyCheck `json:"warnings"`
 }
@@ -121,6 +143,17 @@ func (s *TeamService) ValidateTopology(ctx context.Context, req ValidateTopology
 	}
 
 	resp := &ValidateTopologyResponse{IsValid: true, Errors: []TopologyCheck{}, Warnings: []TopologyCheck{}}
+
+	// NOT_EMPTY — базовая проверка: команда обязана содержать топологию.
+	if len(detail.Segments) == 0 && len(detail.Roles) == 0 {
+		resp.Errors = append(resp.Errors, TopologyCheck{
+			Code:          "NOT_EMPTY",
+			Message:       "Team has no segments or roles",
+			Severity:      "error",
+			Location:      &CheckLoc{Type: "team", ID: team.ID, Name: team.Name},
+			FixSuggestion: "Add at least one segment with roles",
+		})
+	}
 
 	if check(req.CheckRequiredFields) {
 		for _, r := range detail.Roles {
@@ -182,6 +215,7 @@ func (s *TeamService) ValidateTopology(ctx context.Context, req ValidateTopology
 	}
 
 	resp.IsValid = len(resp.Errors) == 0
+	resp.Valid = resp.IsValid
 	return resp, nil
 }
 

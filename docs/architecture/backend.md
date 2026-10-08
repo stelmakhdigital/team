@@ -1,7 +1,7 @@
 # Backend Architecture
 
 Owner: Backend Engineer
-Status: implemented (slice 1) / planned (slices 2+)
+Status: implemented — slices 1–6 (Team Builder, Tasks/History, Sessions/Runtime, Messages, WS/Workflows, Library/Audit/Metrics, Security/RBAC)
 Source of truth для API: `docs/architecture/frontend/20_contract_API.md` + `docs/architecture/frontend/21_team_builder.md` (по `agents.md` это единый контракт).
 
 ---
@@ -29,7 +29,7 @@ Backend реализован на **Go**, идиоматично:
 | Миграции | numbered SQL-файлы в `internal/database/migrations/{sqlite,postgres}` + таблица `schema_migrations`, применяются при старте | adr-002 |
 | Логирование | `log/slog` (JSON) | adr-001 |
 | Метрики (slice 2+) | Prometheus (`/metrics`) — запланировано | — |
-| Авторизация | Фаза 0: локальное доверие (auth выключен по умолчанию); фаза 1: API-ключи `X-API-Key` (включается конфигом); RBAC/audit — slice 3+ | adr-003 |
+| Авторизация | Фаза 0: локальное доверие (auth выключен без ключей); slice 6: API-ключи (env + БД, CLI `daemon admin keys`) + RBAC (admin/operator/viewer, 403 `forbidden`); audit user_id/api_key_id | adr-003 |
 
 ## 3. Структура пакетов
 
@@ -169,13 +169,39 @@ Numbered SQL-файлы, применяются идемпотентно при 
   (миграция 0002), POST/GET/PATCH tasks, handoff, auto-close parent,
   task history, dashboard/summary+tasks. Тесты: lifecycle, transitions, handoff,
   dashboard, HTTP roundtrip (~20 тестов).
-- [ ] **Slice 3 — Sessions & Runtime:** sessions + runtime adapters
-  (process/tmux/pi, container позже), session lifecycle, watchdog events, alerts,
-  dashboard/sessions+alerts, Prometheus `/metrics`.
-- [ ] **Slice 4 — Messaging:** messages, chatrooms, message center.
-- [ ] **Slice 5 — Workflows, Library, History Viewer, WebSocket:** workflows/blocks/connections,
-  library save/apply, audit + transcripts, WS events.
-- [ ] **Slice 6 — Security:** RBAC, api_keys users, audit_log, secrets (ТЗ 06).
+- [x] **Slice 3 — Sessions & Runtime (завершён 2026-10-07):** миграция 0003
+  (sessions, session_history, watchdog_events); runtime-адаптеры process/tmux/pi
+  (container — явная ошибка, финальный проект); session lifecycle
+  (starting→running→stopped/failed, reaper), одна активная сессия на роль,
+  привязка к задаче (pending→in_progress); watchdog (stale/blocked задачи,
+  drift по failed-сессиям; дедупликация непрочитанных алертов); endpoints
+  sessions (CRUD+history+transcript), dashboard/sessions+alerts,
+  watchdog/events (+mark-read). Prometheus `/metrics` — в slice 3 не входит
+  (ТЗ 07, можно отдельным шагом).
+- [x] **Slice 4 — Messaging (завершён 2026-10-08):** миграция 0004
+  (chatrooms, chatroom_messages, messages); chatrooms создаются автоматически
+  (team-level + `<segment>-general`); messages: direct/broadcast/segment delivery
+  (from_role_id NULL = оператор); chatroom-ленты с last_message/members_count;
+  EventBus (in-memory pub/sub: task./session./message./alert.-события) — задел
+  под WS slice 5. Тесты: message_service_test (авто-чат, delivery, валидация,
+  фильтры) + HTTP-вертикаль TestMessageCenterVertical.
+- [x] **Slice 5a — WebSocket + Workflows (завершён 2026-10-08):** WS `/ws`
+  (subscribe channels, in-memory EventBus, глобальный канал `dashboard`,
+  auth `?api_key=`); Workflow Editor: миграция 0005 (workflows, workflow_blocks,
+  workflow_connections), CRUD workflows/blocks/connections, PATCH block (drag&drop,
+  changes old/new), валидация types/states. Тесты: TestWSSubscribeAndEvents,
+  TestWSAuth, TestWorkflowFull/Validation (service), TestWorkflowVertical (HTTP).
+  Slice 5b (впереди): Library (save/apply), History Viewer (audit + transcripts), metrics.
+- [x] **Slice 5b — Library + History Viewer (завершён 2026-10-08):** Library
+  (миграция 0006: library_items, library_versions, audit_log; save/get/apply
+  для team + workflow, merge в существующую команду, downloads_count,
+  save_to_library в POST /teams/{id}/save → library_item_id); audit log
+  (middleware: успешные мутации → action/resource/user/ip/agent);
+  dashboard/metrics (12 точек: tasks_created/completed, sessions_active,
+  queue_size, llm_tokens=0); transcript + `total`.
+  Slice 6 (впереди): RBAC, api_keys users, secrets.
+- [ ] **Slice 6 — Security:** RBAC, api_keys users, audit_log user/api_key_id,
+  secrets (ТЗ 06).
 
 ## 13. Known risks / ограничения
 

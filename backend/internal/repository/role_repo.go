@@ -73,6 +73,28 @@ func (r *RoleRepo) ListByTeam(ctx context.Context, tx DBTX, teamID int64) ([]*mo
 	return out, rows.Err()
 }
 
+// ListBySegment — все роли сегмента (slice 4: доставка segment-сообщений).
+func (r *RoleRepo) ListBySegment(ctx context.Context, tx DBTX, segmentID int64) ([]*models.Role, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, team_id, segment_id, name, address, agent_spec, profile, config, state, created_at, updated_at
+		FROM roles WHERE segment_id = ?
+		ORDER BY id`, segmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]*models.Role, 0)
+	for rows.Next() {
+		role, err := scanRole(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, role)
+	}
+	return out, rows.Err()
+}
+
 func (r *RoleRepo) CountByTeam(ctx context.Context, tx DBTX, teamID int64) (int, error) {
 	var n int
 	err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM roles WHERE team_id = ?`, teamID).Scan(&n)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	httpapi "daemon/internal/api/http"
 	"daemon/internal/database"
 	"daemon/internal/repository"
+	"daemon/internal/runtime"
 	"daemon/internal/service"
 )
 
@@ -35,11 +37,44 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 		t.Fatalf("migrate: %v", err)
 	}
 	svc := service.NewTeamService(db, repository.NewStores(db))
+	svc.SpecsDir = t.TempDir()
+	for _, n := range []string{"a.yaml", "b.yaml"} {
+		if err := os.WriteFile(svc.SpecsDir+"/"+n, []byte("name: "+n+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	tsvc := service.NewTaskService(db, repository.NewStores(db))
+	rtRegistry := runtime.NewRegistry()
+	ssvc := service.NewSessionService(db, repository.NewStores(db), rtRegistry)
+	ssvc.LogsDir = t.TempDir() + "/logs"
+	ssvc.ConfigsDir = t.TempDir() + "/configs"
+	stores2 := repository.NewStores(db)
+	alerts := &service.AlertStoreRef{Events: stores2.Watchdog, Teams: stores2.Teams, DB: db}
+	msvc := service.NewMessageService(db, repository.NewStores(db))
+	wsvc := service.NewWorkflowService(db, repository.NewStores(db))
+	lservice := service.NewLibraryService(db, repository.NewStores(db), svc)
+	aservice := service.NewAuditService(db, repository.NewStores(db))
+	msvcMetrics := service.NewMetricsService(db)
+	authSvc := service.NewAuthService(db, apiKeys)
+	if err := authSvc.Init(context.Background()); err != nil {
+		t.Fatalf("auth init: %v", err)
+	}
+	bus := service.NewEventBus()
+	tsvc.Bus = bus
+	ssvc.Bus = bus
+	msvc.Bus = bus
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
-		Logger:  slog.New(slog.NewTextHandler(os.Stderr, nil)),
-		APIKeys: apiKeys,
-		DB:      db,
+		Logger:    slog.New(slog.NewTextHandler(os.Stderr, nil)),
+		DB:        db,
+		Sessions:  ssvc,
+		Alerts:    alerts,
+		Messages:  msvc,
+		Workflows: wsvc,
+		Events:    bus,
+		Library:   lservice,
+		Audit:     aservice,
+		Metrics:   msvcMetrics,
+		Auth:      authSvc,
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
@@ -239,7 +274,28 @@ func TestCreateSegmentRoleRelative(t *testing.T) {
 		t.Fatalf("create relative: %d %v", st, out)
 	}
 
-	// PATCH layout
+	// 4b. topology — layout.relatives содержит все relatives (path опционально)
+	st, out, _ = do(t, "GET", srv.URL+"/api/v1/teams/1/topology", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("topology: %d %v", st, out)
+	}
+	layout := out["layout"].(map[string]any)
+	relLayouts := layout["relatives"].([]any)
+	if len(relLayouts) != 1 { // одна relative: lead → worker
+		t.Fatalf("layout.relatives len = %d, want 1: %v", len(relLayouts), layout["relatives"])
+	}
+	if rl := relLayouts[0].(map[string]any); rl["relative_id"] == nil || rl["from_role_id"] == nil || rl["to_role_id"] == nil {
+		t.Fatalf("layout.relative missing ids: %v", rl)
+	}
+
+	// 4c. topology — create-ответы с layout не дают layout:null (regression)
+	st, out, _ = do(t, "POST", srv.URL+"/api/v1/teams/1/segments",
+		map[string]any{"name": "fresh", "layout": map[string]any{"x": 1, "y": 2, "width": 30, "height": 40}}, nil)
+	if st != http.StatusCreated || out["layout"] == nil {
+		t.Fatalf("create segment layout null: %d %v", st, out)
+	}
+
+	// PATCH layout — контракт 21 §5: SegmentLayout {segment_id, position{x,y,width,height}, collapsed}, previous ≠ new
 	st, out, _ = do(t, "PATCH", srv.URL+"/api/v1/segments/1/layout",
 		map[string]any{"position": map[string]any{"x": 5, "y": 6}}, nil)
 	if st != http.StatusOK {
@@ -248,10 +304,26 @@ func TestCreateSegmentRoleRelative(t *testing.T) {
 	if out["status"] != "updated" {
 		t.Fatalf("bad layout response: %v", out)
 	}
+	prevSeg := out["previous_layout"].(map[string]any)
+	newSeg := out["new_layout"].(map[string]any)
+	if prevSeg["segment_id"] == nil || newSeg["position"] == nil || prevSeg["collapsed"] == nil {
+		t.Fatalf("segment layout view not in contract format: prev=%v new=%v", prevSeg, newSeg)
+	}
+	prevX := prevSeg["position"].(map[string]any)["x"].(float64)
+	newX := newSeg["position"].(map[string]any)["x"].(float64)
+	if prevX == newX {
+		t.Fatalf("previous_layout == new_layout: %v", out)
+	}
 	st, out, _ = do(t, "PATCH", srv.URL+"/api/v1/roles/1/layout",
 		map[string]any{"position": map[string]any{"x": 7, "y": 8}}, nil)
 	if st != http.StatusOK {
 		t.Fatalf("patch role layout: %d %v", st, out)
+	}
+	if pp := out["previous_position"].(map[string]any); pp["y"] == nil {
+		t.Fatalf("role position view bad: %v", out)
+	}
+	if _, extra := out["previous_position"].(map[string]any)["width"]; extra {
+		t.Fatalf("role position must be {x,y} only: %v", out)
 	}
 	st, out, _ = do(t, "PATCH", srv.URL+"/api/v1/relatives/1/layout",
 		map[string]any{"path": []any{map[string]any{"x": 0, "y": 0}}}, nil)
@@ -395,6 +467,39 @@ func TestRoleConfigAndSave(t *testing.T) {
 		t.Fatalf("missing validation in save response: %v", out)
 	}
 
+	// I2: в ответе validate/save есть поле valid (алиас is_valid)
+	if v, ok := out["validation"].(map[string]any); ok {
+		if _, ok := v["valid"]; !ok {
+			t.Fatalf("missing 'valid' field in validation: %v", v)
+		}
+	}
+
+	// I1: save с неизвестным сегментом/ролью → 400 + details
+	st, out, _ = do(t, "POST", srv.URL+"/api/v1/teams/1/save",
+		map[string]any{
+			"segments": []any{map[string]any{"name": "ghost-seg"}},
+			"roles":    []any{map[string]any{"segment": "ghost-seg", "name": "ghost-role"}},
+		}, nil)
+	if st != http.StatusBadRequest {
+		t.Fatalf("save unknown nodes: expected 400, got %d %v", st, out)
+	}
+	errObj, ok := out["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing error envelope: %v", out)
+	}
+	if errObj["code"] != "validation_failed" {
+		t.Fatalf("bad code: %v", errObj)
+	}
+	if _, ok := errObj["details"]; !ok {
+		t.Fatalf("missing details in error: %v", errObj)
+	}
+
+	// I4: createRole с несуществующим agent_spec → 404
+	st, _, _ = do(t, "POST", srv.URL+"/api/v1/segments/1/roles",
+		map[string]any{"name": "ghost", "agent_spec": "agents/definitely-missing.yaml"}, nil)
+	if st != http.StatusNotFound {
+		t.Fatalf("createRole missing spec: expected 404, got %d", st)
+	}
 	// save archived команды → 409
 	do(t, "DELETE", srv.URL+"/api/v1/teams/1", nil, nil)
 	st, _, _ = do(t, "POST", srv.URL+"/api/v1/teams/1/save", map[string]any{}, nil)
@@ -553,4 +658,318 @@ func TestTasksHTTPFlow(t *testing.T) {
 
 func itoaID(id int64) string {
 	return strconv.FormatInt(id, 10)
+}
+
+// ---------- Slice 3: sessions & alerts (HTTP) ----------
+
+func TestSessionsHTTPFlow(t *testing.T) {
+	srv := newTestServer(t, nil)
+	base := srv.URL + "/api/v1"
+
+	// команда (spec из slice 1)
+	st, out, _ := do(t, "POST", base+"/teams", specBody(), nil)
+	if st != http.StatusCreated {
+		t.Fatalf("create team: %d %v", st, out)
+	}
+	teamID := int64(out["id"].(float64))
+	st, out, _ = do(t, "GET", base+"/teams/"+itoaID(teamID), nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("get team: %d", st)
+	}
+	roles := out["roles"].([]any)
+	roleA := int64(roles[0].(map[string]any)["id"].(float64))
+
+	// POST /sessions?team_id= — процесс с коротким выводом
+	st, out, _ = do(t, "POST", base+"/sessions?team_id="+itoaID(teamID), map[string]any{
+		"role_id": roleA, "command": "sh", "args": []string{"-c", "echo hi; sleep 30"},
+	}, nil)
+	if st != http.StatusCreated {
+		t.Fatalf("create session: %d %v", st, out)
+	}
+	sessID := int64(out["id"].(float64))
+	if out["state"] != "running" {
+		t.Fatalf("session state: %v", out)
+	}
+
+	// дубль активной сессии роли → 409
+	st, _, _ = do(t, "POST", base+"/sessions?team_id="+itoaID(teamID), map[string]any{
+		"role_id": roleA, "command": "true",
+	}, nil)
+	if st != http.StatusConflict {
+		t.Fatalf("duplicate session: got %d, want 409", st)
+	}
+
+	// GET /sessions (список)
+	st, out, _ = do(t, "GET", base+"/sessions?team_id="+itoaID(teamID), nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("list sessions: %d", st)
+	}
+	if out["total"].(float64) != 1 {
+		t.Errorf("sessions total: %v", out["total"])
+	}
+
+	// dashboard/sessions — активные
+	st, out, _ = do(t, "GET", base+"/dashboard/sessions", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("dashboard sessions: %d %v", st, out)
+	}
+	if out["total"].(float64) != 1 {
+		t.Errorf("dashboard sessions: %v", out)
+	}
+	s0 := out["sessions"].([]any)[0].(map[string]any)
+	if s0["team_name"] == "" || s0["role_name"] == "" || s0["state"] != "running" {
+		t.Errorf("dashboard session view: %v", s0)
+	}
+
+	// summary: sessions.running = 1
+	st, out, _ = do(t, "GET", base+"/dashboard/summary", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("summary: %d", st)
+	}
+	if out["sessions"].(map[string]any)["running"].(float64) != 1 {
+		t.Errorf("summary sessions: %v", out["sessions"])
+	}
+
+	// DELETE /sessions/{id} — stop
+	st, out, _ = do(t, "DELETE", base+"/sessions/"+itoaID(sessID), nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("stop session: %d %v", st, out)
+	}
+	if out["state"] != "stopped" {
+		t.Errorf("stop state: %v", out)
+	}
+
+	// stop остановленной — идемпотентно 200
+	st, _, _ = do(t, "DELETE", base+"/sessions/"+itoaID(sessID), nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("idempotent stop: %d", st)
+	}
+
+	// history
+	st, out, _ = do(t, "GET", base+"/sessions/"+itoaID(sessID)+"/history", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("session history: %d", st)
+	}
+	if len(out["history"].([]any)) < 3 {
+		t.Errorf("session history: %v", out)
+	}
+
+	// transcript
+	st, out, _ = do(t, "GET", base+"/sessions/"+itoaID(sessID)+"/transcript", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("transcript: %d", st)
+	}
+	tr := out["transcript"].([]any)
+	found := false
+	for _, e := range tr {
+		m := e.(map[string]any)
+		if m["content"] == "hi" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("transcript missing output: %v", tr)
+	}
+
+	// alerts: watchdog-скан вручную недоступен через API — проверим пустой список
+	st, out, _ = do(t, "GET", base+"/dashboard/alerts", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("alerts: %d", st)
+	}
+	if out["total"].(float64) != 0 {
+		t.Errorf("alerts: %v", out)
+	}
+
+	// 404
+	st, _, _ = do(t, "GET", base+"/sessions/999999", nil, nil)
+	if st != http.StatusNotFound {
+		t.Fatalf("unknown session: %d", st)
+	}
+
+	// validation: нет команды → 400
+	st, _, _ = do(t, "POST", base+"/sessions?team_id="+itoaID(teamID), map[string]any{
+		"role_id": roleA,
+	}, nil)
+	if st != http.StatusBadRequest {
+		t.Fatalf("session without command: got %d, want 400", st)
+	}
+}
+
+// ---------- Slice 6: RBAC + audit user_id/api_key_id (HTTP) ----------
+
+func newRBACTestServer(t *testing.T, envKeys []string) (*httptest.Server, *service.AuthService) {
+	t.Helper()
+	db, err := database.Open("sqlite::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = db.Close() })
+	if err := database.Migrate(context.Background(), db, "sqlite"); err != nil {
+		t.Fatal(err)
+	}
+	stores := repository.NewStores(db)
+	svc := service.NewTeamService(db, stores)
+	svc.SpecsDir = t.TempDir()
+	for _, n := range []string{"a.yaml", "b.yaml"} {
+		if err := os.WriteFile(svc.SpecsDir+"/"+n, []byte("name: "+n+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tsvc := service.NewTaskService(db, stores)
+	asvc := service.NewAuditService(db, stores)
+	auth := service.NewAuthService(db, envKeys)
+	if err := auth.Init(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
+		Logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
+		DB:     db,
+		Audit:  asvc,
+		Auth:   auth,
+	})
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	return srv, auth
+}
+
+func TestRBACViewerForbidden(t *testing.T) {
+	srv, auth := newRBACTestServer(t, []string{"env-admin"})
+	_, viewKey := mustCreateKey(t, auth, "viewer-cli", "viewer", "viewer-user")
+	_, opKey := mustCreateKey(t, auth, "fe", "operator", "fe-user")
+	if err := auth.Init(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	base := srv.URL + "/api/v1"
+
+	// без ключа → 401
+	st, out, _ := do(t, "GET", base+"/teams", nil, nil)
+	if st != http.StatusUnauthorized {
+		t.Fatalf("no key: want 401, got %d", st)
+	}
+	// viewer: GET — 200
+	st, _, _ = do(t, "GET", base+"/teams", nil, map[string]string{"X-API-Key": viewKey})
+	if st != http.StatusOK {
+		t.Fatalf("viewer GET teams: want 200, got %d", st)
+	}
+	// viewer: POST — 403 forbidden
+	st, out, _ = do(t, "POST", base+"/teams", map[string]any{"name": "nope"}, map[string]string{"X-API-Key": viewKey})
+	if st != http.StatusForbidden || out["error"].(map[string]any)["code"] != "forbidden" {
+		t.Fatalf("viewer POST teams: want 403 forbidden, got %d %v", st, out)
+	}
+	// operator: POST — 201 (teams.create есть)
+	st, out, _ = do(t, "POST", base+"/teams", map[string]any{"name": "op-team"}, map[string]string{"X-API-Key": opKey})
+	if st != http.StatusCreated {
+		t.Fatalf("operator POST teams: want 201, got %d %v", st, out)
+	}
+	teamID := itoaID(int64(out["id"].(float64)))
+	roleID, err := createRoleForRBACTest(t, base, teamID, opKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// operator: PATCH role config — 403 (config.update только у admin)
+	st, out, _ = do(t, "PATCH", base+"/roles/"+roleID+"/config", map[string]any{"config": map[string]any{"x": 1}},
+		map[string]string{"X-API-Key": opKey})
+	if st != http.StatusForbidden {
+		t.Fatalf("operator PATCH role config: want 403, got %d %v", st, out)
+	}
+	// admin (env-ключ): PATCH role config — 200
+	st, out, _ = do(t, "PATCH", base+"/roles/"+roleID+"/config", map[string]any{"config": map[string]any{"x": 2}},
+		map[string]string{"X-API-Key": "env-admin"})
+	if st != http.StatusOK {
+		t.Fatalf("admin PATCH role config: want 200, got %d %v", st, out)
+	}
+
+	// регресс slice 6: Team Builder layout/config под operator и viewer
+	// (permissions segments/roles/relatives мапятся на teams.*)
+	st, out, _ = do(t, "POST", base+"/teams/"+teamID+"/segments", map[string]any{"name": "seg2"},
+		map[string]string{"X-API-Key": opKey})
+	if st != http.StatusCreated {
+		t.Fatalf("operator create segment seg2: %d %v", st, out)
+	}
+	seg2ID := itoaID(int64(out["id"].(float64)))
+	st, out, _ = do(t, "PATCH", base+"/segments/"+seg2ID+"/layout",
+		map[string]any{"position": map[string]any{"x": 1, "y": 2}}, map[string]string{"X-API-Key": opKey})
+	if st != http.StatusOK {
+		t.Fatalf("operator PATCH segment layout: want 200, got %d %v", st, out)
+	}
+	st, out, _ = do(t, "PATCH", base+"/roles/"+roleID+"/layout",
+		map[string]any{"position": map[string]any{"x": 3, "y": 4}}, map[string]string{"X-API-Key": opKey})
+	if st != http.StatusOK {
+		t.Fatalf("operator PATCH role layout: want 200, got %d %v", st, out)
+	}
+	st, _, _ = do(t, "GET", base+"/roles/"+roleID+"/config", nil, map[string]string{"X-API-Key": viewKey})
+	if st != http.StatusOK {
+		t.Fatalf("viewer GET role config: want 200, got %d", st)
+	}
+	st, _, _ = do(t, "PATCH", base+"/segments/"+seg2ID+"/layout",
+		map[string]any{"position": map[string]any{"x": 5, "y": 6}}, map[string]string{"X-API-Key": viewKey})
+	if st != http.StatusForbidden {
+		t.Fatalf("viewer PATCH segment layout: want 403, got %d", st)
+	}
+
+	// audit: записи с user_id/api_key_id для DB-ключей
+	st, out, _ = do(t, "GET", base+"/audit?limit=50", nil, map[string]string{"X-API-Key": "env-admin"})
+	if st != http.StatusOK {
+		t.Fatalf("audit: %d", st)
+	}
+	entries := out["entries"].([]any)
+	var opEntry, adminEntry, viewerEntry map[string]any
+	for _, e := range entries {
+		em := e.(map[string]any)
+		switch em["action"].(string) {
+		case "team.create":
+			opEntry = em
+		case "role.update":
+			adminEntry = em
+		}
+		_ = viewerEntry
+	}
+	if opEntry == nil {
+		t.Fatalf("audit: no team.create entry: %v", entries)
+	}
+	if _, ok := opEntry["user_id"]; !ok {
+		t.Errorf("audit team.create (DB key): user_id missing: %v", opEntry)
+	}
+	if _, ok := opEntry["api_key_id"]; !ok {
+		t.Errorf("audit team.create (DB key): api_key_id missing: %v", opEntry)
+	}
+	if opEntry["user_name"] != "fe-user" {
+		t.Errorf("audit team.create user_name = %v, want fe-user", opEntry["user_name"])
+	}
+	if adminEntry == nil {
+		t.Fatalf("audit: no role.update entry")
+	}
+	// env-ключ: user_name operator:<4 hex>, без user_id
+	if n, ok := adminEntry["user_name"].(string); !ok || len(n) != 13 || n[:9] != "operator:" {
+		t.Errorf("audit role.update user_name = %v, want operator:<4hex>", adminEntry["user_name"])
+	}
+	if _, ok := adminEntry["user_id"]; ok {
+		t.Errorf("audit role.update (env key): user_id must be absent: %v", adminEntry)
+	}
+}
+
+func mustCreateKey(t *testing.T, auth *service.AuthService, name, role, user string) (int64, string) {
+	t.Helper()
+	k, plain, err := auth.CreateKey(context.Background(), name, role, user, 0)
+	if err != nil {
+		t.Fatalf("CreateKey %s: %v", name, err)
+	}
+	return k.ID, plain
+}
+
+// createRoleForRBACTest — команда → сегмент → роль (a.yaml из SpecsDir).
+func createRoleForRBACTest(t *testing.T, base, teamID, apiKey string) (string, error) {
+	t.Helper()
+	hdr := map[string]string{"X-API-Key": apiKey}
+	st, out, _ := do(t, "POST", base+"/teams/"+teamID+"/segments", map[string]any{"name": "core"}, hdr)
+	if st != http.StatusCreated {
+		return "", fmt.Errorf("create segment: %d %v", st, out)
+	}
+	segID := itoaID(int64(out["id"].(float64)))
+	st, out, _ = do(t, "POST", base+"/segments/"+segID+"/roles", map[string]any{"name": "lead", "agent_spec": "a.yaml"}, hdr)
+	if st != http.StatusCreated {
+		return "", fmt.Errorf("create role: %d %v", st, out)
+	}
+	return itoaID(int64(out["id"].(float64))), nil
 }

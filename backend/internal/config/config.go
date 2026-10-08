@@ -16,6 +16,18 @@ type Config struct {
 	Migrate                                    bool
 	SpecsDir                                   string
 	ReadTimeout, WriteTimeout, ShutdownTimeout time.Duration
+
+	// Slice 3 — sessions & watchdog
+	SessionsPollInterval time.Duration // период reaper-проверки живости сессий
+	WatchdogEnabled      bool
+	WatchdogScanInterval time.Duration
+	WatchdogStaleAfter   time.Duration // in_progress без обновлений
+	WatchdogBlockedAfter time.Duration // blocked дольше
+	LogsDir              string        // transcript-файлы
+	ConfigsDir           string        // конфиги pi-сессий
+
+	// Slice 6 — Security
+	SecretKey string // AES-256-GCM ключ для secrets (64 hex-символа, пусто = выключен)
 }
 
 func Load() (*Config, error) {
@@ -29,6 +41,16 @@ func Load() (*Config, error) {
 		ReadTimeout:     15 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
+
+		SessionsPollInterval: envDuration("DAEMON_SESSION_POLL_SECS", 5*time.Second),
+		WatchdogEnabled:      envStr("DAEMON_WATCHDOG_ENABLED", "true") == "true",
+		WatchdogScanInterval: envDuration("DAEMON_WATCHDOG_SCAN_SECS", 30*time.Second),
+		WatchdogStaleAfter:   envDuration("DAEMON_WATCHDOG_STALE_SECS", 2*time.Hour),
+		WatchdogBlockedAfter: envDuration("DAEMON_WATCHDOG_BLOCKED_SECS", 1*time.Hour),
+		LogsDir:              envStr("DAEMON_LOGS_DIR", "logs/sessions"),
+		ConfigsDir:           envStr("DAEMON_SESSION_CONFIGS_DIR", "configs/sessions"),
+
+		SecretKey: envStr("DAEMON_SECRET_KEY", ""),
 	}
 
 	if cfg.ListenAddr == "" {
@@ -57,6 +79,21 @@ func envStr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func envDuration(key string, def time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	secs, err := time.ParseDuration(v + "s")
+	if err != nil {
+		return def
+	}
+	if secs <= 0 {
+		return def
+	}
+	return secs
 }
 
 func envList(key string) []string {
