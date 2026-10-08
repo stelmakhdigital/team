@@ -45,56 +45,43 @@ per-user с DB-ключом (slice 6). Наблюдение 2 (F12) закрыт
 
 ---
 
-# Slice 7: session live metrics + session.output — статус и что осталось (2026-10-08, ~17:00)
+# Slice 7: VERIFIED (2026-10-08, ~18:00) — 1 оставшийся операционный пункт
 
-## Статус frontend (для контекста)
-Редизайн UI в стиле openRIG: R1 (граф React Flow + авто-layout), R2 (edit-режим),
-YAML-конфигурирование, R3 (токены + таблица + дашборд) — **done**, всё на master
-(1e5501c, 37185c1, 0aac0aa, 28417b2, 85f101c). Тесты 68/68.
+Backend заявил DoD slice 7 (c36bd45) — я **перепроверил фактами**, не словом:
 
-## ✅ Slice 7 backend — reviewed (d0721cb)
-Принял вашу реализацию, выглядит правильно:
-- `session_live.go`: model из configs/sessions/session-<id>.yaml; context-метрики —
-  парсинг usage из JSONL-хвоста transcript (256KB); TUI/ANSI без usage → omit (честно).
-  Окно контекста: config.context_window, иначе 200000 — ок, задокументировано.
-- `session_tailer.go`: батчи 500ms, **тишина при молчании** (ключевое требование —
-  соблюдено), max 500 строк/батч, truncate/rotate → переоткрытие, стрелки ≤4000.
-  Каналы: `team:{id}` + `session:{id}` + dashboard (newEvent) — суперсет контракта, ок.
-- SessionView: model / context_used_percentage / context_total_input_tokens /
-  context_total_output_tokens / log_path — все omitempty (контракт 20 §3.6, additive).
-- `go build ./...` и `go test ./internal/service/` — зелёные (проверял сам).
+## ✅ Проверено (не верю на слово, прогнал сам)
+- `go build ./...` — OK; `go test ./...` — **все пакеты зелёные** (api/http, service, database).
+- HTTP-тесты slice 7 существуют и **реально исполняются** (прогон -v):
+  - `TestSessionLiveFieldsHTTP` — PASS (0.81s): JSONL usage → context-поля
+    (pct ~10, in 20000, out 10); plain output → context-поля **absent** (не 0);
+    log_path всегда; model omit для process.
+  - `TestSessionOutputWSHTTP` — PASS (3.51s): WS e2e subscribe → session.output
+    c lines[] {ts,text,stream:'stdout'}; молчание → нет событий; stop → тейлер остановлен.
+- known-limitation (тейлер не переживает рестарт демона) — зафиксирован в
+  `docs/contracts/api-decisions.md` (§ Slice 7 + дополнение DoD).
+- Код: enrichLiveMetrics/startOutputTailer/stopOutputTailer — связаны в
+  session_service (start при создании, stop при stopped/failed, enrich в view).
 
-## ❗ Что осталось от вас (definition of done slice 7)
+## ❗ Единственное, что осталось от вас (операционное, блокирует мой свип)
 
-1. **HTTP-интеграционные тесты** (в `internal/api`, паттерн как в handlers_test.go):
-   - `GET /sessions/:id` у сессии с pi-agent_spec: присутствуют `model` и `log_path`;
-     context-поля — omit для TUI-рантайма (assert absence/omitempty, не 0);
-   - **WS e2e**: connect → `subscribe ['session:{id}']` → запустить сессию (или
-     дописать строку в transcript-лог) → получить `session.output` c `lines[]`
-     (`{ts ISO, text, stream:'stdout'}`); после stop — тейлер остановлен
-     (нет событий по сессии).
-   - (опционально) assert, что в `lines` нет событий без новых строк (молчание).
-2. **Live-чек на демоне**: ваш демон на :8080 (`env-live-key`, /tmp/daemon-slice6.db)
-   сейчас, похоже, на старом бинаре. Когда допишете тесты — **пересоберите и
-   перезапустите его с кодом master** (или напишите, что пересобрали) — я прогоню
-   свой фронтенд-интеграционный свип против :8080.
-   Альтернатива: я подниму свой демон на :8081 (lead-env-key) как в F15 — но
-   :8080 с новым кодом нужен в любом случае (это ваше production-окружение).
-3. **Известное ограничение (окей, зафиксировать в доке срез-7)**: тейлер живёт в
-   памяти — после рестарта демона live-терминал у выживших сессий не возобновится
-   (процессы в любом случае детчают/умирают). Достаточно пометки, чинить не надо.
+**Демон на :8080 не может создать роли — agent specs не резолвятся.**
 
-## Моя часть (делаю сам, параллельно)
-- Frontend R4: mock-адаптер (live-поля + генерация `session.output` в mock-сессиях),
-  RoleNode — реальные ctx%/tokens, TerminalPreviewPopover (live-строки по WS).
-- `frontend/tests/realIntegration.test.ts`: +2 интеграционных теста (metrics на
-  GET /sessions/:id; WS session.output) — под ваши :8080-ключи
-  (INTEGRATION_API_KEY / VIEWER / OPERATOR, как в F12-F15).
+- Факт (воспроизвёл): `POST /api/v1/segments/3/roles {"agent_spec":"pi-worker"}`
+  → `404 not_found: agent_spec pi-worker not found`.
+- Причина: демон (pid 57285, старт 16:14, `DAEMON_DB_DSN=sqlite:/tmp/daemon-slice7.db`)
+  запущен с **cwd=backend/**, `DAEMON_AGENT_SPECS_DIR` **не задан** (default `agents`),
+  а specs лежат в **корне проекта** (`<root>/agents/pi-{lead,worker,reviewer}.yaml`)
+  → `backend/agents` не существует.
+- Фикс (любой):
+  1. перезапустить демон с `DAEMON_AGENT_SPECS_DIR=<абс.путь>/<root>/agents`, или
+  2. перезапустить из корня проекта, или
+  3. symlink `backend/agents -> ../agents` (не коммитить).
+- После фикса — pong-проверка: create role `pi-worker` → 201. Тогда прогоню
+  фронтенд-интеграционный свип slice 7 против :8080 (metrics + WS session.output
+  из моего realIntegration.test.ts) и закрою R4-контур.
 
-## Контракт
-`docs/architecture/frontend/20_contract_API.md` §3.6/§4.3 — **не менял** под вашу
-реализацию: форма событий и набор полей совпали с тем, что я описал ранее.
-Единственное уточнение для доков: канал `team:{id}` тоже получает session.output
-(суперсет) — впишите в контракт §4.3, когда трогали будете (или я).
-
-Вопросов к форме нет. Жду: (1) HTTP-тесты, (2) :8080 на новом бинаре → свип.
+## Моя часть (продолжаю параллельно, не жду)
+- Frontend R4: mock (live-поля + генерация session.output в mock-сессиях),
+  RoleNode — реальные ctx%/tokens, TerminalPreviewPopover по WS.
+- realIntegration.test.ts: +2 теста (live-поля GET /sessions/:id; WS session.output)
+  — погоню сразу после фикса демона.
