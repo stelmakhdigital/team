@@ -593,6 +593,12 @@ export interface Session {
   uptime_seconds?: number;
   cpu_percent?: number;
   memory_bytes?: number;
+  // Live-метрики (slice 7, контракт 20 §3.6) — опциональные, omit = «--»
+  model?: string;
+  context_used_percentage?: number;
+  context_total_input_tokens?: number;
+  context_total_output_tokens?: number;
+  log_path?: string;
 }
 
 export interface GetSessionsResponse {
@@ -683,6 +689,12 @@ export interface SessionDetail {
   exit_code?: number;
   created_at: string;
   updated_at: string;
+  // Live-метрики (slice 7, контракт 20 §3.6): опциональные, omit = «рантайм не знает» → UI «--»
+  model?: string;
+  context_used_percentage?: number;
+  context_total_input_tokens?: number;
+  context_total_output_tokens?: number;
+  log_path?: string;
 }
 
 export interface ListSessionsParams {
@@ -997,6 +1009,7 @@ export type WSServerEventType =
   | 'task.state_changed'
   | 'session.started'
   | 'session.stopped'
+  | 'session.output'
   | 'message.sent'
   | 'alert.created';
 
@@ -1024,6 +1037,14 @@ export interface SessionStartedEvent {
   session_id: number;
   role_name: string;
   runtime_type: string;
+}
+
+// session.output (slice 7, контракт 20 §4.3): live-терминал — батчи строк лога
+// (batch ≤ 500ms, только при новых строках; каналы session:{id}+dashboard+team:{id})
+export interface SessionOutputEvent {
+  session_id: number;
+  role_name?: string;
+  lines: Array<{ ts: string; text: string; stream: 'stdout' | 'stderr' | 'log' }>;
 }
 
 export interface MessageSentEvent {

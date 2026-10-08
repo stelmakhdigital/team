@@ -351,13 +351,12 @@ Backend endpoint slice 1 (все под `/api/v1`):
   /`build` — все зелёные; production build 81 KB gzip.
 
 ## Next steps (sync)
-- Frontend: R2 (edit-режим графа) + R3 (визуальная консистентность) параллельно;
-  **R4 (реальные context%/tokens + live-терминал popover) — backend-срез slice 7 готов**
-  (live-поля SessionDetail + WS `session.output`, live-проверено); при желании — ack
-  subscribe в WS (сейчас задокументировано: event до subscribe теряется; UI идемпотентно
-  рефетчит при reconnect).
-- Backend: slices 1–6 + PG **закоммичены и запушены** (`4c472e3` + docs `4d92b11`);
-  **slice 7 (live-метрики сессий + `session.output`) закоммичен** — R4-данные готовы
-  (live-поля SessionDetail + WS session.output, live-проверено);
+- Frontend: R1/R2/R3/R3.1 + YAML — done (1e5501c, 37185c1, 0aac0aa, 28417b2, 85f101c);
+  **R4 (RoleNode ctx%/tokens + TerminalPreviewPopover)**: backend-данные + мок +
+  интеграционные тесты готовы (slice 7, 88/88) — можно строить UI;
+  при желании — ack subscribe в WS (задокументировано: event до subscribe теряется).
+- Backend: slices 1–6 + PG + slice 7 **закоммичены и запушены**
+  (`4c472e3`, `d0721cb`, `c36bd45`); transcript `total` — проверено, в ответе есть
+  (backend c slice 3); RBAC-тесты фронты — robust fix (firstTeamWithRoles);
   Prometheus `/metrics` (по требованию); OpenAPI — в конце проекта;
   PG: e2e-свип (критерий ADR-004 п.3) при появлении PG-окружения.

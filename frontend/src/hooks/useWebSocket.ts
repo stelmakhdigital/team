@@ -49,6 +49,20 @@ export function useWebSocket(channels: string[]): WSHook {
           data: { message_id: 1000 + tick, from_role_name: 'Worker', body: 'progress update (synthetic)', type: 'direct' },
           timestamp: new Date().toISOString(),
         },
+        {
+          // slice 7: live-терминал (мок-батчи строк лога; session_id 1 — синтетика,
+          // как и остальные события пула; реальная привязка — по session:{id} в real-режиме)
+          type: 'session.output',
+          data: {
+            session_id: 1,
+            role_name: 'Worker',
+            lines: [
+              { ts: new Date().toISOString(), text: `mock: processing step ${tick}…`, stream: 'stdout' },
+              { ts: new Date().toISOString(), text: `mock: step ${tick} done`, stream: 'stdout' },
+            ],
+          },
+          timestamp: new Date().toISOString(),
+        },
       ];
       const t = setInterval(() => {
         handlerRef.current(pool[tick % pool.length]);

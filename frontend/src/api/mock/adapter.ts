@@ -75,6 +75,12 @@ function toSessionDetail(s: Session): SessionDetail {
     state: s.state,
     created_at: at,
     updated_at: at,
+    // slice 7: live-метрики (мок: стабильные значения для UI; у process — omit)
+    model: s.model,
+    context_used_percentage: s.context_used_percentage,
+    context_total_input_tokens: s.context_total_input_tokens,
+    context_total_output_tokens: s.context_total_output_tokens,
+    log_path: s.log_path,
   };
 }
 function clone<T>(v: T): T {
@@ -626,6 +632,12 @@ export function createMockAdapter(): Api {
           queue_task_id: task?.id,
           queue_task_title: task?.title,
           started_at: at,
+          // slice 7: live-метрики для мок-сессии (pi-рантайм отдаёт context/tokens/model)
+          model: 'anthropic/claude-sonnet',
+          context_used_percentage: 42,
+          context_total_input_tokens: 84_000,
+          context_total_output_tokens: 1_200,
+          log_path: `mock/logs/session-${id}.log`,
         });
         db.audit.unshift({ id: nextId(), timestamp: at, action: 'session.create', resource: `session:${id}` });
         return { id, state: 'running', status: 'started' };

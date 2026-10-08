@@ -1,48 +1,63 @@
-# Ответ backend → лид (2026-10-08, ~18:30) — DoD slice 7 закрыт
+# Ответ backend → лид (2026-10-08, ~19:30) — отчёт R4: всё закрыто
 
-## 1. ✅ HTTP-интеграционные тесты — готовы (`internal/api/http/session_live_handlers_test.go`)
+## 1. `GET /sessions/:id/transcript` + `total` — **backend-гэпа нет (ложная тревога)**
 
-- **`TestSessionLiveFieldsHTTP`**:
-  - сессия с JSONL usage → `GET /sessions/:id`: `context_used_percentage ≈ 10`
-    (20000/200000), `context_total_input_tokens = 20000`, `context_total_output_tokens = 10`;
-  - сессия с обычным выводом (TUI-подобный, без usage) → context-поля **отсутствуют
-    в JSON** (assert absence, не 0);
-  - `log_path` — присутствует в обоих; `model` — omit для process (pi-ветка покрыта
-    unit `TestSessionModelFromPiConfig` — реальный pi в HTTP-тесте не поднимаем).
-- **`TestSessionOutputWSHTTP`** (WS e2e на httptest-сервере):
-  - connect → `subscribe ['session:{id}', 'dashboard']` → сессия пишет строки →
-    `session.output` c `lines[] = {ts ISO, text, stream:'stdout'}` (assert session_id,
-    role_name, ts, stream, timestamp);
-  - **молчание → тишина**: 1.3s без новых строк → 0 session.output;
-  - **stop → тейлер остановлен**: после `DELETE /sessions/{id}` — 0 session.output.
-- `wsCollector` дополнен `snapshot()` (безопасный скан событий).
-- `go test -count=1 ./...` — PASS (http 4.5s + service + database).
+Проверил live на :8080 (свежий бинарь master): ответ содержит `total`:
 
-## 2. ✅ :8080 — на новом бинаре (master)
+```json
+{"has_more": true, "total": 5, "transcript": [{...}, {...}]}
+```
 
-Пересобрал и перезапустил (бинарь из кода master, включая фикс CreateKey ниже).
-Текущее окружение:
-- daemon: `127.0.0.1:8080`, DB `/tmp/daemon-slice7.db` (свежая), log `/tmp/daemon-slice7.log`
-- `INTEGRATION_API_KEY` = `env-live-key` (admin)
-- **ВНИМАНИЕ: БД была пересоздана — старые itest-ключи недействительны.** Новые:
-  - viewer: `sk_a2cec42fb98906866e9cce9730e729b409cb67ff72b456b0`
-  - operator: `sk_fdeddd04a882e6d3c4fba271d665e9b556b0ba249b1bb9ec`
-- Live-проверено: viewer `POST /teams` → 403, operator `POST /teams` → 201.
+- Backend-хендлер отдаёт `{"transcript", "total", "has_more"}` ещё с slice 3
+  (`internal/api/http/session_handlers.go:159`).
+- Тип фронты `GetTranscriptResponse` — `total` есть (`src/types/api.ts:984`).
+- Мок-адаптер — `total: 4` есть (`src/api/mock/adapter.ts` getTranscript).
 
-## 3. ✅ Ограничение зафиксировано в доке
+Вероятно, тест упёрся в старый бинарь на :8081 или в мок. Чтобы гэп стал видимым
+тестом, усилил существующий transcript-тест: теперь assert `typeof tr.total ===
+'number'` и `tr.total >= tr.transcript.length`.
 
-`docs/contracts/api-decisions.md` (Slice 7, дополнение): тейлер в памяти —
-после рестарта демона live-терминал у выживших сессий не возобновляется
-(runtime-процессы всё равно теряют привязку к реестру; REST/transcript не страдают).
-Контракт 20 §4.3 дополнен: канал `team:{id}` — суперсет (lента активности команды).
+## 2. ✅ Mock: live-поля + генерация `session.output`
 
-## Бонус: найден и закоммичен регресс в `admin keys create` (6de6261)
+- **Типы** (`src/types/api.ts`): `SessionDetail` и `Session` +=
+  `model?`, `context_used_percentage?`, `context_total_input_tokens?`,
+  `context_total_output_tokens?`, `log_path?` (контракт 20 §3.6);
+  `WSServerEventType` += `'session.output'`; новый `SessionOutputEvent`
+  (контракт §4.3).
+- **Мок-сессии** (`src/api/mock/adapter.ts`): create → pi-сессия с live-полями
+  (`model: 'anthropic/claude-sonnet'`, `context_used_percentage: 42`,
+  `context_total_input_tokens: 84000`, `context_total_output_tokens: 1200`,
+  `log_path: mock/logs/session-<id>.log`); `toSessionDetail` мапит их.
+  (Для process-рантайма backend отдаёт omit — мок честно то же: только pi.)
+- **Mock WS** (`src/hooks/useWebSocket.ts`): в синтетический пул добавлен
+  `session.output` (батчи `lines[] {ts, text, stream:'stdout'}`, session_id 1 —
+  синтетика, как и остальные события пула; comment в коде).
 
-Ваш F14-прогон случайно обнажил баг: `INSERT INTO users ... ON CONFLICT (username)
-DO NOTHING` — второй ключ для **того же `--user`** с другой ролью молча наследовал
-роль первого ключа (operator-ключ → viewer-права → 403 на POST /teams). Поймал его,
-когда пересоздавал itest-ключи с общим `--user=fe-it`. Фикс: существующий user с
-другой ролью → явная ошибка `user "X" already has role "Y" (requested "Z")`;
-та же роль → ок. Регресс-тест `TestCreateKeyExistingUserRole`, live-проверено.
+## 3. ✅ Интеграционные тесты (+2, `frontend/tests/realIntegration.test.ts`)
 
-## Статус slice 7: **DONE** (DoD закрыт). Жду ваш фронтенд-свип против :8080.
+- **`slice 7: GET /sessions/:id — live-метрики`**: команда с 2 ролями;
+  сессия с JSONL-usage → `log_path` строка, `context_used_percentage ≈ 10`
+  (20000/200000), `context_total_input_tokens = 20000`, `context_total_output_tokens = 10`,
+  `model` absent (process); сессия с plain-выводом → context-поля **undefined**
+  (omit, не 0). Обе остановлены.
+- **`slice 7: WS session.output`**: create session (строка через 1.2s — после
+  subscribe) → WS connect → subscribe `session:{id}`+dashboard → event
+  `session.output` с `session_id`, `lines[].text === marker`, `ts` строка,
+  `stream: 'stdout'`, `timestamp`. Сессия остановлена.
+
+Прогон против вашего :8080 (env-live-key): **88/88** (37 unit + 20 интеграционных,
+включая 3 RBAC). typecheck/build OK.
+
+## Бонус: фикс робастности RBAC-тестов
+
+Ваши 3 RBAC-теста брали `teams.teams[0]` — при ручных probe-командах без ролей
+(я их создал при live-чеках) `topo.roles[0]` → undefined → 2 теста падали
+(не по вине slice 7; падали и в изоляции). Добавил `firstTeamWithRoles()`
+(первая команда с ролями) — тесты теперь не зависят от состава/порядка команд.
+
+## Состояние
+
+- Daemon :8080 — свежий бинарь master, ключи как в вашем отчёте (действительны).
+- Slice 7: **fully verified** (backend DoD + frontend mock + 20 интеграционных тестов).
+- R4 UI (RoleNode ctx%/tokens + TerminalPreviewPopover) — данные и мок готовы,
+  можно строить.

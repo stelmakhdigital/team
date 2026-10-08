@@ -195,9 +195,11 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
     expect(h.total).toBeGreaterThanOrEqual(2);
     expect(h.history[h.history.length - 1].to_state).toBe('running');
 
-    // transcript: контрактная форма (transcript[] + has_more)
+    // transcript: контрактная форма (transcript[] + total + has_more)
     const tr = await api.history.getTranscript(sid);
     expect(Array.isArray(tr.transcript)).toBe(true);
+    expect(typeof tr.total).toBe('number');
+    expect(tr.total).toBeGreaterThanOrEqual(tr.transcript.length);
     expect(typeof tr.has_more).toBe('boolean');
 
     // stop (DELETE) → stopped; повторный stop идемпотентен (200 stopped)
@@ -619,6 +621,141 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
       ws.onerror = () => fail(new Error('WS error'));
     });
   }, 30_000);
+
+  // ---- slice 7: session live metrics + session.output (контракт 20 §3.6/§4.3) ----
+
+  it('slice 7: GET /sessions/:id — live-метрики (context-поля из usage; omit без usage)', async () => {
+    const stamp = Date.now();
+    const team = await api.teams.createTeam({
+      name: `IT-live-${stamp}`,
+      spec: {
+        segments: [{ name: 'Core' }],
+        roles: [
+          { name: 'Usage', agent_spec: 'pi-worker', segment: 'Core' },
+          { name: 'Plain', agent_spec: 'pi-worker', segment: 'Core' },
+        ],
+      } as never,
+    });
+    expect(team.status).toBe('created');
+    const topo = await api.teams.getTopology(team.id);
+    const usageRole = topo.roles.find((r) => r.name === 'Usage')!;
+    const plainRole = topo.roles.find((r) => r.name === 'Plain')!;
+
+    // 1) сессия с JSONL usage-записью → context-поля заполнены
+    const s1 = await api.sessions.create(team.id, {
+      role_id: usageRole.id,
+      command: 'sh',
+      args: ['-c', `printf '{"message":{"usage":{"input_tokens":20000,"cache_read_input_tokens":0,"output_tokens":10}}}\\n'; sleep 60`],
+    });
+    expect(s1.status).toBe('started');
+    await new Promise((r) => setTimeout(r, 600)); // процесс успел записать строку в лог
+
+    const d1 = await api.sessions.get(s1.id);
+    expect(d1.state).toBe('running');
+    expect(typeof d1.log_path).toBe('string');
+    expect(d1.log_path).toBeTruthy();
+    expect(typeof d1.context_used_percentage).toBe('number');
+    expect(d1.context_used_percentage!).toBeCloseTo(10, 1); // 20000/200000
+    expect(d1.context_total_input_tokens).toBe(20000);
+    expect(d1.context_total_output_tokens).toBe(10);
+    expect(d1.model).toBeUndefined(); // process-рантайм — model omit
+    const stop1 = await api.sessions.stop(s1.id);
+    expect(stop1.state).toBe('stopped');
+
+    // 2) обычный вывод (без usage, TUI-подобный) → context-поля OMIT (не 0!)
+    const s2 = await api.sessions.create(team.id, {
+      role_id: plainRole.id,
+      command: 'sh',
+      args: ['-c', 'echo plain-output; sleep 60'],
+    });
+    expect(s2.status).toBe('started');
+    await new Promise((r) => setTimeout(r, 600));
+
+    const d2 = await api.sessions.get(s2.id);
+    expect(typeof d2.log_path).toBe('string');
+    expect(d2.context_used_percentage).toBeUndefined();
+    expect(d2.context_total_input_tokens).toBeUndefined();
+    expect(d2.context_total_output_tokens).toBeUndefined();
+    expect(d2.model).toBeUndefined();
+    const stop2 = await api.sessions.stop(s2.id);
+    expect(stop2.state).toBe('stopped');
+  }, 40_000);
+
+  it('slice 7: WS session.output — subscribe session:{id} → lines[] {ts,text,stream}', async () => {
+    const stamp = Date.now();
+    const st = `${stamp}-${Date.now() % 1000}`;
+    const marker = `IT-live-line-${st}`;
+
+    const team = await api.teams.createTeam({
+      name: `IT-wsout-${stamp}`,
+      spec: {
+        segments: [{ name: 'Core' }],
+        roles: [{ name: 'Echoer', agent_spec: 'pi-worker', segment: 'Core' }],
+      } as never,
+    });
+    expect(team.status).toBe('created');
+    const topo = await api.teams.getTopology(team.id);
+    const role = topo.roles[0];
+
+    // строка появится через 1.2s — ПОСЛЕ subscribe (гонка subscribe-read покрывается паузой)
+    const s = await api.sessions.create(team.id, {
+      role_id: role.id,
+      command: 'sh',
+      args: ['-c', `sleep 1.2; echo ${marker}; sleep 60`],
+    });
+    expect(s.status).toBe('started');
+    const sid = s.id;
+
+    const WS = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+    expect(WS, 'global WebSocket (node >= 21)').toBeDefined();
+
+    await new Promise<void>((resolve, reject) => {
+      let ws: any;
+      let settled = false;
+      const fail = (e: Error) => {
+        if (settled) return;
+        settled = true;
+        try { ws?.close(); } catch { /* ignore */ }
+        reject(e);
+      };
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        try { ws?.close(); } catch { /* ignore */ }
+        resolve();
+      };
+      const overall = setTimeout(() => fail(new Error('WS session.output: overall timeout')), 25_000);
+
+      ws = new WS!(WS_URL);
+      ws.onmessage = (ev: MessageEvent) => {
+        const m = JSON.parse(String(ev.data));
+        if (m.type !== 'session.output') return;
+        if (m.data?.session_id !== sid) return;
+        const lines = m.data?.lines;
+        if (!Array.isArray(lines) || lines.length === 0) {
+          fail(new Error('session.output: empty lines[]'));
+          return;
+        }
+        if (!lines.some((l: any) => l.text === marker)) {
+          return; // батч ещё до нужной строки (или частичный) — ждём дальше
+        }
+        const line = lines.find((l: any) => l.text === marker);
+        expect(typeof line.ts).toBe('string');
+        expect(line.ts).toBeTruthy();
+        expect(line.stream).toBe('stdout');
+        expect(typeof m.timestamp).toBe('string');
+        clearTimeout(overall);
+        done();
+      };
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'subscribe', channels: [`session:${sid}`, 'dashboard'] }));
+      };
+      ws.onerror = () => fail(new Error('WS error'));
+    });
+
+    const stopped = await api.sessions.stop(sid);
+    expect(stopped.state).toBe('stopped');
+  }, 40_000);
 });
 
 // ---- slice 6: RBAC (автоскип без daemon ИЛИ без тестовых ключей) ----
@@ -629,6 +766,18 @@ const OPERATOR_KEY = process.env.INTEGRATION_OPERATOR_KEY;
 
 describe.runIf(backendAvailable && !!VIEWER_KEY && !!OPERATOR_KEY)('integration: slice 6 RBAC', () => {
   const env = import.meta.env as Record<string, string | undefined>;
+
+  // Команда с хотя бы одной ролью (тесты не должны зависеть от порядка/состава teams[0]:
+  // в БД могут быть команды без ролей — пробные/примитивные).
+  async function firstTeamWithRoles() {
+    const admin = createRealAdapter();
+    const teams = await admin.teams.getTeams();
+    for (const t of teams.teams) {
+      const topo = await admin.teams.getTopology(t.id);
+      if (topo.roles.length > 0) return { team: t, topo, admin };
+    }
+    throw new Error('no team with roles found');
+  }
 
   function useKey(key: string) {
     const prev = env.VITE_API_KEY;
@@ -660,10 +809,7 @@ describe.runIf(backendAvailable && !!VIEWER_KEY && !!OPERATOR_KEY)('integration:
   }, 20_000);
 
   it('operator: POST 201, PATCH role config → 403 forbidden (нет config.update)', async () => {
-    const admin = createRealAdapter();
-    const teams = await admin.teams.getTeams();
-    const team = teams.teams[0];
-    const topo = await admin.teams.getTopology(team.id);
+    const { team: _team, topo, admin: _admin } = await firstTeamWithRoles();
     const role = topo.roles[0];
     const { api, done } = useKey(OPERATOR_KEY!);
     try {
@@ -679,10 +825,7 @@ describe.runIf(backendAvailable && !!VIEWER_KEY && !!OPERATOR_KEY)('integration:
   }, 20_000);
 
   it('audit: запись DB-ключа содержит user_id/api_key_id', async () => {
-    const admin = createRealAdapter();
-    const teams = await admin.teams.getTeams();
-    const team = teams.teams[0];
-    const topo = await admin.teams.getTopology(team.id);
+    const { team, topo, admin } = await firstTeamWithRoles();
     const { api, done } = useKey(OPERATOR_KEY!);
     try {
       await api.tasks.create({
