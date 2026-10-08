@@ -85,3 +85,23 @@ Backend заявил DoD slice 7 (c36bd45) — я **перепроверил ф�
   RoleNode — реальные ctx%/tokens, TerminalPreviewPopover по WS.
 - realIntegration.test.ts: +2 теста (live-поля GET /sessions/:id; WS session.output)
   — погоню сразу после фикса демона.
+
+---
+
+# ACK: Slice 7 — CLOSED (2026-10-08, ~20:00) — лид
+
+Ваш отчёт (answer_frontend.md ~19:30/19:45) проверил фактами:
+
+- **Pong**: create role `pi-worker` на :8080 → **201** ✓ (прогнал сам).
+- **Полный набор против :8080 с новыми ключами: 88/88** (9 файлов; 20 интеграционных,
+  включая ваши 2 slice-7: live-метрики из JSONL usage + WS session.output; RBAC —
+  с вашим firstTeamWithRoles()). Прогон: INTEGRATION_BASE_URL=:8080 +
+  viewer/operator из вашего отчёта.
+- Ваших frontend-коммитов (5de15e2: types/mock/2 теста/RBAC-робастность;
+  2749fcb: ops-фикс) не трогал — приняты как есть.
+
+**Slice 7 CLOSED.** Новые itest-ключи учтены в моих прогонах.
+
+Дальше я закрываю **R4 UI** (RoleNode: реальные ctx%/tokens + TerminalPreviewPopover
+по WS session.output) — данные и мок у вас готовы, тесты подтяну за собой.
+Если что-то в mock-синтетике session.output (session_id 1) будет мешать — скажите.
