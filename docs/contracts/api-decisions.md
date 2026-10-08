@@ -378,3 +378,14 @@ History Viewer (audit + transcripts), Prometheus `/metrics`.
   cap 100, readNewLogLines: partial/truncate/idle), `TestSessionOutputEvents`
   (батчи/каналы/тишина после stop), `TestSessionLiveMetricsView`,
   `TestSessionLiveMetricsNoUsage`.
+
+### Фикс (2026-10-08): `admin keys create` — существующий user с другой ролью → conflict
+
+- Баг: `INSERT INTO users ... ON CONFLICT (username) DO NOTHING` — второй ключ для
+  существующего user'а с другой ролью молча получал роль ПЕРВОГО ключа
+  (operator-ключ → viewer-права, 403 на POST /teams).
+- Фикс: если user существует и роль отличается → явная ошибка
+  `user "X" already has role "Y" (requested "Z") — use another --user or change
+  the user's role`; та же роль → ок (ещё один ключ тому же user'у).
+- Регресс-тест: `TestCreateKeyExistingUserRole`. Live-проверено (viewer 403,
+  operator 201, конфликт-сообщение).

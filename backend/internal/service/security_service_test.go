@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -268,5 +269,36 @@ func TestChatroomUnreadCount(t *testing.T) {
 		if r.ID == teamRoomID && r.UnreadCount != 0 {
 			t.Errorf("after read: unread = %d, want 0", r.UnreadCount)
 		}
+	}
+}
+
+// TestCreateKeyExistingUserRole — regression: второй ключ для существующего user'а
+// с ДРУГОЙ ролью → conflict (раньше ON CONFLICT DO NOTHING молча оставлял
+// роль первого ключа → operator-ключ получал viewer-права).
+func TestCreateKeyExistingUserRole(t *testing.T) {
+	auth, _ := setupSecurityEnv(t, nil)
+
+	// user fe-it создаётся с ролью viewer
+	_, k1 := createTestKey(t, auth, "key-viewer", "viewer", "fe-it", 0)
+	if k1 == "" {
+		t.Fatal("key1 empty")
+	}
+	// та же роль — ок (второй ключ тому же user'у)
+	_, k2 := createTestKey(t, auth, "key-viewer-2", "viewer", "fe-it", 0)
+	if k2 == "" {
+		t.Fatal("key2 empty")
+	}
+	// другая роль — conflict с понятным сообщением
+	_, _, err := auth.CreateKey(context.Background(), "key-op", "operator", "fe-it", 0)
+	if err == nil {
+		t.Fatal("expected conflict for existing user with different role")
+	}
+	if !strings.Contains(err.Error(), "already has role") {
+		t.Fatalf("error = %q, want mention of existing role", err.Error())
+	}
+	// другой user — ок
+	_, k3 := createTestKey(t, auth, "key-op-2", "operator", "fe-it-2", 0)
+	if k3 == "" {
+		t.Fatal("key3 empty")
 	}
 }

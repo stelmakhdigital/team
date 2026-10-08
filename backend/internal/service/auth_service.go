@@ -181,9 +181,22 @@ func (s *AuthService) CreateKey(ctx context.Context, name, role, username string
 		}
 		return nil, "", NewInternal(err)
 	}
-	if _, err := s.db.ExecContext(ctx,
-		`INSERT INTO users (username, role_id, created_at) VALUES (?, ?, ?)
-		 ON CONFLICT (username) DO NOTHING`, username, roleID, nowRFC3339()); err != nil {
+	var existingRoleID *int64
+	if err := s.db.QueryRowContext(ctx, `SELECT role_id FROM users WHERE username = ?`, username).Scan(&existingRoleID); err != nil && err != sql.ErrNoRows {
+		return nil, "", NewInternal(err)
+	}
+	if existingRoleID != nil {
+		if *existingRoleID == roleID {
+			// пользователь уже с нужной ролью — просто создаём ключ
+		} else {
+			var curRole string
+			_ = s.db.QueryRowContext(ctx, `SELECT name FROM security_roles WHERE id = ?`, *existingRoleID).Scan(&curRole)
+			return nil, "", NewConflict(fmt.Sprintf(
+				"user %q already has role %q (requested %q) — use another --user or change the user's role",
+				username, curRole, role))
+		}
+	} else if _, err := s.db.ExecContext(ctx,
+		`INSERT INTO users (username, role_id, created_at) VALUES (?, ?, ?)`, username, roleID, nowRFC3339()); err != nil {
 		return nil, "", NewInternal(err)
 	}
 	var userID int64
