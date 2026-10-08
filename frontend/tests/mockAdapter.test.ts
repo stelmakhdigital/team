@@ -9,15 +9,21 @@ describe('MockAdapter contract compatibility', () => {
     setMockError(null);
   });
 
-  it('getTopology returns team/segments/roles/relatives with layout', async () => {
+  it('getTopology returns team/segments/roles/relatives; layout optional (auto-layout default)', async () => {
     const api = createMockAdapter();
     const res = await api.teams.getTopology(1);
     expect(res.team.id).toBe(1);
     expect(res.segments.length).toBeGreaterThan(0);
     expect(res.roles.length).toBeGreaterThan(0);
     expect(res.relatives.length).toBeGreaterThan(0);
-    expect(res.layout).toBeDefined();
-    expect(res.layout!.segments[0].position).toHaveProperty('x');
+    // R6.2: seeded user-layout удалён (перекрывал роли) — по умолчанию
+    // layout: undefined = чистый auto-layout; после PATCH — сохраняется
+    expect(res.layout).toBeUndefined();
+    await api.teams.updateRoleLayout(1, { position: { x: 10, y: 20 } });
+    const res2 = await api.teams.getTopology(1);
+    expect(res2.layout).toBeDefined();
+    const entry = res2.layout!.roles.find((r) => r.role_id === 1);
+    expect(entry?.position).toEqual({ x: 10, y: 20 });
   });
 
   it('createTeam + createSegment + createRole + createRelative roundtrip', async () => {

@@ -10,7 +10,7 @@ function TaskListInner({ tasks }: { tasks: Task[] }) {
   return (
     <div className="card">
       <h2>Active tasks</h2>
-      <table className="table">
+      <div className="table-wrap"><table className="table">
         <thead>
           <tr>
             <th>Task</th>
@@ -49,7 +49,7 @@ function TaskListInner({ tasks }: { tasks: Task[] }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }

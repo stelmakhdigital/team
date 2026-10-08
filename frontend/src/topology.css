@@ -82,8 +82,11 @@
 
 /* ---- Role card (seat) ---- */
 .topo-node.role-node {
+  /* R6.2: жёсткая высота = ROLE_H (autoLayout) — иначе контент раздувал карточку
+     (flex min-height:auto) и карточки перекрывали друг друга */
   width: 100%;
-  height: 100%;
+  height: 150px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border, rgba(148, 163, 184, 0.25));
@@ -122,7 +125,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 6px 10px;
+  padding: 5px 10px;
   background: rgba(148, 163, 184, 0.08);
   border-bottom: 1px solid var(--border, rgba(148, 163, 184, 0.16));
 }
@@ -142,10 +145,11 @@
 
 .role-node-body {
   flex: 1;
+  min-height: 0;  /* R6.2: без этого flex-item не сжимается ниже контента */
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
+  gap: 3px;
+  padding: 6px 10px;
   overflow: hidden;
 }
 .role-node-line {

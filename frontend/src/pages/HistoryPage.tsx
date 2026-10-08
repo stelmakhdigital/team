@@ -54,7 +54,7 @@ export default function HistoryPage() {
           {audit.data && audit.data.entries.length === 0 && <EmptyState title="No audit entries" />}
           {audit.data && audit.data.entries.length > 0 && (
             <div className="card">
-              <table className="table">
+              <div className="table-wrap"><table className="table">
                 <thead>
                   <tr>
                     <th>Time</th>
@@ -79,7 +79,7 @@ export default function HistoryPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           )}
         </>

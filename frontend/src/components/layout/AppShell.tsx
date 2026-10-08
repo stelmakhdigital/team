@@ -28,7 +28,7 @@ export default function AppShell() {
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-icon" aria-hidden="true">◧</span>
-          <span>Team Console</span>
+          <span className="brand-label">Team Console</span>
         </div>
         <nav aria-label="Main">
           {NAV.map((n) => (
@@ -36,10 +36,11 @@ export default function AppShell() {
               key={n.to}
               to={n.to}
               end={n.end}
+              title={n.label}
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             >
               <span aria-hidden="true">{n.icon}</span>
-              {n.label}
+              <span className="nav-label">{n.label}</span>
             </NavLink>
           ))}
         </nav>

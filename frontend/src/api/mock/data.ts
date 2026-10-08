@@ -233,26 +233,9 @@ function seed(): DB {
     },
   ];
 
-  t.layouts = {
-    segments: [
-      { segment_id: 1, position: { x: 60, y: 60, width: 420, height: 380 }, collapsed: false },
-      { segment_id: 2, position: { x: 560, y: 60, width: 320, height: 220 }, collapsed: false },
-      { segment_id: 3, position: { x: 60, y: 60, width: 360, height: 220 }, collapsed: false },
-    ],
-    roles: [
-      { role_id: 1, segment_id: 1, position: { x: 90, y: 120 } },
-      { role_id: 2, segment_id: 1, position: { x: 90, y: 240 } },
-      { role_id: 3, segment_id: 1, position: { x: 300, y: 240 } },
-      { role_id: 4, segment_id: 2, position: { x: 600, y: 140 } },
-      { role_id: 5, segment_id: 3, position: { x: 90, y: 120 } },
-      { role_id: 6, segment_id: 3, position: { x: 300, y: 120 } },
-    ],
-    relatives: [
-      { relative_id: 1, from_role_id: 1, to_role_id: 2 },
-      { relative_id: 2, from_role_id: 1, to_role_id: 4 },
-      { relative_id: 3, from_role_id: 2, to_role_id: 4 },
-    ],
-  };
+  // R6.2: seeded user-layout удалён — там перекрывались роли (шаг 120px при
+  // карточке 150px). По умолчанию чистый auto-layout; пользовательский layout
+  // появляется после drag/PATCH (hybrid-режим адаптера сохранён).
 
   t.workflows = [
     {

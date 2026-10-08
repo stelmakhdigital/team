@@ -30,6 +30,9 @@ export default function TeamBuilderPage() {
   const [specOpen, setSpecOpen] = useState(false);
   const [view, setView] = useState<'graph' | 'table'>('graph');
   const narrow = useMediaQuery('(max-width: 900px)');
+  // R6.2: на узких экранах панели-конфигурации — выдвижные drawery + FAB
+  const narrowBuilder = useMediaQuery('(max-width: 1200px)');
+  const [drawer, setDrawer] = useState<'none' | 'config' | 'palette'>('none');
   const showGraph = view === 'graph' && !narrow;
   const navigate = useNavigate();
 
@@ -265,8 +268,20 @@ export default function TeamBuilderPage() {
         </div>
       </div>
 
-      <div className={editMode ? 'builder builder--edit' : 'builder'}>
+      <div className={`${editMode ? 'builder builder--edit' : 'builder'} ${drawer === 'config' ? 'drawer-open' : ''} ${drawer === 'palette' ? 'drawer-open-palette' : ''}`}>
         {editMode && <Toolbar connectType={connectType} onConnectType={(t) => setConnectType(t as RelativeType)} />}
+        {narrowBuilder && (
+          <div className="builder-fab">
+            {editMode && (
+              <button className="btn" onClick={() => setDrawer((d) => (d === 'palette' ? 'none' : 'palette'))} aria-pressed={drawer === 'palette'}>
+                ▤ Palette
+              </button>
+            )}
+            <button className="btn" onClick={() => setDrawer((d) => (d === 'config' ? 'none' : 'config'))} aria-pressed={drawer === 'config'}>
+              ⚙ Config
+            </button>
+          </div>
+        )}
 
         <div className="builder-main">
           <div className="topo-view-tabs" role="tablist" aria-label="Topology view">
@@ -320,14 +335,20 @@ export default function TeamBuilderPage() {
             data={data}
             onCreated={(teamId) => navigate(`/teams/${teamId}`)}
             onMerged={commitRefetch}
-            onClose={() => setSpecOpen(false)}
+            onClose={() => {
+              setSpecOpen(false);
+              setDrawer('none');
+            }}
           />
         ) : (
           <ConfigPanel
             selection={configSelection}
             role={selectionIsRole}
             segment={selectionIsSegment}
-            onClose={() => setSelection(null)}
+            onClose={() => {
+              setSelection(null);
+              setDrawer('none');
+            }}
             onChanged={commitRefetch}
           />
         )}

@@ -92,7 +92,7 @@ export default function TasksPage() {
       )}
       {list.data && list.data.tasks.length > 0 && (
         <div className="card">
-          <table className="table">
+          <div className="table-wrap"><table className="table">
             <thead>
               <tr>
                 <th>#</th>
@@ -121,7 +121,7 @@ export default function TasksPage() {
                 />
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 

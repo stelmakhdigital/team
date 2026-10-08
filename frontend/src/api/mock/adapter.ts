@@ -353,11 +353,19 @@ export function createMockAdapter(): Api {
         maybeFail();
         await latency();
         const db = getDb();
-        const l = db.layouts?.roles.find((r) => r.role_id === id);
-        if (!l) throw new ApiClientError(404, 'not_found', `Role layout ${id} not found`);
-        const prev = { ...l.position };
+        // R6.2: upsert — при первом сохранении позиции entry ещё нет
+        // (seeded layout удалён; real backend ведёт layout lazy)
+        db.layouts = db.layouts ?? { segments: [], roles: [], relatives: [] };
+        const role = db.roles.find((r) => r.id === id);
+        if (!role) throw new ApiClientError(404, 'not_found', `Role ${id} not found`);
+        let l = db.layouts.roles.find((r) => r.role_id === id);
+        const prev = l ? { ...l.position } : undefined;
+        if (!l) {
+          l = { role_id: id, segment_id: role.segment_id, position: { x: 0, y: 0 } };
+          db.layouts.roles.push(l);
+        }
         l.position = { ...req.position };
-        return { id, status: 'updated', previous_position: prev, new_position: { ...req.position } };
+        return { id, status: "updated", previous_position: prev ?? { ...req.position }, new_position: { ...req.position } };
       },
 
       async deleteRelative(id) {

@@ -48,7 +48,7 @@ export default function WorkflowsPage() {
       {data && data.workflows.length === 0 && <EmptyState title="No workflows" hint="Create a workflow to orchestrate agent tasks." />}
       {data && data.workflows.length > 0 && (
         <div className="card">
-          <table className="table">
+          <div className="table-wrap"><table className="table">
             <thead>
               <tr>
                 <th>Name</th>
@@ -74,7 +74,7 @@ export default function WorkflowsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 

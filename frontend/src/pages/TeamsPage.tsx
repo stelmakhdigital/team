@@ -75,7 +75,7 @@ export default function TeamsPage() {
       )}
       {data && data.teams.length > 0 && (
         <div className="card">
-          <table className="table">
+          <div className="table-wrap"><table className="table">
             <thead>
               <tr>
                 <th>Team</th>
@@ -90,7 +90,7 @@ export default function TeamsPage() {
                 <TeamRow key={t.id} team={t} />
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 
