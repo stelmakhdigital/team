@@ -1,161 +1,152 @@
 # Frontend — роль и статус (точка восстановления сессии)
 
-> Файл для восстановления работы. **Последнее обновление: 2026-10-08, ~13:10 (после F15).**
-> Рабочая зона: `frontend/**` (плюс статус-файлы `_workspace/frontend-status.md`, `_workspace/integration-status.md`, `_workspace/blockers.md`, доки `docs/architecture/frontend.md`, `docs/architecture/integration.md` (владею как лид), контракт `docs/architecture/frontend/20_contract_API.md` + `21_team_builder.md`).
-> Роль: **frontend-инженер + lead-интегратор** (могу менять любые файлы для интеграции,
-> но рабочую зону backend не трогаю — бекенду отдаю списки в `answer_backend.md`, читаю его отчёты в `answer_frontend.md`).
+> Файл для восстановления работы. **Последнее обновление: 2026-10-08 (после R6.4).**
+> Рабочая зона: `frontend/**`, контракт `docs/architecture/frontend/20_contract_API.md`
+> + `21_team_builder.md` (владею как лид), `docs/architecture/integration.md`,
+> статус-файлы `_workspace/*`, письма `answer_backend.md` (мне пишет бекенд в `answer_frontend.md`).
+> **Роль: frontend-инженер + lead-интегратор** (меняю любые файлы для интеграции,
+> backend-зону `backend/**` не трогаю — задачи бекенду отдаю в `answer_backend.md`).
 
 ## 1. Стек и конвенции
-- Vite 5 + React 18 + TypeScript (strict) + react-router-dom v6 + vitest/jsdom. **Без внешних runtime-зависимостей** (канвас — нативный SVG + pointer events + HTML5 DnD, без react-flow).
-- Контракт — единственный источник истины: `docs/architecture/frontend/20_contract_API.md` + `21_team_builder.md`. Mirror типов: `src/types/api.ts`.
-- API-фасад: `src/api/index.ts` (`Api`-интерфейс); два адаптера: `src/api/mock/adapter.ts` (in-memory, latency, error-simulator) и `src/api/real.ts` (fetch). UI знает только `Api`.
-- Режимы: `VITE_API_MODE=mock|real` (`.env`, gitignored; default mock).
-  - real mode: **same-origin** — Vite-прокси `/api`, `/ws`, `/healthz` → `BACKEND_URL` (default `http://localhost:8080`), CORS в dev не нужен.
-  - Auth: заголовок **`X-API-Key`** (`VITE_API_KEY`), лид-решение (blockers #9).
-- Error envelope `{"error":{code,message,request_id,details?}}` — flex-parse в `src/api/errors.ts`; friendly-map включает `validation_failed`.
-- Коммит-айдент: `stelmakhdigital <budaev.digital@gmail.com>`; remote `git@github.com:stelmakhdigital/team.git`, ветка `master`.
-- **НЕ коммитить WIP backend**: untracked `backend/**`, `agents/`, `answer_*.md`, `backend.md`, `backend/logs/` и чужие изменения `_workspace/backend-status.md`, `docs/architecture/backend.md`, `docs/contracts/api-decisions.md` — это зона backend-агента, он сам закоммитит.
+- Vite 5 + React 18 + TypeScript (strict) + react-router-dom v6 + vitest/jsdom.
+- **Runtime-зависимости (добавлены редизайном, согласовано с пользователем):**
+  `@xyflow/react` (React Flow v12 — топология и workflow-канвасы) + `yaml` (TeamSpec).
+- Контракт — единственный источник истины: `docs/architecture/frontend/20_contract_API.md`
+  (+ `21_team_builder.md`). Mirror типов: `src/types/api.ts`.
+- API-фасад `src/api/index.ts`; адаптеры `src/api/mock/adapter.ts` (in-memory, latency,
+  error-simulator) и `src/api/real.ts`. UI знает только `Api`.
+- Режимы: `VITE_API_MODE=mock|real` (default mock). real: same-origin, vite-прокси
+  `/api`,`/ws`,`/healthz` → `BACKEND_URL` (default :8080). Auth: `X-API-Key`
+  (`VITE_API_KEY`); WS-auth: `?api_key=` в URL (F13).
+- Commit: `stelmakhdigital <budaev.digital@gmail.com>`, remote `git@github.com:stelmakhdigital/team.git`,
+  ветка `master`.
+- **НЕ коммитить**: `backend/**`, `agents/`, `answer_*.md`, `_workspace/ui-screenshots/`
+  (скриншоты — только локально, в `.gitignore`).
 
-## 2. Что сделано (F1–F15)
-- **F1** каркас: layout (AppShell sidebar), 8 маршрутов, env-конфиг.
-- **F2** типы 1-в-1 с контрактом, API client, mock adapter + seed.
-- **F3** Dashboard: SummaryCards, TaskList, SessionGrid, AlertsPanel, MetricsChart (SVG).
-- **F4** Team Builder (главная вертикаль): TeamsPage (list/create), TeamBuilderPage — SVG-canvas: drop сегментов/ролей, drag (debounced PATCH layout), RelativeConnector (создание/удаление связей), ConfigPanel, BottomPanel (server-validate + local hints, save, zoom/grid/snap).
-- **F5** loading/empty/error/retry, toasts, dev-error-simulator (`?mockError=...`).
-- **F6** Message Center, Library, History (audit + task history).
-- **F7** Workflow Editor (blocks, connections, drag, patch).
-- **F8** `useWebSocket` (real + mock-синтетика), unit-тесты.
-- **F9** интеграция с реальным backend: Team Builder — real; Dashboard summary+tasks, History task history — real (slice 2); Dashboard sessions+alerts, History session history/transcript — real (slice 3, live e2e: start→stop, crash→failed+watchdog alert; `Api.sessions`); infra: `.env`, vite-прокси, same-origin default.
-- **F10** Tasks lifecycle UI: страница `/tasks` (список+фильтры, create, inline-переходы state по карте `lib/task.ts`, handoff, done→closure_reason, expandable → история+subtasks); группа `tasks` в Api (real+mock). Контракт 20 §3.7.
-- **F11** UI-аудит + фиксы (2026-10-08, headless Playwright, скриншоты real+mock, все 7 страниц):
-  1) `useWebSocket` — `connected` только после onopen (бейдж больше не врёт при 404/неподключённом WS);
-  2) 404 на list-эндпоинтах → `Unavailable` («not available yet», без Retry) — Dashboard metrics, History audit, Library, Messages;
-  3) Canvas fit-to-view: авто-fit топологии при загрузке + кнопка ⤢ Fit (`contentBounds()` в palette.ts, `scrollRef` в TeamCanvas, `fitToView` в TeamBuilderPage).
-  Audit подтвердил: drag ролей/сегментов (PATCH), HTML5 DnD из палитры, connect, config, save/validate — работают; 0 console/page errors.
-- **F12** интеграционные тесты slice 4–5 (2026-10-08, `tests/realIntegration.test.ts` 7 → **15**):
-  messages (direct/broadcast/filters, system→400), chatrooms (авто-создание, send/list),
-  workflows (CRUD, индексы connections в POST, drag-patch old/new),
-  library (save/409/list/get spec/apply new+merge, `save_to_library` → `library_item_id`, workflow-apply 400/409),
-  audit (запись + фильтр action), metrics (12 точек × 5 серий × ranges),
-  WS (subscribe `dashboard` → `task.created`; обработка гонки subscribe/event).
-  Фасад: `Api.library.applyLibrary` (POST /library/{id}/apply, real+mock), `Api.dashboard.getMetrics({range})`.
-  Контракт 20 §3.5: `?range=1h|24h|7d`. Тесты идемпотентны (stamp-имена `IT-*`), автоскип без daemon,
-  настраиваются `INTEGRATION_BASE_URL` (default :8080) / `INTEGRATION_API_KEY`.
-- **F13** хвосты + auth-ready WS + LibraryPage apply (2026-10-08):
-  1) **WS auth (критичный баг)**: `useWebSocket` не шёл `?api_key=` → при включённом auth (slice 6)
-     браузерный WS был бы 401. Фикс в `getApiConfig()`: wsUrl += `?api_key=` (или `&api_key=`),
-     если задан `VITE_API_KEY`. Интеграционные тесты тоже шлют `?api_key=` (INTEGRATION_API_KEY).
-     Проверено: **52/52 против демона с DAEMON_API_KEYS** (REST X-API-Key + WS ?api_key=).
-  2) **LibraryPage**: save теперь с выбором команды (было хардкод `source_id: 1`);
-     detail-pane: Apply-секция (team: «Apply as new team» + «Merge into <select>»;
-     workflow: «Apply to team <select>»; role/segment: hint «not supported (400)»).
-  3) Unit: `tests/apiConfig.test.ts` (4: wsUrl+api_key, query-merge, mode), mock `applyLibrary` (6 сценариев),
-     appSmoke: Library (save-row + apply-контролы, team + workflow items).
-  4) Лид-решение **blockers B3** (PG `?` vs pgx v5 `$N`): **(в) — PG out-of-scope до окружения**;
-     при появлении окружения — миграция на `$N` + e2e на PG-DSN. ADR-002 остаётся целью.
-- **F14** slice 6 (RBAC) + role/segment-apply (2026-10-08, backend-агент довёл WIP slice 6):
-  1) **3 RBAC-интеграционных теста** (`INTEGRATION_VIEWER_KEY`/`INTEGRATION_OPERATOR_KEY`,
-     автоскип без ключей): viewer GET 200/POST 403 `forbidden`; operator POST 201 /
-     PATCH role config 403; audit запись DB-ключа с user_id/api_key_id.
-     Live-прогон против демона backend'а на :8080 (env-live-key + itest-* ключи, созданы через CLI).
-  2) **role/segment-apply**: mock `applyLibrary` (merge/applied, идемпотентность, дубль 409),
-     LibraryPage — Apply для всех типов (role/segment: target-team select);
-     контракт 20 §5.4 обновлён (поведение по всем типам), §4.2 `from_role_name: "You"`.
-  Итог: **55/55** (37 unit + 18 интеграционных) против slice-6 демона; typecheck/build OK.
-- **F15** пере-свип slice 6 (committed code) + WS ping/pong + ADR-004 (2026-10-08):
-  1) Backend «закоммитил slice 6» (`9f60993`) — **но origin/master всё ещё 361ced1,
-     working tree WIP** (отмечено в answer_backend.md). Пере-прогон 55/55 — по коду
-     working tree (тот же slice 6), собственный демон :8081 (`lead-env-key` + DB-ключи).
-  2) **WS ping/pong проверено live**: 75s простоя — соединение живо, event доставляется;
-     авто-Pong — по спецификации у браузерных/node-клиентов, клиентских изменений нет.
-     Old issue «read-таймаут» закрыт.
-  3) **Контракт 20 §4.3**: `last_message` omit-если-пусто, `unread_count` per-user (slice 6).
-  4) **ADR-004** (`docs/decisions/`): B3 CLOSED — (б) pgx-rewrite принята, (в) PG e2e
-     out-of-scope до окружения; критерий готовности PG (go test с PG-DSN + 55 интеграц.
-     + migrate pg roundtrip).
-  Итог: 55/55; typecheck/build OK. ADR-002 остаётся целью.
+## 2. Что сделано
 
-## 3. Текущий статус (2026-10-08, ~13:15, после F15 + синхронизации с backend)
-- Git: `master` = `origin/master` = **F15-коммит + `4d92b11`/`4c472e3` (backend)**;
-  HEAD — последний docs-коммит (см. `git log --oneline -5`). **Working tree чист**.
-- Backend: **slices 1–6 + PG закоммичены и запушены** (`4c472e3` + docs `4d92b11`;
-  анонсированный `9f60993` = тот же коммит после rebase/amend). Его демон на :8080
-  (`env-live-key`) — не убивать; свои прогоны — :8081 (свой демон, `lead-env-key` +
-  DB-ключи itest-* через `daemon admin keys create`).
-- Тесты: **55/55** (37 unit + 18 интеграционных, включая 3 RBAC) — последний прогон на
-  закоммиченном коде; typecheck/build OK (82.9 KB gzip).
-- Закрыто: WS read-ping/pong (live 75s idle), last_message (контракт §4.3), B3 (ADR-004),
-  отчёт о slice 4–5 и slice 6 — всё live-проверено с обеих сторон.
-- Контракт 20 актуален (§5.4, §4.2, §4.3, §3.5, §3.6/§3.7). `docs/architecture/integration.md` написан.
+### 2.1 Базовый UI (F1–F15, июнь–08.10)
+Каркас (8 маршрутов), типы 1-в-1 с контрактом, mock+real адаптеры, Dashboard,
+Team Builder (SVG-эпоха), Messages/Library/History, Tasks lifecycle, WebSocket
+(честный статус + mock-синтетика), интеграция с реальным backend (slice 1–6:
+dashboard/tasks/sessions/alerts/history/workflows/library/audit/metrics/messages/WS),
+RBAC-тесты, WS-auth fix, WS ping/pong live-проверка, ADR-004 (B3 CLOSED),
+55/55 тестов, 37+18.
 
-### Мой статус как проекта: основная вертикаль DONE
-Весь UI на реальном API (mock — только default/offline), интеграция покрыта 18 авто-тестами,
-доки/контракт/ADR актуальны, working tree чист.
+### 2.2 UI-редизайн в стиле openRIG (R1–R6, 2026-10-08) — текущее состояние UI
+Решения пользователя: **hybrid editing** (auto-layout по умолчанию + edit-режим),
+**React Flow** как стек графов, **full parity live-данных** (ctx%/tokens/терминал),
+терминология segment/role/relative сохранена (визуально = pod/seat/edge).
 
-### Бэклог (зафиксировано 2026-10-08, после синхронизации с backend)
-**Актуальное направление (по решению пользователя, 2026-10-08): UI-полировка + рефакторинг.**
-Пользователь сначала лично тестирует UI и собирает список проблем; потом — доработка
-по списку. Dev-сервер для проверки: `npm run dev -- --port 5174` (mock).
+- **R1** `1e5501c` — React Flow канвас топологии: auto-layout (топосорт по
+  delegates_to/spawned_by, сегменты-контейнеры ≤3 колонок, карточки 240×150),
+  RoleNode (activity-dot pulse, session state, runtime/profile, uptime),
+  SegmentGroupNode (dashed glass), TaskEdge (5 цветов/стилей по типу связи),
+  pan/zoom/миникарта/fitView, тёмная тема, reduced-motion.
+- **R2** `37185c1` — hybrid edit-режим: drag ролей/сегментов (PATCH layout),
+  connect handle→handle, палитра drag-drop, «✨ Auto layout» (пересчёт + PATCH всех).
+- **YAML** `0aac0aa` — `lib/specYaml.ts` (teamToYaml/yamlToSpec/isSelfContained/
+  buildMergePlan) + SpecYamlPanel: экспорт TopologySpec, создание команды из YAML,
+  merge в существующую с планом; mock createTeam применяет spec.
+- **R3** `28417b2`+`85f101c` — design-токены (:root --emerald/--sky/--amber/--violet/…
+  в styles.css, topology.css на токенах), TopologyTableView (Graph|Table,
+  авто-фолбэк ≤900px через useMediaQuery), dashboard-полировка (mono-статы, pulse),
+  **удалён мёртвый SVG-канвас** (TeamCanvas.tsx).
+- **Slice 7 (backend)** CLOSED: live-поля SessionDetail (model/context_used_percentage/
+  context_total_input|output_tokens/log_path, контракт §3.6) + WS `session.output` (§4.3);
+  мой ACK после live-верификации (pong 201 + 88/88 vs :8080, `25c9465`).
+- **R4** `8015c81` — live на карточках: ctx% (пороги 60/80: зелёный/amber/красный+blink),
+  compact tokens, модель («--» если рантайм не знает); **live-терминал**: hover на
+  карточке → popover с последними строками WS `session.output` (ring 200);
+  TeamBuilderPage: GET /sessions poll 5s + WS team:{id} (refetch на started/stopped);
+  mock seeded-сессии с метриками (42%/67%).
+- **R5** `72dc93b` — единый `Badge` (ui/States; task/entity/sev/type/warn) вместо ~10
+  расписанных бейджей; **фикс 2 битых template literals** (AlertsPanel, LibraryPage —
+  классы не подставлялись); CSS state-цвета; React.memo на 4 dashboard-панелях.
+- **R6** `dd47d32`/`6a72bf8`/`0f84d63` (по запросу пользователя: «верстка фиксированная,
+  workflows не работают, library не для чего»):
+  - **R6.1 perf** — убраны 3 re-render цикла: `lastMessage` из state useWebSocket
+    (никем не использовался, ререндерил страницу на каждый WS-тик), liveSessions Map
+    стабилизирован (content-equality; 5s-поллинг больше не крутит ReactFlow),
+    refetch через ref + стабильные deps эффектов. Нашёл и починил overlap карточек:
+    flex min-height:auto раздувал RoleNode до 170px (фикс: height 150px + min-height:0)
+    + перекрывающийся seeded mock-layout (удалён, дефолт — чистый auto-layout).
+  - **R6.2 responsive** — sidebar → icon-rail ≤1100px; builder-панели (config/palette)
+    — раньше `display:none` ≤1200px, теперь **drawer + FAB** (конфиг на любой ширине);
+    таблицы в .table-wrap (h-scroll ≤640px); page-head flex-wrap; workflow-канвас 100%.
+  - **R6.3 library** — apply (team new/merge, workflow/role/segment → team) с
+    **редиректом на результат** (team → builder, workflow → его редактор, role/segment
+    → builder команды); spec — YAML + copy-to-clipboard.
+  - **R6.4 workflows** — редактор переделан на React Flow: pan/zoom/миникарта,
+    нативный drag (нет лагов HTML5-DnD), палитра 6 типов блоков, конфиг блока
+    (label/role/iterations/note), условие decision (yes/no на связях), удаление
+    блока (каскад)/связи/workflow, локальные hints (цикл, изолированные),
+    auto-layout по топологическим уровням (чистая функция + 7 тестов).
+    **Контракт 20: новые §2.6–2.8 (DELETE block/connection/workflow)** — frontend+mock
+    готовы, **ждём backend-срез** (письмо в `answer_backend.md`).
 
-Остаток (всё опциональное/внешнее):
-1. **UI (next)**: личный ревью пользователя → список проблем → полировка + рефакторинг.
-2. WS: ack subscribe (event до subscribe теряется — задокументировано, UI идемпотентен).
-3. OpenAPI (`docs/contracts/openapi.yaml`) — в конце проекта, генерирует backend.
-4. PG: e2e-свип по критерию ADR-004 п.3 (go test с PG-DSN + 55 интеграционных +
-   `migrate pg` roundtrip) — при появлении PG-окружения.
-5. Backend: Prometheus `/metrics` (по требованию).
+## 3. Текущий статус (2026-10-08, после R6.4)
+- Git: `master` = `origin/master` = **`0f84d63`**. Working tree чист.
+- Тесты: локально **90/90** (unit + smoke; интеграционные автоскип без ключей).
+  Последний живой прогон vs :8080 — **88/88** (20 интеграционных, slice 7 ACK).
+  R6-тесты (workflowLayout, mock delete, smoke editor) — unit/smoke, без демона.
+- Backend-демон backend-агента на **:8080** (`env-live-key`, cwd backend/,
+  sqlite `/tmp/daemon-slice7.db`, `DAEMON_AGENT_SPECS_DIR` выставлен) — **не убивать**.
+- Dev-сервер: `http://localhost:5174` (mock; `npm run dev -- --port 5174`).
+- Скриншоты (локально, не коммитить): `/tmp/r4-metrics.png` (live-метрики+терминал),
+  `/tmp/r62-*.png` (responsive 4 ширины), `/tmp/r64-wf*.png` (workflow editor),
+  `/tmp/final-*.png` (финальный свип).
 
-### Мои следующие шаги (все опциональные)
-1. (опционально) ack subscribe в WS (event до subscribe теряется — задокументировано, UI идемпотентен).
-2. (опционально) OpenAPI: договорено — в конце проекта.
-3. PG: e2e-свип (критерий ADR-004 п.3) при появлении PG-окружения.
+### Бэклог (опциональное/внешнее)
+1. **Backend (жду их)**: срез DELETE workflows (§2.6–2.8) — письмо в answer_backend.md.
+2. PG e2e-свип по критерию ADR-004 §3 — при появлении PG-окружения.
+3. WS ack subscribe (event до subscribe теряется; задокументировано, UI идемпотентен).
+4. OpenAPI (`docs/contracts/openapi.yaml`) — в конце проекта, генерирует backend.
+5. Prometheus `/metrics` (backend, по требованию).
 
 ## 4. Ключевые файлы
 | Файл | Назначение |
 |---|---|
-| `frontend/src/types/api.ts` | mirror контракта (типы) |
-| `frontend/src/api/{index,real,config,errors,http}.ts` | фасад, real-адаптер, env, ошибки, fetch-обёртка |
-| `frontend/src/api/mock/{adapter,data}.ts` | mock-режим (in-memory seed) |
-| `frontend/src/pages/TeamBuilderPage.tsx` | главный канвас (+fitToView, scrollRef) |
-| `frontend/src/pages/TasksPage.tsx` | /tasks: create/state/handoff (F10) |
-| `frontend/src/components/TeamBuilder/*` | canvas (scrollRef), toolbar, config/bottom panels (Fit), palette (`contentBounds`) |
-| `frontend/src/components/Dashboard/*` | панели дашборда |
-| `frontend/src/components/ui/States.tsx` | loading/empty/error/**unavailable** (`isNotFoundError`) |
-| `frontend/src/hooks/{useQuery,useMutation,useWebSocket}.ts` | данные/мутации/WS (честный статус: connected после onopen) |
-| `frontend/src/lib/task.ts` | task transitions + closure reasons |
-| `frontend/vite.config.ts` | dev-сервер + прокси `/api`,`/ws`,`/healthz` → BACKEND_URL |
-| `frontend/tests/realIntegration.test.ts` | интеграционные тесты (15; автоскип, если нет daemon; INTEGRATION_BASE_URL/INTEGRATION_API_KEY) |
-| `frontend/tests/topology.test.ts` | unit: validate + contentBounds |
-| `frontend/.env` / `.env.example` | режимы (`.env` gitignored) |
-| `_workspace/{frontend,integration,blockers}-status.md` | статусы (integration-status — общий с backend) |
-| `docs/architecture/frontend/20_contract_API.md` | API-контракт (владею как лид) |
+| `frontend/src/types/api.ts` | mirror контракта |
+| `frontend/src/api/{index,real,config,errors,http,types}.ts` | фасад + адаптеры |
+| `frontend/src/api/mock/{adapter,data}.ts` | mock (seed, live-метрики, workflows, library apply) |
+| `frontend/src/pages/TeamBuilderPage.tsx` | топология: poll sessions 5s, WS, live-merge, drawer/FAB |
+| `frontend/src/pages/WorkflowEditorPage.tsx` | workflow-редактор (R6.4) |
+| `frontend/src/pages/LibraryPage.tsx` | library: apply + редирект + YAML spec (R6.3) |
+| `frontend/src/components/Topology/*` | TopologyCanvas, layout/autoLayout (ROLE_W=240/H=150), nodes/RoleNode (+ctx%/терминал), SegmentGroupNode, edges/TaskEdge, TopologyTableView |
+| `frontend/src/components/Workflow/*` | WorkflowCanvas, layout (топо-уровни), nodes/BlockNode |
+| `frontend/src/components/TeamBuilder/*` | Toolbar, ConfigPanel, SpecYamlPanel, BottomPanel, palette |
+| `frontend/src/components/ui/States.tsx` | Spinner/Empty/Error/Unavailable + **Badge** (R5) |
+| `frontend/src/components/layout/AppShell.tsx` | sidebar (rail ≤1100) |
+| `frontend/src/lib/specYaml.ts` | YAML TeamSpec serialize/parse/merge |
+| `frontend/src/hooks/{useQuery,useMutation,useWebSocket,useMediaQuery}.ts` | данные/мутации/WS/responsive |
+| `frontend/src/{styles,topology}.css` | токены + темы (topology.css: topo + wf-*) |
+| `frontend/tests/realIntegration.test.ts` | интеграционные (автоскип без daemon) |
+| `frontend/tests/{topologyAutoLayout,specYaml,roleNode,badge,workflowLayout,mockAdapter,appSmoke}.test*` | unit/smoke |
+| `docs/architecture/frontend/20_contract_API.md` | API-контракт (владею; §2.6–2.8 новые) |
+| `answer_backend.md` / `answer_frontend.md` | почта с backend-агентом |
+| `_workspace/ui-redesign-plan.md` | план R1–R6 (статусы + коммиты) |
 
 ## 5. Команды
 ```bash
 cd frontend
-npm run dev                 # :5173, mock по умолчанию
-VITE_API_MODE=real npm run dev   # real: нужен daemon (прокси → :8080)
-npm run typecheck && npm test && npm run build
-# живой backend для интеграционных тестов (WIP backend НЕ собран в git — брать из его working dir):
-export PATH="$PATH:$HOME/sdk/go/bin"   # tilde не разворачивается в этом shell
-cd ../backend && go build -o /tmp/daemon ./cmd/daemon
-# СВОЙ демон (не конфликтовать с backend-агентом на :8080):
-(DAEMON_LISTEN_ADDR=127.0.0.1:8081 DAEMON_DB_DSN="sqlite:/tmp/daemon-lead.db" \
- DAEMON_AGENT_SPECS_DIR=<root>/agents /tmp/daemon > /tmp/daemon-lead.log 2>&1 &)
-INTEGRATION_BASE_URL=http://localhost:8081 npm test   # 15 интеграционных против живого daemon
-# headless-аудит (playwright; системные либы через LD_LIBRARY_PATH, sudo недоступен):
-LD_LIBRARY_PATH=/tmp/pwlibs/extracted/usr/lib/x86_64-linux-gnu node /tmp/shots/<скрипт>.mjs
+npm run dev -- --port 5174          # mock (dev-сервер проекта; :5173 занят другим)
+npm test                             # локально: 90/90 (интеграционные — автоскип)
+npm run typecheck && npm run build
+# интеграционные vs живой :8080 (демон backend-агента, НЕ убивать):
+INTEGRATION_BASE_URL=http://localhost:8080 \
+INTEGRATION_API_KEY=env-live-key \
+INTEGRATION_VIEWER_KEY=sk_698b32cdac447a1f99f6e526c9a17896afcad2c1088e283f \
+INTEGRATION_OPERATOR_KEY=sk_62ae7fa00cb2a6b4dd0931f1f6aa37dea873fa618e538ab8 \
+npm test                              # 88/88 (20 интеграционных)
+# headless-скриншоты (chrome-деbs в /tmp/chrome-libs, sudo недоступен):
+NODE_PATH=/home/arkalaust/.npm/_npx/e41f203b7505f1fb/node_modules \
+LD_LIBRARY_PATH=/tmp/chrome-libs/ext/usr/lib/x86_64-linux-gnu node /tmp/shot-*.cjs
 ```
 
-## 6. Открытые вопросы / лид-обязанности
-- Kонтракт 20: после коммита backend slice 6 сверить RBAC-формы (403 `forbidden`, audit user_id/api_key_id, unread_count) — при расхождениях править контракт (я, лид).
-- К бекенду (non-blocking, в answer_backend.md): WS read-ping (gorilla «корruptит» соединение по read-таймауту — у них в change-log), `from_role_name` в GET /messages ("You"), `last_message` в chatrooms, задокументировать имя item `"team-<name>"` в save_to_library.
-
-## 7. Как восстановить сессию
-1. Прочитать этот файл + `_workspace/integration-status.md` (таблица + последние 2–3 записи change-log) + `_workspace/blockers.md` + `answer_backend.md` (мой последний ответ backend'у).
-2. `cd frontend && npm test` — ожидается **55/55** (интеграционные скипаются без daemon;
-   RBAC-тесты — без `INTEGRATION_VIEWER_KEY`/`INTEGRATION_OPERATOR_KEY`).
-   Запуск против демонов: `INTEGRATION_BASE_URL` (default :8080) + `INTEGRATION_API_KEY` (admin);
-   свои прогоны — :8081 (свой демон), :8080 — демон backend'а (slice 6, `env-live-key`).
-3. `git log --oneline -3` — HEAD = F14-коммит (или новее, если продолжил).
-4. Дальше — «Следующие шаги» (п.3): финальный свип после коммита slice 6.
+## 6. Как восстановить сессию
+1. Прочитать этот файл + `answer_backend.md` (последнее письмо) +
+   `_workspace/ui-redesign-plan.md` (статусы R-фаз).
+2. `cd frontend && npm test` — ожидается **90/90**.
+3. `git log --oneline -5` — HEAD = `0f84d63` (R6.3+R6.4) или новее.
+4. Дальше: бэклог (§3) — либо ждём backend-срез DELETE, либо PG-свип при окружении.
