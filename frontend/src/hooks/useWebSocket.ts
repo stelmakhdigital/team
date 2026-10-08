@@ -4,7 +4,8 @@ import type { WSServerMessage } from '../types/api';
 
 export interface WSHook {
   status: 'connected' | 'reconnecting' | 'disconnected' | 'mock';
-  lastMessage: WSServerMessage | null;
+  // R6.1 perf: lastMessage удалён из state — он никем не использовался, а каждое
+  // сообщение (и mock-tick) вызывало setLastMessage → ререндер всей подписанной страницы
   onMessage: (handler: (m: WSServerMessage) => void) => void;
 }
 
@@ -22,7 +23,6 @@ function parseMessage(raw: string): WSServerMessage | null {
  * contract-shaped events so UI live-panels can be exercised. */
 export function useWebSocket(channels: string[]): WSHook {
   const [status, setStatus] = useState<WSHook['status']>('disconnected');
-  const [lastMessage, setLastMessage] = useState<WSServerMessage | null>(null);
   const channelsRef = useRef(channels);
   channelsRef.current = channels;
   const handlerRef = useRef<(m: WSServerMessage) => void>(() => {});
@@ -66,7 +66,6 @@ export function useWebSocket(channels: string[]): WSHook {
       ];
       const t = setInterval(() => {
         handlerRef.current(pool[tick % pool.length]);
-        setLastMessage(pool[tick % pool.length]);
         tick += 1;
       }, 8000);
       return () => clearInterval(t);
@@ -94,10 +93,7 @@ export function useWebSocket(channels: string[]): WSHook {
       };
       ws.onmessage = (ev) => {
         const msg = parseMessage(typeof ev.data === 'string' ? ev.data : '');
-        if (msg) {
-          handlerRef.current(msg);
-          setLastMessage(msg);
-        }
+        if (msg) handlerRef.current(msg);
       };
       ws.onclose = () => {
         if (!closed) scheduleReconnect();
@@ -125,5 +121,5 @@ export function useWebSocket(channels: string[]): WSHook {
     handlerRef.current = handler;
   };
 
-  return { status, lastMessage, onMessage };
+  return { status, onMessage };
 }

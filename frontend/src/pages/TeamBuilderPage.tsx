@@ -37,15 +37,17 @@ export default function TeamBuilderPage() {
 
   // R4 (slice 7): live-сессии роли (ctx%/tokens/model) + live-терминал (session.output)
   const sessionsQ = useQuery(`team.sessions.${id}`, () => api.sessions.list({ team_id: id }), [id]);
+  // R6.1 perf: useQuery возвращает новый объект refetch на каждый рендер — храним в ref,
+  // чтобы интервал/эффекты не пересоздавались на каждый рендер страницы
+  const sessionsRefetchRef = useRef(sessionsQ.refetch);
+  sessionsRefetchRef.current = sessionsQ.refetch;
   // опрос: context%/tokens меняются со временем (WS даёт только терминал)
   useEffect(() => {
-    const t = setInterval(() => sessionsQ.refetch(), 5000);
+    const t = setInterval(() => sessionsRefetchRef.current(), 5000);
     return () => clearInterval(t);
-  }, [sessionsQ]);
+  }, [id]);
 
   const [outputs, setOutputs] = useState<Map<number, string[]>>(() => new Map());
-  const outputsRef = useRef(outputs);
-  outputsRef.current = outputs;
   const { onMessage: setWs } = useWebSocket([`team:${id}`]);
   useEffect(() => {
     setWs((m) => {
@@ -60,15 +62,42 @@ export default function TeamBuilderPage() {
           return next;
         });
       } else if (m.type === 'session.started' || m.type === 'session.stopped') {
-        sessionsQ.refetch();
+        sessionsRefetchRef.current();
       }
     });
-  }, [sessionsQ]);
+    return () => setWs(() => {});
+  }, [setWs, id]);
 
+  // R6.1 perf: стабилизация Map — новый Map только при реальном изменении данных,
+  // иначе 5-сек полинг пересоздавал бы Map → ReactFlow setNodes → ререндер всего канваса
+  const liveSessionsRef = useRef<Map<number, NonNullable<typeof sessionsQ.data>['sessions'][number]>>(new Map());
   const liveSessions = useMemo(() => {
-    const map = new Map<number, NonNullable<typeof sessionsQ.data>['sessions'][number]>();
-    for (const s of sessionsQ.data?.sessions ?? []) map.set(s.role_id, s);
-    return map;
+    const prev = liveSessionsRef.current;
+    const list = sessionsQ.data?.sessions ?? [];
+    let changed = prev.size !== list.length;
+    if (!changed) {
+      for (const s of list) {
+        const p = prev.get(s.role_id);
+        if (
+          !p ||
+          p.state !== s.state ||
+          p.context_used_percentage !== s.context_used_percentage ||
+          p.context_total_input_tokens !== s.context_total_input_tokens ||
+          p.context_total_output_tokens !== s.context_total_output_tokens ||
+          p.model !== s.model
+        ) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) {
+      const next = new Map<number, NonNullable<typeof sessionsQ.data>['sessions'][number]>();
+      for (const s of list) next.set(s.role_id, s);
+      liveSessionsRef.current = next;
+      return next;
+    }
+    return prev;
   }, [sessionsQ.data]);
 
   const segments = data?.segments ?? [];
