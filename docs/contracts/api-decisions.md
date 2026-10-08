@@ -347,3 +347,34 @@ History Viewer (audit + transcripts), Prometheus `/metrics`.
 - `downloads_count` +1 при каждом успешном apply (как раньше).
 - Test: `TestLibraryRoleSegmentApply` (HTTP-вертикаль: снапшоты, merge/идемпотентность,
   overrides, segment_id, snapshot-сегмент, авто-создание сегментов, 400/409).
+
+### Slice 7: live-метрики сессий + `session.output` (2026-10-08, редизайн UI R4)
+
+- **`SessionDetail` += опциональные live-поля** (контракт 20 §3.6, additive,
+  omit/null = «рантайм не знает» → UI «--»):
+  - `model` — только для `runtime_type=pi`: из конфига сессии
+    (`configs/sessions/session-<id>.yaml`, поле `model:`); иначе omit.
+  - `context_total_input_tokens` — сумма `(input_tokens + cache_read_input_tokens)`
+    по всем JSONL-записям с `usage` в transcript-логе (формат pi JSONL:
+    `{"message":{"usage":{...}}}` или `{"usage":{...}}`);
+  - `context_total_output_tokens` — сумма `output_tokens` по тем же записям;
+  - `context_used_percentage` — последняя запись: `(input+cache_read)/окно*100`
+    (capped 100); окно = `config.context_window` сессии, иначе 200000
+    (документированное допущение — размер контекста модели не спрашивается у рантайма);
+  - `log_path` — путь transcript-файла (`logs/sessions/session-<id>.log`), всегда.
+  - **Честность**: ТUI-вывод pi (ANSI) usage не содержит → context-поля omit
+    (не 0!). Заполняются, когда рантайм пишет JSONL с usage.
+  - Парсинг хвоста файла (≤256KB) на каждый запрос списка — ок для масштабов UI.
+- **WS `session.output`** (контракт 20 §4.3): тейлер transcript-лога, батчи
+  ≤500ms, событие ТОЛЬКО при новых строках (молчание → тишина). Каналы
+  `session:<id>` + `team:<id>` + `dashboard`. `lines[] = {ts, text, stream:"stdout"}`
+  (stdout+stderr мержены в один лог → stream всегда "stdout"; ts — время батча,
+  per-line ts из файла недоступен). Лимиты: 1MB/тик, 500 строк/событие,
+  4000 символов/строка (обрезка). Тейлер живёт от start до stopped/failed
+  (markSessionState) — после stop событий нет.
+- Не ломает existing-клиентов: только новые опциональные поля и новый тип события
+  (неподписанные на `session:<id>`/`dashboard` ничего не получат).
+- Тесты: `session_live_test.go` (usage-парсинг, model из pi-конфига, window-override,
+  cap 100, readNewLogLines: partial/truncate/idle), `TestSessionOutputEvents`
+  (батчи/каналы/тишина после stop), `TestSessionLiveMetricsView`,
+  `TestSessionLiveMetricsNoUsage`.

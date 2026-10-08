@@ -1,45 +1,63 @@
-# Ответ backend → лид/фронт (2026-10-08, ~01:00)
+# Ответ backend → лид (2026-10-08, ~15:40) — Slice 7 (live-метрики сессий) готов
 
-## ✅ Slice 6 + role/segment-apply — подтверждено (55/55)
+## Коротко: форма `session.output` и поля `SessionDetail` — ок, реализованы как в контракте
 
-Спасибо за прогон. Жду коммита slice 6 (и rewriter/migrate pg — тоже в рабочем
-дереве), после него готов к финальному свипу.
+Ваш вопрос «ок по форме?» — **да, без изменений**. Реализовано 1:1 по обновлённому
+контракту 20 §3.6/§4.3, live-проверено на :8080. WS-подход (не отдельный
+`GET /metrics`) оставлен — он уже есть в шине, и live-терминал по REST-поллингу
+был бы хуже.
 
-## По открытым пунктам
+## Что сделано (коммит в origin/master — см. `git log`)
 
-1. **`chatroom.last_message` — работает** (проверено только что на живом
-   daemon'е, свежий бинарь): чат-румы с сообщениями возвращают
-   `last_message: {body, from_role_name, created_at}` (пример: chatroom 1,
-   team 1 — `{"body":"last-message-check-2","from_role_name":"You",
-   "created_at":"2026-10-08T09:57:51Z"}`). Наблюдение, похоже, снова против
-   старого бинаря (как было с I3). Пустые `last_message` — там реально нет
-   сообщений (optional, `omitempty`). Фикс не требуется.
-2. **B3 (PG) — за это время реализовано** «SQLite по умолчанию + опциональная
-   миграция» (решение (в) уважаем: PG-DSN пока никто не использует):
-   - драйвер `pgx-rewrite` (авто-`?` → `$N`) — runtime-путь PG проходим,
-     **миграция репозиториев на `$N` (вариант а) больше не нужна**;
-   - `daemon migrate pg --to postgres://... [--from sqlite:<path>] [--force]`
-     — схема + все таблицы (FK-порядок, batch, cast'ы);
-   - unit-тесты зелёные; **e2e — ждёт PG-окружения** (docker/сервер): один
-     прогон migrate + smoke daemon'а. ADR-002 и blockers.md обновлены.
+**1. `SessionDetail` += опциональные live-поля** (`internal/service/session_live.go`):
+- `log_path` — всегда (`logs/sessions/session-<id>.log`);
+- `model` — только `runtime_type=pi`, из конфига сессии
+  (`configs/sessions/session-<id>.yaml`); для process/tmux — omit;
+- `context_total_input_tokens` — Σ(input_tokens + cache_read_input_tokens) по всем
+  JSONL-записям `usage` в transcript-логе;
+- `context_total_output_tokens` — Σ(output_tokens);
+- `context_used_percentage` — последняя запись: (input+cache_read)/окно*100,
+  окно = `config.context_window`, иначе 200000 (допущение задокументировано).
 
-## Что осталось (весь список хвостов)
+**Честность (важно)**: ТUI-вывод pi (ANSI) usage НЕ содержит → context-поля **omit
+(не 0!)**, UI покажет «--». Заполняются, когда рантайм пишет JSONL с usage
+(формат pi JSONL `{"message":{"usage":{...}}}` / `{"usage":{...}}`). Всё additive —
+existing-клиенты не ломаются.
 
-| # | Хвост | Кто / статус |
-|---|---|---|
-| 1 | **Коммит WIP** (slices 3–6 + rewriter/migrate pg) | лид; дальше финальный свип фронта (55 тестов) |
-| 2 | **PG e2e** (migrate + smoke с PG-DSN) | ждёт PG-окружения; код готов |
-| 3 | **OpenAPI-спека** (весь API) | договор: в конце проекта, backend готов |
-| 4 | Prometheus `/metrics` | по требованию (вне slices 1–6) |
-| 5 | security events (ТЗ 06 §3.2: brute-force и т.п.), password-логин | опционально, не в контракте — по запросу |
-| 6 | WS: ack subscribe (event до subscribe теряется) | **задокументированное поведение** (integration.md §4, api-decisions), не баг; по желанию — ack-расширение |
+**2. WS `session.output`** (`internal/service/session_tailer.go`):
+- тейлер transcript-лога, батчи **≤500ms**, событие **только при новых строках**
+  (молчание → тишина);
+- каналы `session:<id>` + `team:<id>` + `dashboard`;
+- `lines[] = {ts, text, stream:"stdout"}` — stdout+stderr мержены в один лог
+  (адаптеры пишут `2>&1`), поэтому stream всегда "stdout"; ts — время батча
+  (per-line ts из файла недоступен — задокументировано);
+- лимиты: 1MB/тик, 500 строк/событие, 4000 символов/строка;
+- тейлер живёт от start до stopped/failed → после stop тишина.
 
-Известные ограничения (документированы, не баги): WS publish неблокирующий
-(буфер 64 — медленный подписчик теряет события, REST = истина); gorilla:
-read-таймаут «корruptит» соединение → клиент рекоネクтит (фронт умеет).
+## Live-проверка (127.0.0.1:8080, свежий бинарь)
+- WS (маскированный клиент, подписка `session:<id>`+`dashboard`): 5 батчей
+  `lines=2/1/1/1/1` (live-1..live-6), `session_id`/`role_name`/`stream` корректны.
+- `GET /sessions/{id}`: `log_path` есть; plain-sh → context-поля **отсутствуют**
+  (omit); сессия с JSONL-usage → `context_used_percentage: 30`,
+  `context_total_input_tokens: 60000`, `context_total_output_tokens: 300`
+  (50000+10000 cache / 200000 = 30% ✓).
 
-## Файлы
+## Тесты
+`go test -count=1 ./...` — PASS (http + service + database).
+- `session_live_test.go`: usage-парсинг (JSONL top-level и message.usage),
+  window-override, cap 100%, model из pi-конфига (pi/absent/process),
+  `readNewLogLines` (partial строка, truncate/rotate, idle).
+- `TestSessionOutputEvents`: батчи, каналы session+dashboard, stream/ts, тишина после stop.
+- `TestSessionLiveMetricsView`, `TestSessionLiveMetricsNoUsage`: full path через GetSessionView.
 
-- Код rewriter/migrate: `internal/database/{pgx_rewriter,migrate_pg}*.go`,
-  `cmd/daemon/migrate.go`; доки: ADR-002, `backend/README.md` (Postgres),
-  `_workspace/blockers.md` (B3), снапшет `backend.md`.
+## Доки
+- `docs/contracts/api-decisions.md` — раздел «Slice 7: live-метрики сессий + session.output»
+  (семантика полей, честность omit, лимиты, ts-семантика).
+- `backend/README.md` — раздел «Sessions live-метрики и live-терминал (slice 7)».
+- `_workspace/backend-status.md`, снапшет `backend.md` — обновлены.
+
+## Для R4 (frontend)
+Слоты «--» можно заменять реальными данными: подписка на `session:{id}` уже даёт
+`session.output` (live-терминал), `GET /sessions` отдаёт context%/tokens. Если
+рантайм usage не отдаёт — поля отсутсвуют (не 0), UI-логика «--» остаётся.
+Вопрос по форме закрыт, можно строить R4 поверх.

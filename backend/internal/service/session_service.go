@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"daemon/internal/models"
@@ -44,6 +45,9 @@ type SessionService struct {
 	ConfigsDir string
 	// Bus — real-time события (session.started/session.stopped); nil = без событий.
 	Bus *EventBus
+	// tails — tailer'ы session.output (live-терминал, slice 7); tailMu — защита.
+	tailMu sync.Mutex
+	tails  map[int64]*tailState
 }
 
 func NewSessionService(db *sql.DB, s *repository.Stores, rt *runtime.Registry) *SessionService {
@@ -52,6 +56,7 @@ func NewSessionService(db *sql.DB, s *repository.Stores, rt *runtime.Registry) *
 		teams: s.Teams, roles: s.Roles, tasks: s.Tasks, tHistory: s.History,
 		sessions: s.Sessions, sHistory: s.SessionHistory,
 		LogsDir: "logs/sessions", ConfigsDir: "configs/sessions",
+		tails: make(map[int64]*tailState),
 	}
 }
 
@@ -217,6 +222,7 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 		"role_name":    role.Name,
 		"runtime_type": rtType,
 	}, fmt.Sprintf("team:%d", sess.TeamID), fmt.Sprintf("session:%d", sess.ID)))
+	s.startOutputTailer(sess.ID, sess.TeamID, role.Name, outFile) // slice 7: live-терминал (no-op без Bus)
 	return &updated, nil
 }
 
@@ -287,6 +293,7 @@ func (s *SessionService) markSessionState(ctx context.Context, sess *models.Sess
 		return nil, err
 	}
 	if to == models.SessionStopped || to == models.SessionFailed {
+		s.stopOutputTailer(sess.ID)
 		roleName := ""
 		if r, err := s.roles.GetByID(ctx, s.db, sess.RoleID); err == nil {
 			roleName = r.Name
@@ -476,6 +483,13 @@ type SessionView struct {
 	UptimeSeconds  *int64  `json:"uptime_seconds,omitempty"`
 	CreatedAt      string  `json:"created_at"`
 	UpdatedAt      string  `json:"updated_at"`
+	// Live-метрики (slice 7, контракт 20 §3.6). опциональные: null/omit =
+	// неизвестно (рантайм не отдаёт) → UI показывает «--». Additive.
+	Model                    string   `json:"model,omitempty"`
+	ContextUsedPercentage    *float64 `json:"context_used_percentage,omitempty"`
+	ContextTotalInputTokens  *int64   `json:"context_total_input_tokens,omitempty"`
+	ContextTotalOutputTokens *int64   `json:"context_total_output_tokens,omitempty"`
+	LogPath                  string   `json:"log_path,omitempty"`
 }
 
 func (s *SessionService) viewsFor(ctx context.Context, sessions []*models.Session) ([]*SessionView, error) {
@@ -539,6 +553,7 @@ func (s *SessionService) viewsFor(ctx context.Context, sessions []*models.Sessio
 			State: string(x.State), QueueTaskID: x.QueueTaskID,
 			Command: x.Command, WorkingDir: x.WorkingDir, ExitCode: x.ExitCode,
 			CreatedAt: x.CreatedAt.Format(rfc3339), UpdatedAt: x.UpdatedAt.Format(rfc3339),
+			LogPath: s.sessionLogPath(x.ID), Model: s.sessionModel(x),
 		}
 		if x.QueueTaskID != nil {
 			v.QueueTaskTitle = ptr(taskTitle[*x.QueueTaskID])
@@ -553,6 +568,7 @@ func (s *SessionService) viewsFor(ctx context.Context, sessions []*models.Sessio
 		if x.StoppedAt != nil {
 			v.StoppedAt = ptr(x.StoppedAt.Format(rfc3339))
 		}
+		s.enrichLiveMetrics(v, x)
 		out = append(out, v)
 	}
 	return out, nil

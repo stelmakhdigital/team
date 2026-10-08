@@ -280,7 +280,24 @@ DAEMON_DB_DSN=sqlite:./daemon.db ./bin/daemon   # http://localhost:8080
 - Ограничение: e2e (реальный PG-сервер) — при появлении окружения; до того
   PG-DSN не используется (всё на sqlite).
 
+### Slice 7: live-метрики сессий + `session.output` (завершён 2026-10-08, редизайн R4)
+- `SessionDetail` += опциональные live-поля (контракт 20 §3.6, additive, omit = «--»):
+  `model` (pi, из конфига сессии), `context_used_percentage`, `context_total_input_tokens`,
+  `context_total_output_tokens`, `log_path` (всегда).
+  - context-поля: парсинг JSONL `usage` из transcript-лога (хвост ≤256KB);
+    total_input = Σ(input+cache_read), total_output = Σ(output),
+    pct = последняя (input+cache_read)/окно*100 (окно = config.context_window, иначе 200000);
+    ТUI-вывод pi usage не содержит → omit (честно, не 0).
+- WS `session.output` (live-терминал, контракт 20 §4.3): тейлер transcript-лога
+  (`internal/service/session_tailer.go`), батчи ≤500ms, только при новых строках,
+  каналы session:<id>+team:<id>+dashboard; после stop — тишина.
+- Тесты: `session_live_test.go` (8 unit) + `TestSessionOutputEvents` (батчи/каналы/тишина),
+  `TestSessionLiveMetricsView`, `TestSessionLiveMetricsNoUsage`.
+- Live-проверено (:8080): WS-батчи (2+1+1+1+1), `log_path` в view,
+  context-поля из JSONL (pct 30, input 60000, output 300), omit без usage.
+
 ## Next step
+- R4 (frontend) — реальные context%/tokens + live-терминал popover; мой срез готов.
 - PG (опционально): rewriter + `daemon migrate pg` реализованы (B3, 2026-10-08);
   e2e-проверка — при появлении PG-окружения. До того PG-DSN не используется.
 - Prometheus `/metrics` (при необходимости; договор с lead'ом).

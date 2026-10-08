@@ -101,6 +101,15 @@ DAEMON_DB_DSN=postgres://user:pass@host:5432/db ./bin/daemon
 - **unread_count** (chatrooms): реальный для user (DB-ключ); `GET /chatrooms/{id}/messages`
   помечает чат прочитанным. Подробности: `docs/contracts/api-decisions.md` (Slice 6).
 
+## Sessions live-метрики и live-терминал (slice 7)
+
+- **`SessionDetail` += опциональные live-поля** (additive, omit = «неизвестно» → UI «--»):
+  `model` (только pi, из конфига сессии), `context_used_percentage`, `context_total_input_tokens`,
+  `context_total_output_tokens` (парсинг JSONL `usage` из transcript-лога; ТUI-вывод usage не содержит → omit),
+  `log_path` (всегда). Подробности: `docs/contracts/api-decisions.md` (Slice 7).
+- **WS `session.output`**: live-терминал — тейлер transcript-лога, батчи ≤500ms, только при новых
+  строках. Каналы `session:<id>` + `team:<id>` + `dashboard`.
+
 ## Endpoints (slice 1, /api/v1)
 
 - `GET/POST /teams`, `GET/DELETE /teams/{id}` (DELETE = archive)

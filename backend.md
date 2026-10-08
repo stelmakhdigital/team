@@ -287,6 +287,14 @@
   (ТЗ 06 §3.2 — детекция brute force и т.п.), password-авторизация (password_hash
   есть в users, API логина нет — нет в контракте).
 - **Library apply role/segment: DONE.**
+- **Slice 7: live-метрики сессий + `session.output` (DONE, 2026-10-08, редизайн R4)** —
+  `SessionDetail` += опциональные live-поля (`model`[pi], `context_used_percentage`,
+  `context_total_input_tokens`, `context_total_output_tokens`, `log_path`); context-поля —
+  парсинг JSONL `usage` из transcript-лога (omit если рантайм не отдаёт, не 0); WS
+  `session.output` — тейлер лога (`session_tailer.go`), батчи ≤500ms, только при новых
+  строках. Файлы: `session_tailer.go`, `session_live.go` + тесты (`session_live_test.go`,
+  `TestSessionOutputEvents`, `TestSessionLiveMetrics*`). Live-проверено на :8080.
+  Подробности: `docs/contracts/api-decisions.md` (Slice 7).
 - **Postgres-опция (B3): DONE как runtime+инструмент (2026-10-08 вечер)** —
   SQLite по умолчанию, PG опционально: драйвер `pgx-rewrite` (`?` → `$N`,
   pgx v5 без встроенного QueryRewriter) + CLI `daemon migrate pg --to

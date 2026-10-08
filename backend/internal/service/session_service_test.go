@@ -2,8 +2,10 @@ package service_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -308,5 +310,161 @@ func TestCreateSessionValidation(t *testing.T) {
 	if _, err := e.ssvc.CreateSession(e.ctx, teamID, service.CreateSessionRequest{
 		RoleID: otherRole, Command: "true"}); err == nil {
 		t.Error("role from another team must fail")
+	}
+}
+
+// ---------- slice 7: session.output (WS live-терминал) ----------
+
+// TestSessionOutputEvents — тейлер transcript-лога: батчи session.output
+// (≤500ms, только при новых строках), каналы session:{id}+dashboard,
+// тишина после stop.
+func TestSessionOutputEvents(t *testing.T) {
+	e := setupSessionEnv(t)
+	bus := service.NewEventBus()
+	e.ssvc.Bus = bus
+	teamID, roleID := e.teamWithRole(t, "s-out")
+
+	ch, unsub := bus.Subscribe()
+	defer unsub()
+
+	sess, err := e.ssvc.CreateSession(e.ctx, teamID, service.CreateSessionRequest{
+		RoleID:  roleID,
+		Command: "sh",
+		Args:    []string{"-c", "echo l1; sleep 0.6; echo l2; sleep 5"},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	wantCh := fmt.Sprintf("session:%d", sess.ID)
+	var texts []string
+	deadline := time.Now().Add(6 * time.Second)
+	for len(texts) < 2 && time.Now().Before(deadline) {
+		select {
+		case ev := <-ch:
+			if ev.Type != "session.output" {
+				continue
+			}
+			data, _ := ev.Data.(map[string]any)
+			if data == nil {
+				t.Fatal("session.output data nil")
+			}
+			if sid, _ := data["session_id"].(int64); sid != sess.ID {
+				t.Fatalf("session_id = %v", data["session_id"])
+			}
+			channels := map[string]bool{}
+			for _, c := range ev.Channels {
+				channels[c] = true
+			}
+			if !channels[wantCh] || !channels["dashboard"] {
+				t.Fatalf("channels = %v, want %s + dashboard", ev.Channels, wantCh)
+			}
+			lines, _ := data["lines"].([]any)
+			if len(lines) == 0 {
+				t.Fatal("empty lines batch")
+			}
+			for _, l := range lines {
+				lm, _ := l.(map[string]any)
+				if lm["stream"] != "stdout" {
+					t.Fatalf("stream = %v", lm["stream"])
+				}
+				if _, ok := lm["ts"].(string); !ok || lm["ts"] == "" {
+					t.Fatalf("ts missing: %v", lm)
+				}
+				texts = append(texts, fmt.Sprint(lm["text"]))
+			}
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	joined := strings.Join(texts, "|")
+	if !strings.Contains(joined, "l1") || !strings.Contains(joined, "l2") {
+		t.Fatalf("output lines missing: %q", joined)
+	}
+
+	// stop → тейлер остановлен, новых session.output нет
+	if _, err := e.ssvc.StopSession(e.ctx, sess.ID); err != nil {
+		t.Fatalf("StopSession: %v", err)
+	}
+	silence := time.After(1500 * time.Millisecond) // ≥3 тика
+waitLoop:
+	for {
+		select {
+		case ev := <-ch:
+			if ev.Type == "session.output" {
+				t.Fatalf("session.output after stop: %v", ev.Data)
+			}
+		case <-silence:
+			break waitLoop
+		}
+	}
+}
+
+// TestSessionLiveMetricsView — live-поля в SessionView: log_path всегда,
+// context-поля из JSONL usage (omit без usage), model — только pi.
+func TestSessionLiveMetricsView(t *testing.T) {
+	e := setupSessionEnv(t)
+	teamID, roleID := e.teamWithRole(t, "s-live")
+
+	sess, err := e.ssvc.CreateSession(e.ctx, teamID, service.CreateSessionRequest{
+		RoleID:  roleID,
+		Command: "sh",
+		Args: []string{"-c",
+			`printf '{"message":{"usage":{"input_tokens":200,"cache_read_input_tokens":0,"output_tokens":15}}}\n'; sleep 1`},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+
+	view, err := e.ssvc.GetSessionView(e.ctx, sess.ID)
+	if err != nil {
+		t.Fatalf("GetSessionView: %v", err)
+	}
+	if view.LogPath == "" {
+		t.Fatal("log_path empty")
+	}
+	if view.Model != "" {
+		t.Fatalf("model = %q, want empty for process runtime", view.Model)
+	}
+	if view.ContextTotalInputTokens == nil || *view.ContextTotalInputTokens != 200 {
+		t.Fatalf("total_input = %v", view.ContextTotalInputTokens)
+	}
+	if view.ContextTotalOutputTokens == nil || *view.ContextTotalOutputTokens != 15 {
+		t.Fatalf("total_output = %v", view.ContextTotalOutputTokens)
+	}
+	if view.ContextUsedPercentage == nil {
+		t.Fatal("pct nil")
+	}
+	if d := *view.ContextUsedPercentage - 0.1; d > 1e-9 || d < -1e-9 {
+		t.Fatalf("pct = %v, want 0.1", *view.ContextUsedPercentage)
+	}
+	if _, err := e.ssvc.StopSession(e.ctx, sess.ID); err != nil {
+		t.Fatalf("StopSession: %v", err)
+	}
+}
+
+// TestSessionLiveMetricsNoUsage — без JSONL usage в логе → context-поля omit.
+func TestSessionLiveMetricsNoUsage(t *testing.T) {
+	e := setupSessionEnv(t)
+	teamID, roleID := e.teamWithRole(t, "s-live2")
+
+	sess, err := e.ssvc.CreateSession(e.ctx, teamID, service.CreateSessionRequest{
+		RoleID:  roleID,
+		Command: "sh",
+		Args:    []string{"-c", "echo plain-output; sleep 0.5"},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	time.Sleep(250 * time.Millisecond)
+	view, err := e.ssvc.GetSessionView(e.ctx, sess.ID)
+	if err != nil {
+		t.Fatalf("GetSessionView: %v", err)
+	}
+	if view.ContextUsedPercentage != nil || view.ContextTotalInputTokens != nil || view.ContextTotalOutputTokens != nil {
+		t.Fatalf("no usage => context fields must be omit: %+v", view)
+	}
+	if _, err := e.ssvc.StopSession(e.ctx, sess.ID); err != nil {
+		t.Fatalf("StopSession: %v", err)
 	}
 }

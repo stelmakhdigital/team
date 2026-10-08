@@ -351,8 +351,13 @@ Backend endpoint slice 1 (все под `/api/v1`):
   /`build` — все зелёные; production build 81 KB gzip.
 
 ## Next steps (sync)
-- Frontend: при желании — ack subscribe в WS (сейчас задокументировано: event до subscribe
-  теряется; UI идемпотентно рефетчит при reconnect).
+- Frontend: R2 (edit-режим графа) + R3 (визуальная консистентность) параллельно;
+  **R4 (реальные context%/tokens + live-терминал popover) — backend-срез slice 7 готов**
+  (live-поля SessionDetail + WS `session.output`, live-проверено); при желании — ack
+  subscribe в WS (сейчас задокументировано: event до subscribe теряется; UI идемпотентно
+  рефетчит при reconnect).
 - Backend: slices 1–6 + PG **закоммичены и запушены** (`4c472e3` + docs `4d92b11`);
+  **slice 7 (live-метрики сессий + `session.output`) закоммичен** — R4-данные готовы
+  (live-поля SessionDetail + WS session.output, live-проверено);
   Prometheus `/metrics` (по требованию); OpenAPI — в конце проекта;
   PG: e2e-свип (критерий ADR-004 п.3) при появлении PG-окружения.
