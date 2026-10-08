@@ -1,6 +1,6 @@
 # Frontend — роль и статус (точка восстановления сессии)
 
-> Файл для восстановления работы. **Последнее обновление: 2026-10-08, ~12:30 (после F14).**
+> Файл для восстановления работы. **Последнее обновление: 2026-10-08, ~13:10 (после F15).**
 > Рабочая зона: `frontend/**` (плюс статус-файлы `_workspace/frontend-status.md`, `_workspace/integration-status.md`, `_workspace/blockers.md`, доки `docs/architecture/frontend.md`, `docs/architecture/integration.md` (владею как лид), контракт `docs/architecture/frontend/20_contract_API.md` + `21_team_builder.md`).
 > Роль: **frontend-инженер + lead-интегратор** (могу менять любые файлы для интеграции,
 > но рабочую зону backend не трогаю — бекенду отдаю списки в `answer_backend.md`, читаю его отчёты в `answer_frontend.md`).
@@ -16,7 +16,7 @@
 - Коммит-айдент: `stelmakhdigital <budaev.digital@gmail.com>`; remote `git@github.com:stelmakhdigital/team.git`, ветка `master`.
 - **НЕ коммитить WIP backend**: untracked `backend/**`, `agents/`, `answer_*.md`, `backend.md`, `backend/logs/` и чужие изменения `_workspace/backend-status.md`, `docs/architecture/backend.md`, `docs/contracts/api-decisions.md` — это зона backend-агента, он сам закоммитит.
 
-## 2. Что сделано (F1–F14)
+## 2. Что сделано (F1–F15)
 - **F1** каркас: layout (AppShell sidebar), 8 маршрутов, env-конфиг.
 - **F2** типы 1-в-1 с контрактом, API client, mock adapter + seed.
 - **F3** Dashboard: SummaryCards, TaskList, SessionGrid, AlertsPanel, MetricsChart (SVG).
@@ -61,25 +61,36 @@
   2) **role/segment-apply**: mock `applyLibrary` (merge/applied, идемпотентность, дубль 409),
      LibraryPage — Apply для всех типов (role/segment: target-team select);
      контракт 20 §5.4 обновлён (поведение по всем типам), §4.2 `from_role_name: "You"`.
-  Итог: **55/55** (37 unit + 18 интеграционных) против slice-6 демона; typecheck/build OK. ADR-002 остаётся целью.
+  Итог: **55/55** (37 unit + 18 интеграционных) против slice-6 демона; typecheck/build OK.
+- **F15** пере-свип slice 6 (committed code) + WS ping/pong + ADR-004 (2026-10-08):
+  1) Backend «закоммитил slice 6» (`9f60993`) — **но origin/master всё ещё 361ced1,
+     working tree WIP** (отмечено в answer_backend.md). Пере-прогон 55/55 — по коду
+     working tree (тот же slice 6), собственный демон :8081 (`lead-env-key` + DB-ключи).
+  2) **WS ping/pong проверено live**: 75s простоя — соединение живо, event доставляется;
+     авто-Pong — по спецификации у браузерных/node-клиентов, клиентских изменений нет.
+     Old issue «read-таймаут» закрыт.
+  3) **Контракт 20 §4.3**: `last_message` omit-если-пусто, `unread_count` per-user (slice 6).
+  4) **ADR-004** (`docs/decisions/`): B3 CLOSED — (б) pgx-rewrite принята, (в) PG e2e
+     out-of-scope до окружения; критерий готовности PG (go test с PG-DSN + 55 интеграц.
+     + migrate pg roundtrip).
+  Итог: 55/55; typecheck/build OK. ADR-002 остаётся целью.
 
-## 3. Текущий статус (2026-10-08, ~12:30, после F14)
-- Git: HEAD = **F14-коммит** (см. `git log --oneline -3`); до него: F13, `83d8c92` (F12), `ba52616` (F11).
-- Тесты: **55/55** (37 unit + 18 интеграционных, включая 3 RBAC); прогонялось против
-  демона backend'а на :8080 (slice 6 WIP, auth: env-live-key + DB-ключи itest-viewer/itest-operator).
-  typecheck OK; build OK (82.9 KB gzip).
-- **Backend-агент активен**: WIP **slice 6 (RBAC + api_keys + secrets + role/segment-apply)**
-  ещё не закоммичен; его демон на :8080 (DB `/tmp/daemon-slice6.db`, auth ВКЛ). Не убивать.
-  Ключи для прогонов: `env-live-key` (admin, env) + DB-ключи (`./bin/daemon admin keys create`);
-  мои: itest-viewer/itest-operator (значения — в истории сессии / можно создать новые).
-- Контракт 20 актуален: §5.4 apply (все типы), §4.2 ("You"), §3.5 range, §3.6/§3.7 lifecycle.
-- `docs/architecture/integration.md` написан; B3 закрыт решением (в).
-- Open (non-blocking, backend): chatroom `last_message` (optional) не возвращается.
+## 3. Текущий статус (2026-10-08, ~13:10, после F15)
+- Git: HEAD = **F15-коммит** (см. `git log --oneline -3`); до него: F13+F14, F12, F11.
+- Тесты: **55/55** (37 unit + 18 интеграционных, включая 3 RBAC); последний прогон —
+  собственный демон :8081 из кода slice 6 (working tree backend'а); typecheck/build OK.
+- **Backend**: «slice 6 закоммичен» (`9f60993`) — **но origin/master ещё 361ced1,
+  working tree WIP** → ждём реальный push (вопрос в answer_backend.md).
+  Его демон на :8080 (`env-live-key`) — не убивать; свои прогоны — :8081 (свой демон,
+  `lead-env-key` + DB-ключи itest-* через `daemon admin keys create`).
+- WS read-ping/pong — **проверено live (75s idle), закрыто**. last_message — закрыто
+  (контракт §4.3). B3 — **CLOSED (ADR-004)**.
+- Контракт 20 актуален (§5.4, §4.2, §4.3, §3.5, §3.6/§3.7). `docs/architecture/integration.md` написан.
 
 ### Мои следующие шаги
-1. После коммита slice 6 — финальный свип (55 тестов) + пометка «done» в статусах.
-2. (опционально) OpenAPI: договорено с backend — в конце проекта.
-3. (опционально) WS: ack subscribe (у backend) — сейчас задокументировано, что event до subscribe теряется.
+1. Когда backend запушит slice 6 — `git pull` и подтверждение (по желанию — ещё один свип).
+2. (опционально) OpenAPI: договорено — в конце проекта. PG: e2e-свип (критерий ADR-004 п.3)
+   при появлении PG-окружения. WS ack subscribe — при желании.
 
 ## 4. Ключевые файлы
 | Файл | Назначение |

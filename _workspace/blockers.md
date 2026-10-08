@@ -13,7 +13,7 @@
 ## B2. Контракт не задавал error-схему
 Решено: ADR-003. Нужно подтвердить Frontend Engineer'ом.
 
-## B3. [BACKEND, открыто, 2026-10-08] PostgreSQL-путь: плейсхолдеры `?` не работают с pgx v5
+## B3. [CLOSED — ADR-004, 2026-10-08] PostgreSQL-путь: плейсхолдеры `?` / pgx v5
 - Все запросы репозиториев (slices 1–6) написаны с sqlite-плейсхолдерами `?`;
   pgx v5 stdlib требует `$1…$N` (в v5 QueryRewriter удалён). DSN `postgres://...`
   (ADR-002) формально поддерживается (`database.Open`, миграции postgres-диалекта),

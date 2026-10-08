@@ -16,7 +16,7 @@
 | Dashboard | done (slice 3: summary+tasks+sessions+alerts) | done (mock+real) | ready | **done** (summary, tasks, sessions, alerts) | metrics — slice 5 |
 | Sessions (runtime) | done (slice 3: lifecycle, reaper, watchdog) | done (mock+real: Api.sessions list/create/get/stop, HistoryPage на реальных id) | ready (3.6 добавлен) | **done** (real, e2e: start→stop, crash→failed+alert) | transcript без `total` (контракт требует) |
 | Message Center | done (slice 4: messages, chatrooms, event bus; slice 6: unread_count per user) | **done (real, verified live 2026-10-08)** | ready (уточнения в api-decisions) | **done (real)** | mark-read: GET /chatrooms/{id}/messages (DB-ключ с user) |
-| WS (real-time) | done (slice 5a: /ws, subscribe channels, EventBus) | **done (real, verified live: 101 Switching Protocols, badge connected)** | ready | **done (real)** | gorilla: read-таймаут «корruptит» соединение (документировано) |
+| WS (real-time) | done (slice 5a: /ws, subscribe channels, EventBus; 6: read-ping/PongHandler) | **done (real, verified live: 101, badge connected, 75s idle-прогон 2026-10-08)** | ready | **done (real)** | read-ping/pong — проверено, закрыто |
 | Workflows (список + редактор) | done (slice 5a: CRUD workflows/blocks/connections) | **done (real, verified live 2026-10-08)** | ready (уточнения в api-decisions) | **done (real)** | connections в POST /workflows — индексы blocks |
 | Library | done (slice 5b: save/get/apply team+workflow; 6+: apply role+segment) | **done (real, verified live 2026-10-08)** | ready (role/segment — уточнения в api-decisions) | **done (real)** | — |
 | History Viewer (audit + metrics + transcripts) | done (slice 5b: audit log, dashboard/metrics, transcript total; slice 6: user_id/api_key_id) | **done (real, verified live 2026-10-08)** | ready | **done (real)** | llm_tokens = 0 |
@@ -49,6 +49,22 @@ Backend endpoint slice 1 (все под `/api/v1`):
 `DELETE /relatives/{id}` · `GET /healthz` · `GET /readyz`
 
 ## API change log
+
+### 2026-10-08 — lead: F15 — пере-свип slice 6 (committed code) + WS ping/pong + ADR-004 (B3 closed)
+- **Пере-прогон 55/55** против свежепостроенного slice-6 бинаря (код, закоммиченный
+  backend'ом; собственный демон :8081, `lead-env-key` + DB-ключи itest-viewer/itest-operator):
+  все 18 интеграционных (вкл. 3 RBAC) + 37 unit — зелёные.
+- **WS read-ping/pong — проверено live**: соединение без исходящих сообщений переживает
+  **75s простоя** (сервер пингует каждые 30s, клиент авто-Pong — браузер/node WebSocket
+  по спецификации, клиентских изменений не требуется); event доставляется после простоя.
+  Old known-issue «read-таймаут корruptит соединение» — **закрыт**.
+- **Контракт 20 §4.3**: `last_message` — omit, если в чате нет сообщений; `unread_count`
+  — 0 без user, per-user с DB-ключом (slice 6). Наблюдение 2 (F12) закрыто.
+- **B3 — CLOSED**: ADR-004 (`docs/decisions/adr-004-pg-placeholder-scope.md`):
+  реализация — (б) `pgx-rewrite` (принята), scope — (в) PG e2e out-of-scope до окружения;
+  критерий готовности PG: `go test` с PG-DSN + 55 интеграционных frontend + `migrate pg`
+  на реальной БД.
+- Validation: 55/55; typecheck OK; build OK (82.9 KB gzip).
 
 ### 2026-10-08 — lead: F14 — RBAC-интеграционные тесты + role/segment apply (frontend) + контракт
 - **Live-прогон slice 6 против демона 127.0.0.1:8080** (WIP backend, `env-live-key` +
@@ -335,9 +351,9 @@ Backend endpoint slice 1 (все под `/api/v1`):
   /`build` — все зелёные; production build 81 KB gzip.
 
 ## Next steps (sync)
-- Frontend: после коммита slice 6 — финальный свип (55 тестов) и фиксация в статусе;
-  при желании — ack subscribe в WS (сейчас задокументировано: event до subscribe теряется).
-- Backend: **коммит slice 6 + rewriter/migrate pg** (WIP живёт в рабочем дереве);
-  `last_message` — live-подтверждено, работает (наблюдение было против старого бинаря);
+- Frontend: при желании — ack subscribe в WS (сейчас задокументировано: event до subscribe
+  теряется; UI идемпотентно рефетчит при reconnect).
+- Backend: **проверить push slice 6** (ответ backend говорил про `9f60993`, но origin/master
+  на момент F15 = `361ced1`, working tree всё ещё WIP — лид пере-прогонял по коду working tree);
   Prometheus `/metrics` (по требованию); OpenAPI — в конце проекта;
-  PG: rewriter + `daemon migrate pg` готовы (2026-10-08), e2e — при появлении PG-окружения (B3).
+  PG: e2e-свип (критерий ADR-004 п.3) при появлении PG-окружения.

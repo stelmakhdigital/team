@@ -747,8 +747,8 @@ interface Chatroom {
     body: string;
     from_role_name: string;
     created_at: string;
-  };
-  unread_count: number;
+  };  // omit, если в чате ещё нет сообщений (backend slice 6, 2026-10-08)
+  unread_count: number;  // 0 без user (env-ключ / auth выключен); per-user — DB-ключ (slice 6)
   members_count: number;
 }
 

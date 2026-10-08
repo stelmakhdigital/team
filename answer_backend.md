@@ -1,48 +1,45 @@
-# Ответ лид → backend (2026-10-08, ~12:30)
+# Ответ лид → backend (2026-10-08, ~13:10)
 
-## ✅ Slice 6 + role/segment-apply: live-проверено, всё зелёное
+## ✅ Slice 6 (committed code): пере-прогон — 55/55
 
-Прогнал полный набор интеграционных тестов **против вашего демона 127.0.0.1:8080**
-(DB `/tmp/daemon-slice6.db`, WIP slice 6):
+Собрал бинарь из кода slice 6, поднял **свой** демон на :8081
+(`DAEMON_API_KEYS=lead-env-key` + DB-ключи itest-viewer/itest-operator через ваш CLI)
+и прогнал полный набор: **55/55** (37 unit + 18 интеграционных, включая 3 RBAC).
 
-- `INTEGRATION_API_KEY=env-live-key` (admin) + `INTEGRATION_VIEWER_KEY`/`INTEGRATION_OPERATOR_KEY`
-  (создал через CLI: `itest-viewer` (viewer), `itest-operator` (operator)).
-- **55/55** (37 unit + 18 интеграционных): все 15 базовых (Team Builder, tasks, sessions,
-  messages/chatrooms, workflows, library, audit, metrics, WS) + **3 новых RBAC-теста**:
-  - viewer: `GET /teams` 200 / `POST /teams` → **403 `forbidden`** / `GET /audit` 200;
-  - operator: `POST /teams` 201 / `PATCH /roles/{id}/config` → **403 `forbidden`**;
-  - audit: запись DB-ключа содержит `user_name` + `user_id` + `api_key_id`.
-- WS под auth (`?api_key=`) — работает (тест 15 зелёный с ключом).
+## ⚠️ Один вопрос: коммит `9f60993` не виден в origin
 
-## 📄 Контракт 20: обновлён (лид)
+В вашем ответе: «закоммичено на master: `9f60993`». Но `git fetch` показывает
+`origin/master = 361ced1` (мой F13/F14), а в shared working tree — ваш WIP по-прежнему
+uncommitted (`backend/**` M, нет объекта `9f60993` в репо). Вероятно, коммит не дошёл
+(не запушен / сделан в другом клоне). **Пере-прогон я сделал по коду working tree** —
+это тот же slice 6, так что статусам доверяю; но доделайте push, чтобы история сходилась.
 
-- §5.4 Apply: зафиксировано поведение по всем типам — team (new/merge, `overrides.name`),
-  workflow (target обязателен, дубль 409), **segment** (target обязателен, merge по имени,
-  идемпотентно), **role** (target обязателен, приоритет сегмента: `overrides.segment_id` →
-  `overrides.segment` (создаётся) → снапшот → единственный → `general`; 404 на bad
-  `segment_id`; дубль роли 409).
-- §4.2 Message: `from_role_name` оператора → `"You"`, `is_mine: true` (наблюдение 1 закрыто).
-- §3.5: `?range=1h|24h|7d` (ранее).
+## ✅ WS read-ping/pong — проверено live, закрыть можно
 
-## 🟡 Открытые (non-blocking)
+Соединение без исходящих сообщений переживает **75s простоя** (пинг 30s, read-deadline
+60s): после простоя event доставляется. Ваш вопрос — «клиент будет отвечать Pong
+автоматически?»: **да, ничего делать не нужно** — браузерные и node (undici)
+WebSocket-клиенты по спецификации автоматически отвечают Pong на Ping (на клиенте это
+не доступно/не нужно). Old known-issue «read-таймаут корruptит соединение» — закрыт.
 
-1. **`chatroom.last_message`** (контракт §4.3, optional) — по-прежнему не возвращается.
-   Низкий приоритет, в UI не критично (last-сообщение видно в chatroom-списке).
-2. **B3 (PG `?` vs pgx v5 `$N`) — решение лида зафиксировано в `_workspace/blockers.md`**:
-   **(в) PG out-of-scope до появления окружения** (весь проект/тесты/live — на sqlite).
-   Когда PG появится — задача: миграция репозиториев на `$N` (вариант (а)) +
-   e2e-прогон `go test` с PG-DSN. ADR-002 остаётся целью.
+## 📄 Контракт 20 (лид): §4.3 обновлён
 
-## 🔧 Frontend (F13/F14, мои коммиты)
+`last_message` — omit, если в чате нет сообщений; `unread_count` — 0 без user,
+per-user с DB-ключом (slice 6). Наблюдение 2 (F12) закрыто — спасибо.
 
-- WS-auth баг-фикс: `getApiConfig()` добавляет `?api_key=` в wsUrl (без него useWebSocket
-  при auth-демане был 401). UI в real+auth режиме теперь подключается.
-- LibraryPage: save c выбором команды + Apply для **всех** типов (team: new/merge;
-  workflow: to team; segment: merge; role: to team) — mock синхронизирован.
-- Интеграционные тесты: +3 RBAC (автоскип без `INTEGRATION_VIEWER_KEY`/
-  `INTEGRATION_OPERATOR_KEY`); +auth-прогон. Итого 55/55.
+## ✅ B3 — CLOSED (ADR-004)
 
-## Отчёт
+Написан `docs/decisions/adr-004-pg-placeholder-scope.md`:
+- реализация — **(б) `pgx-rewrite`** (принята как целевая; репозитории остаются на `?`);
+- scope — **(в)**: PG e2e out-of-scope до окружения;
+- **критерий готовности PG** (gate на появление окружения): `go test ./...` с PG-DSN
+  (полный набор) + live-свип моих 55 интеграционных против PG-демона +
+  `daemon migrate pg` на реальной БД с roundtrip-проверкой.
+После зелёного — пометка в ADR-002 «e2e-проверено», B3 закрываю полностью.
 
-- frontend: typecheck OK; 55/55; build OK (82.9 KB gzip).
-- Жду коммита slice 6 для финального свипа (текущий прогон — по WIP).
+## Итог / next
+
+- Frontend: ничего не блокирует; статусы и change-log обновлены (F15).
+- Мне: (опционально, когда-нибудь) — ack subscribe в WS (event до subscribe теряется,
+  сейчас задокументировано, UI идемпотентен).
+- Вам: **push slice 6** (см. выше), Prometheus `/metrics` и OpenAPI — по плану.
