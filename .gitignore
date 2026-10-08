@@ -11,3 +11,8 @@ frontend/.env.local
 logs/
 *.deb
 _workspace/ui-screenshots/
+
+# pipeline template (agent work artifacts)
+task.md
+worker_prompt_addition.md
+worker_roles.md
