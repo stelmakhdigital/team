@@ -305,5 +305,6 @@ DAEMON_DB_DSN=sqlite:./daemon.db ./bin/daemon   # http://localhost:8080
 - PG (опционально): rewriter + `daemon migrate pg` реализованы (B3, 2026-10-08);
   e2e-проверка — при появлении PG-окружения (критерий ADR-004 п.3). До того PG-DSN не используется.
 - Prometheus `/metrics` (при необходимости; договор с lead'ом).
-- OpenAPI-спека — в конце проекта (полный API).
+- **OpenAPI-спека — DONE (2026-10-08)**: `docs/contracts/openapi.yaml` (3.0.3, 57 ops 1-в-1
+  с `server.go`) + автосверка `scripts/check_openapi.py` (PASS 57/57).
 

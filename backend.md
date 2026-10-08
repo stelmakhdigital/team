@@ -65,6 +65,7 @@
 | PG-опция (B3, ADR-004): драйвер `pgx-rewrite` (`?`→`$N`) + `daemon migrate pg` | DONE (runtime+инструмент; e2e — ждёт PG-окружения) |
 | 7 Live-метрики сессий + WS `session.output` (live-терминал) | DONE (контракт 20 §3.6/§4.3, closed лидом) |
 | 8 DELETE workflows (контракт 20 §2.6–2.8, R6.4) | DONE (каскад связи→блоки→workflow в tx; RBAC `workflows.update`; 404; live + интеграционный `slice 5c`) |
+| 9 OpenAPI-спека (весь API) | DONE (openapi.yaml 3.0.3, 57 ops 1-в-1; `scripts/check_openapi.py`) |
 | Фронтенд F1–F15 + UI-редизайн R1–R5 (граф React Flow, edit, YAML, токены, R4 live-терминал, R5 рефакторинг) | DONE (зона лида) |
 
 ### Осталось (не блокирует)
@@ -72,7 +73,8 @@
    `go test ./...` с PG-DSN + live-свип интеграционных против PG-демона +
    roundtrip `daemon migrate pg`. Код и unit-тесты готовы.
    (NOTE 2026-10-08: срез 8 DELETE workflows уже сделан — frontend больше не ждёт backend-среза R6.4.)
-2. **OpenAPI-спека** (весь API) — договор: в конце проекта.
+2. **OpenAPI-спека** (весь API) — **DONE (2026-10-08)**: `docs/contracts/openapi.yaml`
+   (OpenAPI 3.0.3, 57 операций 1-в-1 с `server.go`) + автосверка `scripts/check_openapi.py`. 
 3. **Prometheus `/metrics`** — по требованию.
 4. Опциональное (вне контракта, по запросу): WS `ack subscribe`, security events
    (ТЗ 06 §3.2 — brute-force), password-логин (users.password_hash есть, API логина нет).

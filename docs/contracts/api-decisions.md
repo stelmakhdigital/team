@@ -428,3 +428,16 @@ History Viewer (audit + transcripts), Prometheus `/metrics`.
   `http` `TestWorkflowDeleteHTTP` (status + response shape + 404) и `TestWorkflowDeleteRBAC`
   (viewer 403, operator 200). `newRBACTestServer` теперь шьёт `Workflows`.
   Frontend: интеграционный `slice 5c` (real client vs живой daemon) — 18/18 зелёный.
+
+### OpenAPI-спека всего API (2026-10-08, договор «конец проекта»)
+
+- **Источник правды по всему HTTP API — `docs/contracts/openapi.yaml`** (OpenAPI 3.0.3):
+  все 57 операций из `server.go` (1-в-1), schemas моделей + единый error envelope
+  (`ErrorEnvelope`/`Error` по `error-model.md`), `securitySchemes.apiKeyAuth` (`X-API-Key`)
+  применён к `/api/v1/*` (healthz/readyz/ws — `security: []`).
+- Схемы запросов/ответов сведены по контракту `docs/architecture/frontend/20_contract_API.md`
+  и сверены с view-структурами `internal/service`/`internal/api/http`.
+- **Автосверка покрытия** — `scripts/check_openapi.py` (PyYAML, без runtime-зависимостей
+  проекта): сравнивает `method path` из `server.go` с `paths` в спеке, падает (exit 1)
+  на расхождение. Запуск: `python3 scripts/check_openapi.py`. В финальном состоянии — PASS (57/57).
+- Валидность: `python3 -c "import yaml; yaml.safe_load(open('docs/contracts/openapi.yaml'))"`. 

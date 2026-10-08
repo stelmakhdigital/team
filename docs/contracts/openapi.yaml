@@ -1,0 +1,2181 @@
+openapi: 3.0.3
+info:
+  title: Team Daemon HTTP API
+  version: 1.0.0
+  description: |
+    Публичный HTTP API демона оркестрации мультиагентных команд ("team").
+    Stdlib net/http (ADR-001). Auth: API-ключ в заголовке `X-API-Key` (ADR-003);
+    WS-аутентификация — `?api_key=` в URL. Ошибки — единый error envelope
+    (см. components.schemas.ErrorEnvelope и docs/contracts/error-model.md).
+    Источник правды по набору операций: backend/internal/api/http/server.go.
+    По контрактам запросов/ответов: docs/architecture/frontend/20_contract_API.md.
+  contact:
+    name: team
+servers:
+  - url: http://localhost:8080
+    description: Локальный daemon
+security:
+  - apiKeyAuth: []
+tags:
+  - name: system
+    description: Пробы живости/готовности
+  - name: teams
+    description: "Team Builder: команды"
+  - name: topology
+    description: "Team Builder: сегменты/роли/связи/layout"
+  - name: tasks
+    description: Tasks and History
+  - name: dashboard
+    description: "Dashboard: сводки, метрики, алерты"
+  - name: sessions
+    description: Sessions and Runtime
+  - name: messages
+    description: "Message Center + chatrooms"
+  - name: workflows
+    description: Workflow Editor
+  - name: library
+    description: Library templates
+  - name: history
+    description: Audit log
+  - name: websocket
+    description: Real-time события
+
+paths:
+  # ---- system ----
+  /healthz:
+    get:
+      operationId: healthz
+      summary: Liveness probe
+      tags: [system]
+      security: []
+      responses:
+        '200':
+          description: Сервер жив
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusResponse' }
+  /readyz:
+    get:
+      operationId: readyz
+      summary: Readiness probe (ping БД)
+      tags: [system]
+      security: []
+      responses:
+        '200':
+          description: Готов к работе
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusResponse' }
+        '503': { $ref: '#/components/responses/InternalError' }
+
+  # ---- teams ----
+  /api/v1/teams:
+    get:
+      operationId: listTeams
+      summary: Список команд
+      tags: [teams]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Список команд
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamsListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: createTeam
+      summary: Создать команду (опционально со spec топологии)
+      tags: [teams]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTeamRequest' }
+      responses:
+        '201':
+          description: Команда создана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamCreatedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/teams/{id}:
+    get:
+      operationId: getTeam
+      summary: Детальная информация о команде
+      tags: [teams]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Команда (team/segments/roles/relatives)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetTeamResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: archiveTeam
+      summary: Архивировать команду (DELETE /teams/{id} = archive)
+      tags: [teams]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Команда архивирована
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamCreatedResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/teams/{id}/topology:
+    get:
+      operationId: getTopology
+      summary: Топология команды (contract snake_case + layout)
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Топология (team/segments/roles/relatives/layout)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TopologyResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/teams/{id}/validate:
+    post:
+      operationId: validateTopology
+      summary: Валидация топологии (I1–I4)
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Результат валидации
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidateTopologyResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/teams/{id}/save:
+    post:
+      operationId: saveTopology
+      summary: Сохранить (пересобрать) топологию команды
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveTopologyRequest' }
+      responses:
+        '200':
+          description: Топология сохранена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SavedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/teams/{id}/segments:
+    post:
+      operationId: createSegment
+      summary: Добавить сегмент в команду
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSegmentRequest' }
+      responses:
+        '201':
+          description: Сегмент создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateSegmentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/teams/{id}/relatives:
+    post:
+      operationId: createRelative
+      summary: Создать связь (relative) между ролями
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRelativeRequest' }
+      responses:
+        '201':
+          description: Связь создана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateRelativeResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---- topology: segments / roles / relatives ----
+  /api/v1/segments/{id}/roles:
+    post:
+      operationId: createRole
+      summary: "Добавить роль в сегмент (I4: agent_spec обязан существовать)"
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRoleRequest' }
+      responses:
+        '201':
+          description: Роль создана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateRoleResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/segments/{id}/layout:
+    patch:
+      operationId: updateSegmentLayout
+      summary: Обновить layout сегмента (drag & drop)
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LayoutPatchRequest' }
+      responses:
+        '200':
+          description: Layout обновлён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LayoutPatchResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/roles/{id}/config:
+    get:
+      operationId: getRoleConfig
+      summary: Конфигурация роли (agent_spec + профили/скиллы/плагины)
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Конфигурация роли
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoleConfigResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      operationId: updateRoleConfig
+      summary: Обновить конфигурацию роли
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateRoleConfigRequest' }
+      responses:
+        '200':
+          description: Конфигурация обновлена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdateRoleConfigResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/roles/{id}/layout:
+    patch:
+      operationId: updateRoleLayout
+      summary: Обновить layout роли (drag & drop)
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LayoutPatchRequest' }
+      responses:
+        '200':
+          description: Layout обновлён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LayoutPatchResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/relatives/{id}/layout:
+    patch:
+      operationId: updateRelativeLayout
+      summary: Обновить layout связи
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LayoutPatchRequest' }
+      responses:
+        '200':
+          description: Layout обновлён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LayoutPatchResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/relatives/{id}:
+    delete:
+      operationId: deleteRelative
+      summary: Удалить связь
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Связь удалена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SavedResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---- tasks ----
+  /api/v1/tasks:
+    get:
+      operationId: listTasks
+      summary: Список задач
+      tags: [tasks]
+      parameters:
+        - { $ref: '#/components/parameters/TeamIdQuery' }
+        - { $ref: '#/components/parameters/State' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Список задач
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TasksListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: createTask
+      summary: Создать задачу
+      tags: [tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTaskRequest' }
+      responses:
+        '201':
+          description: Задача создана (state=pending)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskCreatedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/tasks/{id}:
+    get:
+      operationId: getTask
+      summary: Задача + подзадачи
+      tags: [tasks]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Задача (task + subtasks)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetTaskResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/tasks/{id}/state:
+    patch:
+      operationId: updateTaskState
+      summary: Сменить состояние задачи (closure_reason обязателен для done)
+      tags: [tasks]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTaskStateRequest' }
+      responses:
+        '200':
+          description: Задача обновлена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/tasks/{id}/handoff:
+    post:
+      operationId: handoffTask
+      summary: Handoff задачи другой роли (исходная → done)
+      tags: [tasks]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HandoffTaskRequest' }
+      responses:
+        '201':
+          description: Handoff выполнен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HandoffTaskResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/tasks/{id}/history:
+    get:
+      operationId: getTaskHistory
+      summary: История задачи
+      tags: [tasks]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: История задачи
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskHistoryResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---- dashboard ----
+  /api/v1/dashboard/summary:
+    get:
+      operationId: dashboardSummary
+      summary: Сводка по командам/задачам/сессиям/алертам
+      tags: [dashboard]
+      responses:
+        '200':
+          description: Сводка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardSummaryResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/dashboard/tasks:
+    get:
+      operationId: dashboardTasks
+      summary: Активные задачи (для дашборда)
+      tags: [dashboard]
+      responses:
+        '200':
+          description: Задачи
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TasksListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/dashboard/sessions:
+    get:
+      operationId: dashboardSessions
+      summary: Активные сессии (для дашборда)
+      tags: [dashboard]
+      responses:
+        '200':
+          description: Сессии
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionsListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/dashboard/alerts:
+    get:
+      operationId: dashboardAlerts
+      summary: Алерты watchdog (для дашборда)
+      tags: [dashboard]
+      responses:
+        '200':
+          description: Алерты
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/dashboard/metrics:
+    get:
+      operationId: dashboardMetrics
+      summary: Метрики для графиков (time series)
+      tags: [dashboard]
+      parameters:
+        - { $ref: '#/components/parameters/Range' }
+      responses:
+        '200':
+          description: Метрики
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MetricsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---- sessions ----
+  /api/v1/sessions:
+    get:
+      operationId: listSessions
+      summary: Все сессии (фильтры team_id/role_id/state)
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/TeamIdQuery' }
+        - { $ref: '#/components/parameters/RoleidQuery' }
+        - { $ref: '#/components/parameters/State' }
+      responses:
+        '200':
+          description: Сессии (SessionDetail)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionsListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: createSession
+      summary: Создать и запустить сессию роли
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/TeamIdQuery' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSessionRequest' }
+      responses:
+        '201':
+          description: Сессия запущена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateSessionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/sessions/{id}:
+    get:
+      operationId: getSession
+      summary: Детали сессии (SessionDetail + live-метрики)
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Сессия
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: stopSession
+      summary: Остановить сессию (идемпотентно; из failed → 409)
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Сессия остановлена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StopSessionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/sessions/{id}/history:
+    get:
+      operationId: getSessionHistory
+      summary: История сессии
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: История сессии
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionHistoryResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/sessions/{id}/transcript:
+    get:
+      operationId: getTranscript
+      summary: Транскрипт сессии (лог)
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Транскрипт
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TranscriptResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---- watchdog ----
+  /api/v1/watchdog/events:
+    get:
+      operationId: listWatchdogEvents
+      summary: События watchdog
+      tags: [dashboard]
+      responses:
+        '200':
+          description: События
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/watchdog/events/{id}/read:
+    post:
+      operationId: markAlertRead
+      summary: Отметить событие watchdog прочитанным
+      tags: [dashboard]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Событие отмечено прочитанным
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SavedResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---- messages / chatrooms ----
+  /api/v1/messages:
+    get:
+      operationId: listMessages
+      summary: Список сообщений
+      tags: [messages]
+      parameters:
+        - { $ref: '#/components/parameters/TeamIdQuery' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Сообщения
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessagesResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: sendMessage
+      summary: Отправить сообщение (direct/broadcast/segment)
+      tags: [messages]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendMessageRequest' }
+      responses:
+        '201':
+          description: Сообщение доставлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SendMessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/chatrooms:
+    get:
+      operationId: listChatrooms
+      summary: Список чат-комнат (авто-создание)
+      tags: [messages]
+      parameters:
+        - { $ref: '#/components/parameters/TeamIdQuery' }
+      responses:
+        '200':
+          description: Чат-комнаты
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatroomsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/chatrooms/{id}/messages:
+    get:
+      operationId: getChatroomMessages
+      summary: Сообщения чат-комнаты (помечает прочитанным)
+      tags: [messages]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Сообщения
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatroomMessagesResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: sendChatroomMessage
+      summary: Отправить сообщение в чат-комнату
+      tags: [messages]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendChatroomMessageRequest' }
+      responses:
+        '201':
+          description: Сообщение доставлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SendChatroomMessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---- workflows ----
+  /api/v1/workflows:
+    get:
+      operationId: listWorkflows
+      summary: Список workflows (фильтры team_id/state)
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/TeamIdQuery' }
+        - { $ref: '#/components/parameters/State' }
+      responses:
+        '200':
+          description: Список workflows
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkflowsListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: createWorkflow
+      summary: Создать workflow (с блоками/связями; ссылки на блоки = индексы)
+      tags: [workflows]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWorkflowRequest' }
+      responses:
+        '201':
+          description: Workflow создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkflowCreatedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflows/{id}:
+    get:
+      operationId: getWorkflow
+      summary: Workflow + блоки + связи
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Workflow (workflow/blocks/connections)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetWorkflowResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: deleteWorkflow
+      summary: Удалить workflow + все блоки и связи (контракт 20 §2.8)
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Workflow удалён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeleteWorkflowResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflows/{id}/blocks:
+    post:
+      operationId: createWorkflowBlock
+      summary: Добавить блок в workflow
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkflowBlockInput' }
+      responses:
+        '201':
+          description: Блок создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkflowBlockCreatedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflows/{id}/blocks/{blockId}:
+    patch:
+      operationId: updateWorkflowBlock
+      summary: "Обновить блок (drag & drop: position/config/label)"
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/BlockId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateBlockRequest' }
+      responses:
+        '200':
+          description: Блок обновлён (changes old/new)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UpdateBlockResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: deleteWorkflowBlock
+      summary: Удалить блок и все его связи (контракт 20 §2.6)
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/BlockId' }
+      responses:
+        '200':
+          description: Блок удалён (removed_connections — каскад)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeleteWorkflowBlockResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflows/{id}/connections:
+    post:
+      operationId: createWorkflowConnection
+      summary: Создать связь между блоками
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkflowConnectionInput' }
+      responses:
+        '201':
+          description: Связь создана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkflowConnectionCreatedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflows/{id}/connections/{connectionId}:
+    delete:
+      operationId: deleteWorkflowConnection
+      summary: Удалить связь (контракт 20 §2.7)
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/ConnectionId' }
+      responses:
+        '200':
+          description: Связь удалена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeleteWorkflowConnectionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---- library ----
+  /api/v1/library:
+    get:
+      operationId: listLibrary
+      summary: Библиотека (items + groups)
+      tags: [library]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Библиотека
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LibraryResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: saveToLibrary
+      summary: Сохранить ресурс в библиотеку
+      tags: [library]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveToLibraryRequest' }
+      responses:
+        '201':
+          description: Сохранено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SaveToLibraryResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/library/{id}:
+    get:
+      operationId: getLibraryItem
+      summary: Элемент библиотеки (item + spec + версии)
+      tags: [library]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Элемент
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetLibraryItemResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/library/{id}/apply:
+    post:
+      operationId: applyLibraryItem
+      summary: Применить элемент библиотеки (team/workflow/role/segment)
+      tags: [library]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApplyLibraryItemRequest' }
+      responses:
+        '200':
+          description: Применено/смержено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApplyLibraryItemResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---- history / audit ----
+  /api/v1/audit:
+    get:
+      operationId: listAudit
+      summary: Audit log
+      tags: [history]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Записи аудита
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---- websocket ----
+  /ws:
+    get:
+      operationId: websocket
+      summary: WebSocket real-time (subscribe на каналы; auth через ?api_key=)
+      description: |
+        Upgrade до WebSocket. Клиент шлёт `{type: 'subscribe', channels: [...]}`;
+        сервер шлёт события `task.created`, `task.state_changed`,
+        `session.started`, `session.stopped`, `session.output`, `message.sent`,
+        `alert.created`. Каналы: `team:{id}`, `task:{id}`, `session:{id}`,
+        `dashboard`. Auth: `X-API-Key` не шлётся браузером — используется
+        query-параметр `?api_key=` (permission `dashboard.read`).
+      tags: [websocket]
+      security: []
+      responses:
+        '101':
+          description: WebSocket switched protocol
+
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: >-
+        API-ключ (ADR-003). Env-ключ = admin; DB-ключ — user + роль (RBAC).
+        WS: заголовок не шлётся браузером — используется query ?api_key=.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Идентификатор ресурса
+      schema: { type: integer, format: int64 }
+    BlockId:
+      name: blockId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    ConnectionId:
+      name: connectionId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer }
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema: { type: integer }
+    TeamIdQuery:
+      name: team_id
+      in: query
+      required: false
+      schema: { type: integer }
+    RoleidQuery:
+      name: role_id
+      in: query
+      required: false
+      schema: { type: integer }
+    State:
+      name: state
+      in: query
+      required: false
+      schema: { type: string }
+    Range:
+      name: range
+      in: query
+      required: false
+      schema: { type: string, enum: [1h, 24h, 7d], default: 24h }
+
+  responses:
+    BadRequest:
+      description: "Невалидный request (code: validation_failed)"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Unauthorized:
+      description: "Нет/неверный API-ключ (code: unauthorized)"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Forbidden:
+      description: "Нет прав (code: forbidden)"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    NotFound:
+      description: "Ресурс/parent не существует (code: not_found)"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Conflict:
+      description: "Нарушение unique (code: conflict)"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    InternalError:
+      description: "Ошибка сервера (code: internal)"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  schemas:
+    # ---- error envelope (docs/contracts/error-model.md) ----
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [validation_failed, unauthorized, forbidden, not_found, conflict, internal]
+        message: { type: string }
+        request_id: { type: string }
+        details: { type: object, additionalProperties: true }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: '#/components/schemas/Error' }
+
+    # ---- system / generic ----
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, example: ok }
+    SavedResponse:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, example: saved }
+
+    # ---- teams ----
+    Team:
+      type: object
+      required: [id, name, state, segments_count, roles_count, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        state: { type: string, enum: [active, archived, stopped] }
+        segments_count: { type: integer }
+        roles_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    TeamsListResponse:
+      type: object
+      required: [teams, total]
+      properties:
+        teams:
+          type: array
+          items: { $ref: '#/components/schemas/Team' }
+        total: { type: integer }
+    Position:
+      type: object
+      properties:
+        x: { type: integer }
+        y: { type: integer }
+        width: { type: integer }
+        height: { type: integer }
+    SegmentSpec:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        config: { type: object, additionalProperties: true }
+        layout: { $ref: '#/components/schemas/Position' }
+    RoleSpec:
+      type: object
+      required: [name, agent_spec]
+      properties:
+        name: { type: string }
+        agent_spec: { type: string }
+        segment: { type: string, description: "Имя сегмента (top-level roles в TeamSpec)" }
+        profile: { type: string }
+        config: { type: object, additionalProperties: true }
+        layout: { $ref: '#/components/schemas/Position' }
+    RelativeSpec:
+      type: object
+      required: [from, to, type]
+      properties:
+        from: { type: string, description: "Адрес формата Segment.Role" }
+        to: { type: string }
+        type: { type: string, enum: [delegates_to, spawned_by, can_observe, collaborates_with] }
+        config: { type: object, additionalProperties: true }
+    TeamSpec:
+      type: object
+      properties:
+        segments:
+          type: array
+          items: { $ref: '#/components/schemas/SegmentSpec' }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/RoleSpec' }
+        relatives:
+          type: array
+          items: { $ref: '#/components/schemas/RelativeSpec' }
+    CreateTeamRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        spec: { $ref: '#/components/schemas/TeamSpec' }
+    TeamCreatedResponse:
+      type: object
+      required: [id, name, status]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        status: { type: string, enum: [created, archived] }
+    Segment:
+      type: object
+      required: [id, team_id, name, roles_count, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        config: { type: object, additionalProperties: true }
+        roles_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    RoleSession:
+      type: object
+      required: [id, state]
+      properties:
+        id: { type: integer, format: int64 }
+        state: { type: string, enum: [running, stopped, failed] }
+        started_at: { type: string, format: date-time }
+    Role:
+      type: object
+      required: [id, team_id, segment_id, segment_name, name, address, agent_spec, state, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        segment_id: { type: integer, format: int64 }
+        segment_name: { type: string }
+        name: { type: string }
+        address: { type: string }
+        agent_spec: { type: string }
+        profile: { type: string }
+        state: { type: string, enum: [active, inactive, blocked] }
+        session: { $ref: '#/components/schemas/RoleSession' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    Relative:
+      type: object
+      required: [id, team_id, from_role_id, from_role_name, to_role_id, to_role_name, type, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        from_role_id: { type: integer, format: int64 }
+        from_role_name: { type: string }
+        to_role_id: { type: integer, format: int64 }
+        to_role_name: { type: string }
+        type: { type: string }
+        config: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    GetTeamResponse:
+      type: object
+      required: [team, segments, roles, relatives]
+      properties:
+        team: { $ref: '#/components/schemas/Team' }
+        segments:
+          type: array
+          items: { $ref: '#/components/schemas/Segment' }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/Role' }
+        relatives:
+          type: array
+          items: { $ref: '#/components/schemas/Relative' }
+    Layout:
+      type: object
+      additionalProperties: true
+      description: Layout segments/roles/relatives (positions, width/height)
+    TopologyResponse:
+      type: object
+      required: [team, segments, roles, relatives]
+      properties:
+        team: { $ref: '#/components/schemas/Team' }
+        segments:
+          type: array
+          items: { $ref: '#/components/schemas/Segment' }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/Role' }
+        relatives:
+          type: array
+          items: { $ref: '#/components/schemas/Relative' }
+        layout: { $ref: '#/components/schemas/Layout' }
+    ValidateTopologyResponse:
+      type: object
+      required: [is_valid]
+      properties:
+        is_valid: { type: boolean }
+        errors:
+          type: array
+          items: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
+    SaveTopologyRequest:
+      type: object
+      properties:
+        spec: { $ref: '#/components/schemas/TeamSpec' }
+    CreateSegmentRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        config: { type: object, additionalProperties: true }
+    CreateSegmentResponse:
+      type: object
+      required: [id, team_id, name, status]
+      properties:
+        id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        name: { type: string }
+        layout: { $ref: '#/components/schemas/Position' }
+        status: { type: string, enum: [created] }
+    CreateRoleRequest:
+      type: object
+      required: [name, agent_spec]
+      properties:
+        name: { type: string }
+        agent_spec: { type: string }
+        profile: { type: string }
+        config: { type: object, additionalProperties: true }
+    CreateRoleResponse:
+      type: object
+      required: [id, segment_id, name, address, status]
+      properties:
+        id: { type: integer, format: int64 }
+        segment_id: { type: integer, format: int64 }
+        name: { type: string }
+        address: { type: string }
+        layout: { $ref: '#/components/schemas/Position' }
+        status: { type: string, enum: [created] }
+    CreateRelativeRequest:
+      type: object
+      required: [from_role_id, to_role_id, type]
+      properties:
+        from_role_id: { type: integer, format: int64 }
+        to_role_id: { type: integer, format: int64 }
+        type: { type: string }
+        config: { type: object, additionalProperties: true }
+    CreateRelativeResponse:
+      type: object
+      required: [id, from_role_name, to_role_name, type, status]
+      properties:
+        id: { type: integer, format: int64 }
+        from_role_name: { type: string }
+        to_role_name: { type: string }
+        type: { type: string }
+        status: { type: string, enum: [created] }
+    LayoutPatchRequest:
+      type: object
+      properties:
+        layout: { $ref: '#/components/schemas/Position' }
+    LayoutPatchResponse:
+      type: object
+      additionalProperties: true
+      description: previous_layout / new_layout
+    RoleConfig:
+      type: object
+      additionalProperties: true
+      description: Распарсенный agent_spec (name, version, runtime, pi_config, resources, startup)
+    RoleConfigResponse:
+      type: object
+      required: [role, agent_spec]
+      properties:
+        role: { $ref: '#/components/schemas/Role' }
+        agent_spec: { $ref: '#/components/schemas/RoleConfig' }
+        profiles:
+          type: array
+          items: { type: object, additionalProperties: true }
+    UpdateRoleConfigRequest:
+      type: object
+      properties:
+        agent_spec: { type: string }
+        profile: { type: string }
+        config: { type: object, additionalProperties: true }
+    UpdateRoleConfigResponse:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: integer, format: int64 }
+        status: { type: string, enum: [updated] }
+        previous_config: { type: object, additionalProperties: true }
+        new_config: { type: object, additionalProperties: true }
+
+    # ---- tasks ----
+    Task:
+      type: object
+      required: [id, team_id, team_name, title, state, priority, destination_role_id, destination_role_name, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        team_name: { type: string }
+        title: { type: string }
+        state: { type: string, enum: [pending, in_progress, blocked, done, canceled] }
+        priority: { type: integer }
+        destination_role_id: { type: integer, format: int64 }
+        destination_role_name: { type: string }
+        source_role_id: { type: integer, format: int64 }
+        source_role_name: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        started_at: { type: string, format: date-time }
+        progress: { type: number }
+        is_stale: { type: boolean }
+        is_blocked: { type: boolean }
+    TasksListResponse:
+      type: object
+      required: [tasks, total]
+      properties:
+        tasks:
+          type: array
+          items: { $ref: '#/components/schemas/Task' }
+        total: { type: integer }
+    CreateTaskRequest:
+      type: object
+      required: [team_id, destination_role_id, title]
+      properties:
+        team_id: { type: integer, format: int64 }
+        parent_task_id: { type: integer, format: int64 }
+        destination_role_id: { type: integer, format: int64 }
+        source_role_id: { type: integer, format: int64 }
+        title: { type: string }
+        body: { type: string }
+        body_context: { type: object, additionalProperties: true }
+        priority: { type: integer }
+    TaskCreatedResponse:
+      type: object
+      required: [id, state, status]
+      properties:
+        id: { type: integer, format: int64 }
+        state: { type: string, enum: [pending] }
+        status: { type: string, enum: [created] }
+    GetTaskResponse:
+      type: object
+      required: [task, subtasks]
+      properties:
+        task: { $ref: '#/components/schemas/Task' }
+        subtasks:
+          type: array
+          items: { $ref: '#/components/schemas/Task' }
+    UpdateTaskStateRequest:
+      type: object
+      required: [state]
+      properties:
+        state: { type: string, enum: [pending, in_progress, blocked, done, canceled] }
+        closure_reason: { type: string, enum: [handed_off_to, blocked_on, denied, canceled, no_follow_on, escalation] }
+        closure_target_id: { type: integer, format: int64 }
+        comment: { type: string }
+    HandoffTaskRequest:
+      type: object
+      required: [to_role_id]
+      properties:
+        to_role_id: { type: integer, format: int64 }
+        comment: { type: string }
+    HandoffTaskResponse:
+      type: object
+      required: [new_task_id, closed_task_id, status]
+      properties:
+        new_task_id: { type: integer, format: int64 }
+        closed_task_id: { type: integer, format: int64 }
+        task: { $ref: '#/components/schemas/Task' }
+        status: { type: string, enum: [handed_off] }
+    TaskHistoryEntry:
+      type: object
+      required: [id, queue_task_id, to_state, actor_type, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        queue_task_id: { type: integer, format: int64 }
+        from_state: { type: string }
+        to_state: { type: string }
+        closure_reason: { type: string }
+        closure_target_id: { type: integer, format: int64 }
+        closure_target_title: { type: string }
+        actor_type: { type: string }
+        actor_role_id: { type: integer, format: int64 }
+        actor_role_name: { type: string }
+        actor_session_id: { type: integer, format: int64 }
+        comment: { type: string }
+        metadata: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    TaskHistoryResponse:
+      type: object
+      required: [history, total]
+      properties:
+        history:
+          type: array
+          items: { $ref: '#/components/schemas/TaskHistoryEntry' }
+        total: { type: integer }
+
+    # ---- dashboard ----
+    DashboardSummaryResponse:
+      type: object
+      required: [teams, tasks, sessions, alerts, updated_at]
+      properties:
+        teams:
+          type: object
+          properties:
+            total: { type: integer }
+            active: { type: integer }
+        tasks:
+          type: object
+          properties:
+            total: { type: integer }
+            pending: { type: integer }
+            in_progress: { type: integer }
+            blocked: { type: integer }
+            done_today: { type: integer }
+        sessions:
+          type: object
+          properties:
+            total: { type: integer }
+            running: { type: integer }
+            failed: { type: integer }
+        alerts:
+          type: object
+          properties:
+            total: { type: integer }
+            critical: { type: integer }
+            warning: { type: integer }
+        updated_at: { type: string, format: date-time }
+    TimeSeriesPoint:
+      type: object
+      required: [timestamp, value]
+      properties:
+        timestamp: { type: string, format: date-time }
+        value: { type: number }
+    MetricsResponse:
+      type: object
+      required: [time_range, metrics]
+      properties:
+        time_range:
+          type: object
+          properties:
+            start: { type: string, format: date-time }
+            end: { type: string, format: date-time }
+        metrics:
+          type: object
+          properties:
+            tasks_created:
+              type: array
+              items: { $ref: '#/components/schemas/TimeSeriesPoint' }
+            tasks_completed:
+              type: array
+              items: { $ref: '#/components/schemas/TimeSeriesPoint' }
+            sessions_active:
+              type: array
+              items: { $ref: '#/components/schemas/TimeSeriesPoint' }
+            queue_size:
+              type: array
+              items: { $ref: '#/components/schemas/TimeSeriesPoint' }
+            llm_tokens:
+              type: array
+              items: { $ref: '#/components/schemas/TimeSeriesPoint' }
+
+    # ---- sessions ----
+    Session:
+      type: object
+      required: [id, team_id, team_name, role_id, role_name, runtime_type, state]
+      properties:
+        id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        team_name: { type: string }
+        role_id: { type: integer, format: int64 }
+        role_name: { type: string }
+        runtime_type: { type: string, enum: [container, process, tmux, pi] }
+        state: { type: string }
+        queue_task_id: { type: integer, format: int64 }
+        queue_task_title: { type: string }
+        started_at: { type: string, format: date-time }
+        uptime_seconds: { type: number }
+        cpu_percent: { type: number }
+        memory_bytes: { type: integer, format: int64 }
+    SessionDetail:
+      allOf:
+        - $ref: '#/components/schemas/Session'
+        - type: object
+          properties:
+            runtime_ref: { type: string }
+            command: { type: string }
+            exit_code: { type: integer }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+            model: { type: string }
+            context_used_percentage: { type: number }
+            context_total_input_tokens: { type: integer, format: int64 }
+            context_total_output_tokens: { type: integer, format: int64 }
+            log_path: { type: string }
+    SessionsListResponse:
+      type: object
+      required: [sessions, total]
+      properties:
+        sessions:
+          type: array
+          items: { $ref: '#/components/schemas/SessionDetail' }
+        total: { type: integer }
+    CreateSessionRequest:
+      type: object
+      required: [role_id]
+      properties:
+        role_id: { type: integer, format: int64 }
+        queue_task_id: { type: integer, format: int64 }
+        runtime_type: { type: string }
+        command: { type: string }
+        args:
+          type: array
+          items: { type: string }
+        working_dir: { type: string }
+        config: { type: object, additionalProperties: true }
+    CreateSessionResponse:
+      type: object
+      required: [id, state, status]
+      properties:
+        id: { type: integer, format: int64 }
+        state: { type: string }
+        status: { type: string, enum: [started] }
+    StopSessionResponse:
+      type: object
+      required: [id, state, status]
+      properties:
+        id: { type: integer, format: int64 }
+        state: { type: string, enum: [stopped] }
+        status: { type: string, enum: [stopped] }
+    SessionHistoryEntry:
+      type: object
+      required: [id, session_id, to_state, actor_type, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        session_id: { type: integer, format: int64 }
+        from_state: { type: string }
+        to_state: { type: string }
+        actor_type: { type: string }
+        actor_role_name: { type: string }
+        comment: { type: string }
+        metadata: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    SessionHistoryResponse:
+      type: object
+      required: [history, total]
+      properties:
+        history:
+          type: array
+          items: { $ref: '#/components/schemas/SessionHistoryEntry' }
+        total: { type: integer }
+    TranscriptEntry:
+      type: object
+      required: [id, session_id, message_type, content, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        session_id: { type: integer, format: int64 }
+        message_type: { type: string }
+        content: { type: string }
+        metadata: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    TranscriptResponse:
+      type: object
+      required: [transcript, total, has_more]
+      properties:
+        transcript:
+          type: array
+          items: { $ref: '#/components/schemas/TranscriptEntry' }
+        total: { type: integer }
+        has_more: { type: boolean }
+
+    # ---- alerts / watchdog ----
+    WatchdogAlert:
+      type: object
+      required: [id, team_id, team_name, event_type, severity, description, created_at, is_read, requires_action]
+      properties:
+        id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        team_name: { type: string }
+        event_type: { type: string }
+        severity: { type: string, enum: [low, medium, high, critical] }
+        description: { type: string }
+        queue_task_id: { type: integer, format: int64 }
+        session_id: { type: integer, format: int64 }
+        role_id: { type: integer, format: int64 }
+        action_taken: { type: string }
+        created_at: { type: string, format: date-time }
+        is_read: { type: boolean }
+        requires_action: { type: boolean }
+    AlertsResponse:
+      type: object
+      required: [alerts, total]
+      properties:
+        alerts:
+          type: array
+          items: { $ref: '#/components/schemas/WatchdogAlert' }
+        total: { type: integer }
+
+    # ---- messages / chatrooms ----
+    Message:
+      type: object
+      required: [id, team_id, type, body, is_read, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        queue_task_id: { type: integer, format: int64 }
+        from_role_id: { type: integer, format: int64 }
+        from_role_name: { type: string }
+        to_role_id: { type: integer, format: int64 }
+        to_role_name: { type: string }
+        type: { type: string }
+        body: { type: string }
+        is_read: { type: boolean }
+        created_at: { type: string, format: date-time }
+        is_mine: { type: boolean }
+        requires_reply: { type: boolean }
+    MessagesResponse:
+      type: object
+      required: [messages, total, has_more]
+      properties:
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/Message' }
+        total: { type: integer }
+        has_more: { type: boolean }
+    SendMessageRequest:
+      type: object
+      required: [team_id, type, body]
+      properties:
+        team_id: { type: integer, format: int64 }
+        queue_task_id: { type: integer, format: int64 }
+        to_role_id: { type: integer, format: int64 }
+        type: { type: string, enum: [direct, broadcast, segment] }
+        body: { type: string }
+        metadata: { type: object, additionalProperties: true }
+    SendMessageResponse:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: integer, format: int64 }
+        status: { type: string, enum: [sent] }
+        delivered_to:
+          type: array
+          items: { type: integer, format: int64 }
+    Chatroom:
+      type: object
+      required: [id, team_id, name, unread_count, members_count]
+      properties:
+        id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        segment_id: { type: integer, format: int64 }
+        name: { type: string }
+        topic: { type: string }
+        last_message:
+          type: object
+          properties:
+            body: { type: string }
+            from_role_name: { type: string }
+            created_at: { type: string, format: date-time }
+        unread_count: { type: integer }
+        members_count: { type: integer }
+    ChatroomsResponse:
+      type: object
+      required: [chatrooms]
+      properties:
+        chatrooms:
+          type: array
+          items: { $ref: '#/components/schemas/Chatroom' }
+    ChatroomMessage:
+      type: object
+      required: [id, chatroom_id, body, created_at, is_mine]
+      properties:
+        id: { type: integer, format: int64 }
+        chatroom_id: { type: integer, format: int64 }
+        from_role_id: { type: integer, format: int64 }
+        from_role_name: { type: string }
+        body: { type: string }
+        created_at: { type: string, format: date-time }
+        is_mine: { type: boolean }
+    ChatroomMessagesResponse:
+      type: object
+      required: [messages, has_more]
+      properties:
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/ChatroomMessage' }
+        has_more: { type: boolean }
+    SendChatroomMessageRequest:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string }
+    SendChatroomMessageResponse:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: integer, format: int64 }
+        status: { type: string, enum: [sent] }
+
+    # ---- workflows ----
+    Workflow:
+      type: object
+      required: [id, team_id, name, state, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        state: { type: string, enum: [draft, active, archived] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    WorkflowPosition:
+      type: object
+      properties:
+        x: { type: integer }
+        y: { type: integer }
+    WorkflowBlock:
+      type: object
+      required: [id, workflow_id, type, position, config, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        workflow_id: { type: integer, format: int64 }
+        type: { type: string, enum: [task, decision, parallel, loop, agent, manual] }
+        position: { $ref: '#/components/schemas/WorkflowPosition' }
+        config: { type: object, additionalProperties: true }
+        label: { type: string }
+        created_at: { type: string, format: date-time }
+    WorkflowConnection:
+      type: object
+      required: [id, workflow_id, from_block_id, to_block_id, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        workflow_id: { type: integer, format: int64 }
+        from_block_id: { type: integer, format: int64 }
+        to_block_id: { type: integer, format: int64 }
+        condition: { type: string }
+        created_at: { type: string, format: date-time }
+    WorkflowsListResponse:
+      type: object
+      required: [workflows, total]
+      properties:
+        workflows:
+          type: array
+          items: { $ref: '#/components/schemas/Workflow' }
+        total: { type: integer }
+    GetWorkflowResponse:
+      type: object
+      required: [workflow, blocks, connections]
+      properties:
+        workflow: { $ref: '#/components/schemas/Workflow' }
+        blocks:
+          type: array
+          items: { $ref: '#/components/schemas/WorkflowBlock' }
+        connections:
+          type: array
+          items: { $ref: '#/components/schemas/WorkflowConnection' }
+    WorkflowBlockInput:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [task, decision, parallel, loop, agent, manual] }
+        position: { $ref: '#/components/schemas/WorkflowPosition' }
+        config: { type: object, additionalProperties: true }
+        label: { type: string }
+    WorkflowConnectionInput:
+      type: object
+      required: [from_block_id, to_block_id]
+      properties:
+        from_block_id: { type: integer, format: int64 }
+        to_block_id: { type: integer, format: int64 }
+        condition: { type: string }
+    CreateWorkflowRequest:
+      type: object
+      required: [team_id, name]
+      properties:
+        team_id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        blocks:
+          type: array
+          items: { $ref: '#/components/schemas/WorkflowBlockInput' }
+        connections:
+          type: array
+          items: { $ref: '#/components/schemas/WorkflowConnectionInput' }
+    WorkflowCreatedResponse:
+      type: object
+      required: [id, name, status]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        status: { type: string, enum: [created] }
+    WorkflowBlockCreatedResponse:
+      type: object
+      required: [id, workflow_id, type, status]
+      properties:
+        id: { type: integer, format: int64 }
+        workflow_id: { type: integer, format: int64 }
+        type: { type: string }
+        status: { type: string, enum: [created] }
+    WorkflowConnectionCreatedResponse:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: integer, format: int64 }
+        status: { type: string, enum: [created] }
+    UpdateBlockRequest:
+      type: object
+      properties:
+        position: { $ref: '#/components/schemas/WorkflowPosition' }
+        config: { type: object, additionalProperties: true }
+        label: { type: string }
+    UpdateBlockResponse:
+      type: object
+      required: [id, status, changes]
+      properties:
+        id: { type: integer, format: int64 }
+        status: { type: string, enum: [updated] }
+        changes: { type: object, additionalProperties: true }
+    DeleteWorkflowBlockResponse:
+      type: object
+      required: [id, status, removed_connections]
+      properties:
+        id: { type: integer, format: int64 }
+        status: { type: string, enum: [deleted] }
+        removed_connections: { type: integer }
+    DeleteWorkflowConnectionResponse:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: integer, format: int64 }
+        status: { type: string, enum: [deleted] }
+    DeleteWorkflowResponse:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: integer, format: int64 }
+        status: { type: string, enum: [deleted] }
+
+    # ---- library ----
+    LibraryItem:
+      type: object
+      required: [id, type, name, version, is_public, downloads_count, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        type: { type: string, enum: [team, workflow, role, segment] }
+        name: { type: string }
+        description: { type: string }
+        group: { type: string }
+        version: { type: string }
+        author: { type: string }
+        is_public: { type: boolean }
+        downloads_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        thumbnail: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        rating: { type: number }
+    LibraryGroup:
+      type: object
+      required: [name, items_count]
+      properties:
+        name: { type: string }
+        items_count: { type: integer }
+        icon: { type: string }
+    LibraryResponse:
+      type: object
+      required: [items, total, groups]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/LibraryItem' }
+        total: { type: integer }
+        groups:
+          type: array
+          items: { $ref: '#/components/schemas/LibraryGroup' }
+    SaveToLibraryRequest:
+      type: object
+      required: [type, source_id, name]
+      properties:
+        type: { type: string, enum: [team, workflow, role, segment] }
+        source_id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        group: { type: string }
+        is_public: { type: boolean }
+        tags:
+          type: array
+          items: { type: string }
+    SaveToLibraryResponse:
+      type: object
+      required: [id, status, library_item_id]
+      properties:
+        id: { type: integer, format: int64 }
+        status: { type: string, enum: [saved] }
+        library_item_id: { type: integer, format: int64 }
+    LibraryVersion:
+      type: object
+      required: [version, created_at]
+      properties:
+        version: { type: string }
+        created_at: { type: string, format: date-time }
+        changes: { type: string }
+        author: { type: string }
+    GetLibraryItemResponse:
+      type: object
+      required: [item, spec, versions]
+      properties:
+        item: { $ref: '#/components/schemas/LibraryItem' }
+        spec: { type: object, additionalProperties: true }
+        versions:
+          type: array
+          items: { $ref: '#/components/schemas/LibraryVersion' }
+    ApplyLibraryItemRequest:
+      type: object
+      properties:
+        target_team_id: { type: integer, format: int64 }
+        overrides: { type: object, additionalProperties: true }
+    ApplyLibraryItemResponse:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [applied, merged] }
+        created_resources:
+          type: object
+          properties:
+            teams:
+              type: array
+              items: { type: integer, format: int64 }
+            segments:
+              type: array
+              items: { type: integer, format: int64 }
+            roles:
+              type: array
+              items: { type: integer, format: int64 }
+        updated_resources: { type: object, additionalProperties: true }
+
+    # ---- audit ----
+    AuditEntry:
+      type: object
+      required: [id, timestamp, action]
+      properties:
+        id: { type: integer, format: int64 }
+        timestamp: { type: string, format: date-time }
+        user_id: { type: integer, format: int64 }
+        user_name: { type: string }
+        api_key_id: { type: integer, format: int64 }
+        action: { type: string }
+        resource: { type: string }
+        details: { type: object, additionalProperties: true }
+        ip_address: { type: string }
+        user_agent: { type: string }
+        icon: { type: string }
+        severity: { type: string, enum: [info, warning, error] }
+    AuditResponse:
+      type: object
+      required: [entries, total]
+      properties:
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/AuditEntry' }
+        total: { type: integer }
