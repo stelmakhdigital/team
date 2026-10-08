@@ -9,3 +9,4 @@ frontend/.env
 frontend/.env.local
 # runtime logs (daemon)
 logs/
+*.deb
