@@ -1,0 +1,28 @@
+name: pi-reviewer
+version: 0.1.0
+runtime:
+  type: process
+  version: "1"
+pi_config:
+  model: claude-3-7-sonnet
+  temperature: 0.2
+  max_tokens: 8192
+  plugins:
+    - name: team-reviewer
+      enabled: true
+      description: Ревью кода и артефактов, отклонения
+  skills:
+    - path: skills/reviewer/review
+      enabled: true
+      description: Чек-листы ревью
+  mcp:
+    servers: []
+resources:
+  cpu: "0.5"
+  memory: 512M
+  gpu: false
+startup:
+  files:
+    - path: system_prompt_reviewer.md
+      orientation: system
+  scripts: []

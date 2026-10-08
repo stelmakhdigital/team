@@ -1,0 +1,28 @@
+name: pi-worker
+version: 0.1.0
+runtime:
+  type: process
+  version: "1"
+pi_config:
+  model: claude-3-7-sonnet
+  temperature: 0.1
+  max_tokens: 8192
+  plugins:
+    - name: team-worker
+      enabled: true
+      description: Исполнение задач (код, тесты, артефакты)
+  skills:
+    - path: skills/worker/implement
+      enabled: true
+      description: Реализация по заданию
+  mcp:
+    servers: []
+resources:
+  cpu: "1.0"
+  memory: 1G
+  gpu: false
+startup:
+  files:
+    - path: system_prompt_worker.md
+      orientation: system
+  scripts: []
