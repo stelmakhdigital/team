@@ -304,6 +304,89 @@ func (s *WorkflowService) UpdateBlock(ctx context.Context, workflowID, blockID i
 		old.Config, updated.Config, nil
 }
 
+// ---------- Delete (контракт 20 §2.6–2.8, R6.4) ----------
+
+// DeleteWorkflowBlock — DELETE /api/v1/workflows/{workflowId}/blocks/{blockId} (§2.6).
+// Удаляет блок и ВСЕ его связи (каскад). Возвращает число удалённых связей.
+// 404 not_found — блок/воркфлоу нет (или блок из другого воркфлоу).
+func (s *WorkflowService) DeleteWorkflowBlock(ctx context.Context, workflowID, blockID int64) (int, error) {
+	if _, err := s.wf.GetByID(ctx, s.db, workflowID); err != nil {
+		return 0, wrapRepositoryNotFound(err, "workflow")
+	}
+	b, err := s.blocks.GetByID(ctx, s.db, blockID)
+	if err != nil {
+		return 0, wrapRepositoryNotFound(err, "block")
+	}
+	if b.WorkflowID != workflowID {
+		return 0, NewNotFound("block")
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	removed, err := s.conns.DeleteByBlock(ctx, tx, workflowID, blockID)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.blocks.Delete(ctx, tx, blockID); err != nil {
+		return 0, wrapRepositoryNotFound(err, "block")
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return removed, nil
+}
+
+// DeleteWorkflowConnection — DELETE /api/v1/workflows/{workflowId}/connections/{connectionId} (§2.7).
+// 404 not_found — связь/воркфлоу нет (или связь из другого воркфлоу).
+func (s *WorkflowService) DeleteWorkflowConnection(ctx context.Context, workflowID, connectionID int64) error {
+	if _, err := s.wf.GetByID(ctx, s.db, workflowID); err != nil {
+		return wrapRepositoryNotFound(err, "workflow")
+	}
+	c, err := s.conns.GetByID(ctx, s.db, connectionID)
+	if err != nil {
+		return wrapRepositoryNotFound(err, "connection")
+	}
+	if c.WorkflowID != workflowID {
+		return NewNotFound("connection")
+	}
+	if err := s.conns.Delete(ctx, s.db, connectionID); err != nil {
+		return wrapRepositoryNotFound(err, "connection")
+	}
+	return nil
+}
+
+// DeleteWorkflow — DELETE /api/v1/workflows/{workflowId} (§2.8).
+// Удаляет workflow + все его блоки и связи. 404 not_found — нет.
+func (s *WorkflowService) DeleteWorkflow(ctx context.Context, workflowID int64) error {
+	if _, err := s.wf.GetByID(ctx, s.db, workflowID); err != nil {
+		return wrapRepositoryNotFound(err, "workflow")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	// Явный порядок связей → блоки → workflow (не полагаемся на FK cascade:
+	// в :memory: sqlite FK выключен, а осиротевшие строки ломают данные).
+	if err := s.conns.DeleteByWorkflow(ctx, tx, workflowID); err != nil {
+		return err
+	}
+	if err := s.blocks.DeleteByWorkflow(ctx, tx, workflowID); err != nil {
+		return err
+	}
+	if err := s.wf.Delete(ctx, tx, workflowID); err != nil {
+		return wrapRepositoryNotFound(err, "workflow")
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // wrapRepositoryNotFound — ErrNotFound из репозитория → AppError not_found.
 func wrapRepositoryNotFound(err error, what string) error {
 	if err == repository.ErrNotFound {

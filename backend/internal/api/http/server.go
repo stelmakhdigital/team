@@ -108,6 +108,9 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("POST /api/v1/workflows/{id}/blocks", h.CreateWorkflowBlock)
 	mux.HandleFunc("POST /api/v1/workflows/{id}/connections", h.CreateWorkflowConnection)
 	mux.HandleFunc("PATCH /api/v1/workflows/{id}/blocks/{blockId}", h.UpdateWorkflowBlock)
+	mux.HandleFunc("DELETE /api/v1/workflows/{id}", h.DeleteWorkflow)
+	mux.HandleFunc("DELETE /api/v1/workflows/{id}/blocks/{blockId}", h.DeleteWorkflowBlock)
+	mux.HandleFunc("DELETE /api/v1/workflows/{id}/connections/{connectionId}", h.DeleteWorkflowConnection)
 
 	// Slice 5 — WebSocket (real-time события)
 	mux.HandleFunc("GET /ws", h.HandleWS)

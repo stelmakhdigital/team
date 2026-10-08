@@ -170,6 +170,119 @@ func TestWorkflowFull(t *testing.T) {
 	}
 }
 
+func TestWorkflowDelete(t *testing.T) {
+	teamSvc, wsvc, ctx := setupWorkflowEnv(t)
+	team := makeWfTeam(t, teamSvc, "wf-del")
+
+	// workflow: 3 блока, 2 связи (0→1, 1→2)
+	wf, err := wsvc.CreateWorkflow(ctx, service.CreateWorkflowRequest{
+		TeamID: team.ID,
+		Name:   "deploy",
+		Blocks: []service.WorkflowBlockInput{
+			{Type: "task"},
+			{Type: "decision"},
+			{Type: "agent"},
+		},
+		Connections: []service.WorkflowConnectionInput{
+			{FromBlockID: 0, ToBlockID: 1},
+			{FromBlockID: 1, ToBlockID: 2, Condition: strPtr("yes")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateWorkflow: %v", err)
+	}
+
+	// 1. DeleteWorkflowBlock — средний блок (1): каскад 2 связи, count=2
+	_, blocks, _, err := wsvc.GetWorkflow(ctx, wf.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflow: %v", err)
+	}
+	removed, err := wsvc.DeleteWorkflowBlock(ctx, wf.ID, blocks[1].ID)
+	if err != nil {
+		t.Fatalf("DeleteWorkflowBlock: %v", err)
+	}
+	if removed != 2 {
+		t.Fatalf("removed_connections = %d, want 2", removed)
+	}
+	// обе связи касались блока 1 → остались 2 блока, 0 связей
+	_, blocks2, conns2, err := wsvc.GetWorkflow(ctx, wf.ID)
+	if err != nil {
+		t.Fatalf("GetWorkflow after block delete: %v", err)
+	}
+	if len(blocks2) != 2 || len(conns2) != 0 {
+		t.Fatalf("after block delete: blocks=%d conns=%d, want 2/0", len(blocks2), len(conns2))
+	}
+
+	// блок из другого workflow → not_found
+	wf2, err := wsvc.CreateWorkflow(ctx, service.CreateWorkflowRequest{TeamID: team.ID, Name: "other"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b2, err := wsvc.CreateBlock(ctx, wf2.ID, service.WorkflowBlockInput{Type: "task"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wsvc.DeleteWorkflowBlock(ctx, wf.ID, b2.ID); err == nil {
+		t.Fatal("want not_found for block from another workflow")
+	}
+	// неизвестный блок
+	if _, err := wsvc.DeleteWorkflowBlock(ctx, wf.ID, 99999); err == nil {
+		t.Fatal("want not_found for unknown block")
+	}
+	// неизвестный workflow
+	if _, err := wsvc.DeleteWorkflowBlock(ctx, 424242, blocks[0].ID); err == nil {
+		t.Fatal("want not_found for unknown workflow")
+	}
+
+	// 2. DeleteWorkflowConnection
+	b2a, _ := wsvc.CreateBlock(ctx, wf2.ID, service.WorkflowBlockInput{Type: "task"})
+	c2, err := wsvc.CreateConnection(ctx, wf2.ID, service.WorkflowConnectionInput{FromBlockID: b2.ID, ToBlockID: b2a.ID})
+	if err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	if err := wsvc.DeleteWorkflowConnection(ctx, wf2.ID, c2.ID); err != nil {
+		t.Fatalf("DeleteWorkflowConnection: %v", err)
+	}
+	if err := wsvc.DeleteWorkflowConnection(ctx, wf2.ID, c2.ID); err == nil {
+		t.Fatal("want not_found for already-deleted connection")
+	}
+	// связь из другого workflow → not_found
+	wf3, err := wsvc.CreateWorkflow(ctx, service.CreateWorkflowRequest{TeamID: team.ID, Name: "third"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b3a, _ := wsvc.CreateBlock(ctx, wf3.ID, service.WorkflowBlockInput{Type: "task"})
+	b3b, _ := wsvc.CreateBlock(ctx, wf3.ID, service.WorkflowBlockInput{Type: "task"})
+	c3, err := wsvc.CreateConnection(ctx, wf3.ID, service.WorkflowConnectionInput{FromBlockID: b3a.ID, ToBlockID: b3b.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wsvc.DeleteWorkflowConnection(ctx, wf2.ID, c3.ID); err == nil {
+		t.Fatal("want not_found for connection from another workflow")
+	}
+
+	// 3. DeleteWorkflow — wf2: блоки + связи удаляются
+	if err := wsvc.DeleteWorkflow(ctx, wf2.ID); err != nil {
+		t.Fatalf("DeleteWorkflow: %v", err)
+	}
+	if _, _, _, err := wsvc.GetWorkflow(ctx, wf2.ID); err == nil {
+		t.Fatal("want not_found for deleted workflow")
+	}
+	if err := wsvc.DeleteWorkflow(ctx, wf2.ID); err == nil {
+		t.Fatal("want not_found for already-deleted workflow")
+	}
+	if err := wsvc.DeleteWorkflow(ctx, 424242); err == nil {
+		t.Fatal("want not_found for unknown workflow")
+	}
+	// wf и wf3 остались
+	if _, _, _, err := wsvc.GetWorkflow(ctx, wf.ID); err != nil {
+		t.Fatalf("first workflow should survive: %v", err)
+	}
+	if _, _, _, err := wsvc.GetWorkflow(ctx, wf3.ID); err != nil {
+		t.Fatalf("wf3 should survive: %v", err)
+	}
+}
+
 func TestWorkflowValidation(t *testing.T) {
 	teamSvc, wsvc, ctx := setupWorkflowEnv(t)
 	team := makeWfTeam(t, teamSvc, "wf-val")

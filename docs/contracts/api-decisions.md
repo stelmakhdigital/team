@@ -407,3 +407,24 @@ History Viewer (audit + transcripts), Prometheus `/metrics`.
 - Контракт 20 §4.3: канал `team:{id}` тоже получает `session.output`
   (суперсет контракта: `session:{id}` + `dashboard` — контракт; `team:{id}` —
   добавлен, лента активности команды).
+
+### DELETE workflows (2026-10-08, R6.4; контракт 20 §2.6–2.8)
+
+- **Эндпоинты** (были только контракт + frontend/mock; backend-срез доделан):
+  - `DELETE /api/v1/workflows/{id}/blocks/{blockId}` — удаляет блок и ВСЕ его связи
+    (каскад), отвечает `{id, status:'deleted', removed_connections:N}`.
+  - `DELETE /api/v1/workflows/{id}/connections/{connectionId}` — `{id, status:'deleted'}`.
+  - `DELETE /api/v1/workflows/{id}` — удаляет workflow + все блоки и связи.
+  - 404 `not_found` — блок/связь/workflow нет ИЛИ чужеродный (из другого workflow).
+- **Явный каскад в транзакции, НЕ FK-cascade**: в `:memory:` sqlite (тесты)
+  `PRAGMA foreign_keys` выключен, поэтому полагаться на `ON DELETE CASCADE`
+  из миграций нельзя (osиротевшие строки). Порядок: связи → блоки → workflow.
+  `WorkflowConnectionRepo.DeleteByBlock` возвращает `RowsAffected` = `removed_connections`.
+- **RBAC**: все три DELETE → `workflows.update` (дефолт `requiredPermission` для
+  DELETE `workflows.*`), как у существующих POST/PATCH workflow-субресурсов.
+- **Репозиторий**: добавлены `WorkflowRepo.Delete`, `WorkflowBlockRepo.Delete`/`DeleteByWorkflow`,
+  `WorkflowConnectionRepo.GetByID`/`Delete`/`DeleteByBlock`/`DeleteByWorkflow` (+ `scanWorkflowConnection`).
+- **Тесты**: `service` `TestWorkflowDelete` (каскад count=2, 404-пути, чужеродность);
+  `http` `TestWorkflowDeleteHTTP` (status + response shape + 404) и `TestWorkflowDeleteRBAC`
+  (viewer 403, operator 200). `newRBACTestServer` теперь шьёт `Workflows`.
+  Frontend: интеграционный `slice 5c` (real client vs живой daemon) — 18/18 зелёный.

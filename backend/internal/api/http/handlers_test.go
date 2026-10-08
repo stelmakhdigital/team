@@ -823,10 +823,11 @@ func newRBACTestServer(t *testing.T, envKeys []string) (*httptest.Server, *servi
 		t.Fatal(err)
 	}
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
-		Logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
-		DB:     db,
-		Audit:  asvc,
-		Auth:   auth,
+		Logger:    slog.New(slog.NewTextHandler(os.Stderr, nil)),
+		DB:        db,
+		Audit:     asvc,
+		Auth:      auth,
+		Workflows: service.NewWorkflowService(db, stores),
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)

@@ -106,6 +106,21 @@ func (r *WorkflowRepo) UpdateState(ctx context.Context, tx DBTX, id int64, state
 	return nil
 }
 
+// Delete — удаляет workflow (контракт 20 §2.8). Блоки/связи удаляет вызывающий
+// (см. WorkflowService.DeleteWorkflow — явный порядок, не полагаемся на FK cascade,
+// т.к. в :memory: sqlite FK выключен). ErrNotFound, если id не существует.
+func (r *WorkflowRepo) Delete(ctx context.Context, tx DBTX, id int64) error {
+	res, err := tx.ExecContext(ctx, `DELETE FROM workflows WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func scanWorkflow(s teamScanner) (*models.Workflow, error) {
 	var (
 		w      models.Workflow
@@ -216,6 +231,25 @@ func (r *WorkflowBlockRepo) Update(ctx context.Context, tx DBTX, b *models.Workf
 	return old, err
 }
 
+// Delete — удаляет блок (контракт 20 §2.6). ErrNotFound, если id не существует.
+func (r *WorkflowBlockRepo) Delete(ctx context.Context, tx DBTX, id int64) error {
+	res, err := tx.ExecContext(ctx, `DELETE FROM workflow_blocks WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteByWorkflow — удаляет все блоки workflow (каскад при удалении workflow, §2.8).
+func (r *WorkflowBlockRepo) DeleteByWorkflow(ctx context.Context, tx DBTX, workflowID int64) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM workflow_blocks WHERE workflow_id = ?`, workflowID)
+	return err
+}
+
 func scanWorkflowBlock(s teamScanner) (*models.WorkflowBlock, error) {
 	var (
 		b   models.WorkflowBlock
@@ -248,6 +282,10 @@ func scanWorkflowBlock(s teamScanner) (*models.WorkflowBlock, error) {
 
 type WorkflowConnectionRepo struct{ db *sql.DB }
 
+const workflowConnectionSelect = `
+	SELECT id, workflow_id, from_block_id, to_block_id, condition, created_at
+	FROM workflow_connections`
+
 func (r *WorkflowConnectionRepo) Create(ctx context.Context, tx DBTX, c *models.WorkflowConnection) error {
 	ts, tsStr := nowTime(), nowStr()
 	c.CreatedAt = ts
@@ -266,6 +304,66 @@ func (r *WorkflowConnectionRepo) Create(ctx context.Context, tx DBTX, c *models.
 	return nil
 }
 
+func (r *WorkflowConnectionRepo) GetByID(ctx context.Context, tx DBTX, id int64) (*models.WorkflowConnection, error) {
+	var (
+		c    models.WorkflowConnection
+		cond sql.NullString
+		ca   string
+	)
+	err := tx.QueryRowContext(ctx, workflowConnectionSelect+` WHERE id = ?`, id).
+		Scan(&c.ID, &c.WorkflowID, &c.FromBlockID, &c.ToBlockID, &cond, &ca)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if cond.Valid {
+		c.Condition = &cond.String
+	}
+	if c.CreatedAt, err = parseTime(ca); err != nil {
+		return nil, fmt.Errorf("parse connection created_at: %w", err)
+	}
+	return &c, nil
+}
+
+// Delete — удаляет связь (контракт 20 §2.7). ErrNotFound, если id не существует.
+func (r *WorkflowConnectionRepo) Delete(ctx context.Context, tx DBTX, id int64) error {
+	res, err := tx.ExecContext(ctx, `DELETE FROM workflow_connections WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteByBlock — удаляет все связи, связанные с блоком (from_block_id = blockID
+// ИЛИ to_block_id = blockID) в рамках workflow, возвращает число удалённых (каскад
+// при удалении блока, §2.6).
+func (r *WorkflowConnectionRepo) DeleteByBlock(ctx context.Context, tx DBTX, workflowID, blockID int64) (int, error) {
+	res, err := tx.ExecContext(ctx, `
+		DELETE FROM workflow_connections
+		WHERE workflow_id = ? AND (from_block_id = ? OR to_block_id = ?)`,
+		workflowID, blockID, blockID)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return int(n), nil
+}
+
+// DeleteByWorkflow — удаляет все связи workflow (каскад при удалении workflow, §2.8).
+func (r *WorkflowConnectionRepo) DeleteByWorkflow(ctx context.Context, tx DBTX, workflowID int64) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM workflow_connections WHERE workflow_id = ?`, workflowID)
+	return err
+}
+
 func (r *WorkflowConnectionRepo) ListByWorkflow(ctx context.Context, tx DBTX, workflowID int64) ([]*models.WorkflowConnection, error) {
 	rows, err := tx.QueryContext(ctx, `
 		SELECT id, workflow_id, from_block_id, to_block_id, condition, created_at
@@ -277,19 +375,33 @@ func (r *WorkflowConnectionRepo) ListByWorkflow(ctx context.Context, tx DBTX, wo
 
 	out := make([]*models.WorkflowConnection, 0)
 	for rows.Next() {
-		var c models.WorkflowConnection
-		var cond sql.NullString
-		var ca string
-		if err := rows.Scan(&c.ID, &c.WorkflowID, &c.FromBlockID, &c.ToBlockID, &cond, &ca); err != nil {
+		c, err := scanWorkflowConnection(rows)
+		if err != nil {
 			return nil, err
 		}
-		if cond.Valid {
-			c.Condition = &cond.String
-		}
-		if c.CreatedAt, err = parseTime(ca); err != nil {
-			return nil, fmt.Errorf("parse connection created_at: %w", err)
-		}
-		out = append(out, &c)
+		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+func scanWorkflowConnection(s teamScanner) (*models.WorkflowConnection, error) {
+	var (
+		c    models.WorkflowConnection
+		cond sql.NullString
+		ca   string
+	)
+	err := s.Scan(&c.ID, &c.WorkflowID, &c.FromBlockID, &c.ToBlockID, &cond, &ca)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if cond.Valid {
+		c.Condition = &cond.String
+	}
+	if c.CreatedAt, err = parseTime(ca); err != nil {
+		return nil, fmt.Errorf("parse connection created_at: %w", err)
+	}
+	return &c, nil
 }

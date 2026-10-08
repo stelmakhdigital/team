@@ -98,7 +98,11 @@ RBAC-тесты, WS-auth fix, WS ping/pong live-проверка, ADR-004 (B3 CL
   `/tmp/final-*.png` (финальный свип).
 
 ### Бэклог (опциональное/внешнее)
-1. **Backend (жду их)**: срез DELETE workflows (§2.6–2.8) — письмо в answer_backend.md.
+1. **Backend (жду их)**: срез DELETE workflows (§2.6–2.8) — **DONE (2026-10-08)**: backend реализовал
+   `DELETE /workflows/{id}/blocks/{blockId}` (каскад связи, `removed_connections`),
+   `DELETE /workflows/{id}/connections/{connectionId}`, `DELETE /workflows/{id}`; 404 на чужеродные id;
+   RBAC `workflows.update`. Проверено: backend unit+http + live curl + frontend интеграционный
+   `slice 5c` (18/18 vs живой daemon).
 2. PG e2e-свип по критерию ADR-004 §3 — при появлении PG-окружения.
 3. WS ack subscribe (event до subscribe теряется; задокументировано, UI идемпотентен).
 4. OpenAPI (`docs/contracts/openapi.yaml`) — в конце проекта, генерирует backend.

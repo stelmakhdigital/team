@@ -424,6 +424,59 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
     expect(list.workflows.some((w) => w.id === created.id)).toBe(true);
   }, 30_000);
 
+  it('slice 5c (R6.4): workflows DELETE — block cascade, connection, workflow (контракт 20 §2.6–2.8)', async () => {
+    const teams = await api.teams.getTeams();
+    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+
+    const created = await api.workflows.createWorkflow({
+      team_id: team.id,
+      name: `IT-del-${Date.now()}`,
+      blocks: [
+        { type: 'task', position: { x: 0, y: 0 }, config: {}, label: 'A' },
+        { type: 'decision', position: { x: 100, y: 0 }, config: {}, label: 'B' },
+        { type: 'agent', position: { x: 200, y: 0 }, config: {}, label: 'C' },
+      ],
+      connections: [
+        { from_block_id: 0, to_block_id: 1 },
+        { from_block_id: 1, to_block_id: 2 },
+      ],
+    });
+    expect(created.status).toBe('created');
+
+    const wf = await api.workflows.getWorkflow(created.id);
+    expect(wf.blocks).toHaveLength(3);
+    expect(wf.connections).toHaveLength(2);
+
+    // 1. DELETE средний блок → каскад 2 связи
+    const mid = wf.blocks[1];
+    const db = await api.workflows.deleteBlock(created.id, mid.id);
+    expect(db).toMatchObject({ status: 'deleted', removed_connections: 2 });
+    const after = await api.workflows.getWorkflow(created.id);
+    expect(after.blocks).toHaveLength(2);
+    expect(after.connections).toHaveLength(0);
+    // повторное удаление блока / неизвестный блок → 404
+    await expect(api.workflows.deleteBlock(created.id, mid.id)).rejects.toMatchObject({ status: 404, code: 'not_found' });
+    await expect(api.workflows.deleteBlock(created.id, 999_999_999)).rejects.toMatchObject({ status: 404 });
+
+    // 2. DELETE связь — свежая связь между оставшимися блоками
+    const conn = await api.workflows.createConnection(created.id, {
+      from_block_id: after.blocks[0].id,
+      to_block_id: after.blocks[1].id,
+    });
+    expect(conn.status).toBe('created');
+    const dc = await api.workflows.deleteConnection(created.id, conn.id);
+    expect(dc).toMatchObject({ status: 'deleted' });
+    await expect(api.workflows.deleteConnection(created.id, conn.id)).rejects.toMatchObject({ status: 404 });
+    await expect(api.workflows.deleteConnection(created.id, 999_999_999)).rejects.toMatchObject({ status: 404 });
+
+    // 3. DELETE workflow → блоки/связи каскадом; повторное/неизвестное → 404
+    const dw = await api.workflows.deleteWorkflow(created.id);
+    expect(dw).toMatchObject({ status: 'deleted' });
+    await expect(api.workflows.getWorkflow(created.id)).rejects.toMatchObject({ status: 404 });
+    await expect(api.workflows.deleteWorkflow(created.id)).rejects.toMatchObject({ status: 404 });
+    await expect(api.workflows.deleteWorkflow(999_999_999)).rejects.toMatchObject({ status: 404 });
+  }, 30_000);
+
   // ---- slice 5b: Library ----
 
   it('slice 5b: library — save → list → get → apply (new team + merge) + save_to_library', async () => {

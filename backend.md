@@ -1,6 +1,6 @@
 # backend.md — роль бекенда + статус задачи (снимок)
 
-> Снимок бекенд-агента, 2026-10-08 (~21:00, после R5). Файл для восстановления работы:
+> Снимок бекенд-агента, 2026-10-08 (~21:00, после R5) + 2026-10-08 (срез 8 DELETE workflows). Файл для восстановления работы:
 > дочитать целиком перед продолжением. «Живые» статусы (могут обновлять лид/фронт —
 > перечитывать перед правкой!): `_workspace/backend-status.md`,
 > `_workspace/integration-status.md`, `_workspace/blockers.md`,
@@ -64,12 +64,14 @@
 | 6 Security/RBAC (admin/operator/viewer, api_keys DB + CLI, secrets AES-256-GCM, unread per user) | DONE |
 | PG-опция (B3, ADR-004): драйвер `pgx-rewrite` (`?`→`$N`) + `daemon migrate pg` | DONE (runtime+инструмент; e2e — ждёт PG-окружения) |
 | 7 Live-метрики сессий + WS `session.output` (live-терминал) | DONE (контракт 20 §3.6/§4.3, closed лидом) |
+| 8 DELETE workflows (контракт 20 §2.6–2.8, R6.4) | DONE (каскад связи→блоки→workflow в tx; RBAC `workflows.update`; 404; live + интеграционный `slice 5c`) |
 | Фронтенд F1–F15 + UI-редизайн R1–R5 (граф React Flow, edit, YAML, токены, R4 live-терминал, R5 рефакторинг) | DONE (зона лида) |
 
 ### Осталось (не блокирует)
 1. **PG e2e** — ждёт PG-окружения (docker/сервер). Gate (ADR-004 п.3):
    `go test ./...` с PG-DSN + live-свип интеграционных против PG-демона +
    roundtrip `daemon migrate pg`. Код и unit-тесты готовы.
+   (NOTE 2026-10-08: срез 8 DELETE workflows уже сделан — frontend больше не ждёт backend-среза R6.4.)
 2. **OpenAPI-спека** (весь API) — договор: в конце проекта.
 3. **Prometheus `/metrics`** — по требованию.
 4. Опциональное (вне контракта, по запросу): WS `ack subscribe`, security events

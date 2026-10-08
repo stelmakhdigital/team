@@ -145,3 +145,60 @@ func (h *handlers) UpdateWorkflowBlock(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": blockID, "status": "updated", "changes": changes})
 }
+
+// DeleteWorkflowBlock — DELETE /api/v1/workflows/{id}/blocks/{blockId} (контракт 20 §2.6).
+// Удаляет блок и все его связи (каскад).
+func (h *handlers) DeleteWorkflowBlock(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	blockID, err := parseIDParam(r.PathValue("blockId"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	removed, err := h.wsvc.DeleteWorkflowBlock(r.Context(), id, blockID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id": blockID, "status": "deleted", "removed_connections": removed,
+	})
+}
+
+// DeleteWorkflowConnection — DELETE /api/v1/workflows/{id}/connections/{connectionId} (контракт 20 §2.7).
+func (h *handlers) DeleteWorkflowConnection(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	connectionID, err := parseIDParam(r.PathValue("connectionId"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	if err := h.wsvc.DeleteWorkflowConnection(r.Context(), id, connectionID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": connectionID, "status": "deleted"})
+}
+
+// DeleteWorkflow — DELETE /api/v1/workflows/{id} (контракт 20 §2.8).
+// Удаляет workflow + все его блоки и связи.
+func (h *handlers) DeleteWorkflow(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	if err := h.wsvc.DeleteWorkflow(r.Context(), id); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "status": "deleted"})
+}
