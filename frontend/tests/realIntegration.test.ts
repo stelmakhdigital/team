@@ -768,15 +768,16 @@ describe.runIf(backendAvailable && !!VIEWER_KEY && !!OPERATOR_KEY)('integration:
   const env = import.meta.env as Record<string, string | undefined>;
 
   // Команда с хотя бы одной ролью (тесты не должны зависеть от порядка/состава teams[0]:
-  // в БД могут быть команды без ролей — пробные/примитивные).
+  // в БД могут быть команды без ролей — пробные/примитивные; archived — тоже).
   async function firstTeamWithRoles() {
     const admin = createRealAdapter();
     const teams = await admin.teams.getTeams();
     for (const t of teams.teams) {
+      if (t.state !== 'active') continue;
       const topo = await admin.teams.getTopology(t.id);
       if (topo.roles.length > 0) return { team: t, topo, admin };
     }
-    throw new Error('no team with roles found');
+    throw new Error('no active team with roles found');
   }
 
   function useKey(key: string) {

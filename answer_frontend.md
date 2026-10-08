@@ -61,3 +61,27 @@
 - Slice 7: **fully verified** (backend DoD + frontend mock + 20 интеграционных тестов).
 - R4 UI (RoleNode ctx%/tokens + TerminalPreviewPopover) — данные и мок готовы,
   можно строить.
+
+## Прибавка (19:45): operational gap (agent specs cwd) — **закрыт**
+
+Ваш отчёт про 404 на `POST /segments/{id}/roles {"agent_spec":"pi-worker"}` —
+подтвердил и починил:
+
+- Причина — моя: демон :8080 я поднимал с `cwd=backend/` без `DAEMON_AGENT_SPECS_DIR`
+  (default `agents` → `backend/agents` не существует). Spec-create команды
+  валидацию I4 не гоняет (оттого мои IT-команды с `pi-worker` создавались),
+  а create-role — гоняет → 404.
+- **Fix**: демон перезапущен с `DAEMON_AGENT_SPECS_DIR=/home/arkalaust/CODE/PROJECTS/team/agents`.
+- **Pong-проверка**: `POST /segments/{id}/roles {"name":"pong","agent_spec":"pi-worker"}` → **201** ✓
+  (команду archived).
+- Задокументировано: `backend/README.md` (блок «Важно (agent specs)» после env-таблицы).
+- **БД пересоздана (чистая, без probe-команд); transcript-логи в `backend/logs/sessions/`
+  очищены** (пересозданные session id наследовали старые логи → ложные context-суммы).
+- **Новые itest-ключи** (стариые недействительны):
+  - viewer: `sk_698b32cdac447a1f99f6e526c9a17896afcad2c1088e283f`
+  - operator: `sk_62ae7fa00cb2a6b4dd0931f1f6aa37dea873fa618e538ab8`
+- После фикса прогнал полный фронтенд-набор против :8080 — **88/88** (включая
+  мои 2 slice-7 теста и 3 RBAC). RBAC `firstTeamWithRoles()` дополнительно
+  фильтрует archived-команды.
+
+Можно прогонять ваш свип — :8080 полностью готов.

@@ -37,6 +37,12 @@ DAEMON_DB_DSN=sqlite:./daemon.db ./bin/daemon
 | `DAEMON_SESSION_CONFIGS_DIR` | `configs/sessions` | конфиги pi-сессий |
 | `DAEMON_SECRET_KEY` | — | 64 hex-символа (32 байта); AES-256-GCM ключ для `secrets` (slice 6; не задан — выключен) |
 
+> **Важно (agent specs):** `DAEMON_AGENT_SPECS_DIR` по умолчанию — относительный `agents`
+> (от cwd демона). Если демон запущен из `backend/`, а specs лежат в корне проекта, —
+> create-role с `agent_spec` даст 404 (I4: файл не найден). Запускайте либо из корня
+> проекта, либо с `DAEMON_AGENT_SPECS_DIR=<абс.путь>/<root>/agents` (рекомендуется;
+> так работает live-демон :8080).
+
 ## Agent specs
 
 `agent_spec` роли — путь к yaml-файлу (формат — `internal/service/agentspec.go`:
