@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
@@ -10,6 +10,7 @@ import type { RelativeType, ValidateTopologyResponse } from '../types/api';
 import TopologyCanvas, { type TopologySelection } from '../components/Topology/TopologyCanvas';
 import { autoLayoutMoves } from '../components/Topology/layout/autoLayout';
 import Toolbar from '../components/TeamBuilder/Toolbar';
+import SpecYamlPanel from '../components/TeamBuilder/SpecYamlPanel';
 import ConfigPanel, { type ConfigSelection } from '../components/TeamBuilder/ConfigPanel';
 import BottomPanel from '../components/TeamBuilder/BottomPanel';
 
@@ -23,6 +24,8 @@ export default function TeamBuilderPage() {
   const [validation, setValidation] = useState<ValidateTopologyResponse | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [connectType, setConnectType] = useState<RelativeType>('delegates_to');
+  const [specOpen, setSpecOpen] = useState(false);
+  const navigate = useNavigate();
 
   const commitRefetch = useCallback(() => refetch(), [refetch]);
 
@@ -182,6 +185,9 @@ export default function TeamBuilderPage() {
           <button className="btn" onClick={applyAutoLayout} title="Recompute auto layout and save positions">
             ✨ Auto layout
           </button>
+          <button className={specOpen ? 'btn btn-primary' : 'btn'} onClick={() => setSpecOpen((v) => !v)} aria-pressed={specOpen} title="YAML spec: export / create / merge">
+            ⧉ YAML
+          </button>
           <button className={editMode ? 'btn btn-primary' : 'btn'} onClick={() => setEditMode((v) => !v)} aria-pressed={editMode}>
             {editMode ? '✓ Done' : '✎ Edit'}
           </button>
@@ -219,13 +225,22 @@ export default function TeamBuilderPage() {
           </div>
         </div>
 
-        <ConfigPanel
-          selection={configSelection}
-          role={selectionIsRole}
-          segment={selectionIsSegment}
-          onClose={() => setSelection(null)}
-          onChanged={commitRefetch}
-        />
+        {specOpen ? (
+          <SpecYamlPanel
+            data={data}
+            onCreated={(teamId) => navigate(`/teams/${teamId}`)}
+            onMerged={commitRefetch}
+            onClose={() => setSpecOpen(false)}
+          />
+        ) : (
+          <ConfigPanel
+            selection={configSelection}
+            role={selectionIsRole}
+            segment={selectionIsSegment}
+            onClose={() => setSelection(null)}
+            onChanged={commitRefetch}
+          />
+        )}
       </div>
 
       <BottomPanel

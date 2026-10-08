@@ -542,3 +542,29 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .subtask-list li:last-child { border-bottom: none; }
 
 .badge-canceled { color: var(--muted); border-color: var(--muted); text-decoration: line-through; }
+
+/* ---------- YAML spec panel (TeamBuilder) ---------- */
+.spec-panel .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.spec-panel .panel-head h3 { margin: 0; font-size: 13px; }
+.spec-yaml {
+  width: 100%;
+  min-height: 320px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text, #e2e8f0);
+  background: rgba(2, 6, 23, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  box-sizing: border-box;
+  white-space: pre;
+  overflow: auto;
+}
+.spec-yaml:focus { outline: 1px solid var(--accent, #38bdf8); }
+.spec-status { margin: 8px 0; min-height: 18px; }
+.spec-ok { color: #34d399; font-size: 11px; font-family: ui-monospace, monospace; }
+.spec-err { color: #f87171; font-size: 11px; font-family: ui-monospace, monospace; }
+.spec-actions { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.spec-actions .btn { flex: 1; white-space: nowrap; }

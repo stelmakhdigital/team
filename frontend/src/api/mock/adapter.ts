@@ -106,6 +106,74 @@ export function createMockAdapter(): Api {
           created_at: now(),
           updated_at: now(),
         });
+        // spec (контракт 20/21): создать segments/roles/relatives при создании команды
+        if (req.spec) {
+          for (const s of req.spec.segments ?? []) {
+            const sid = nextId();
+            db.segments.push({
+              id: sid,
+              team_id: id,
+              name: s.name,
+              description: s.description,
+              config: s.config ?? {},
+              roles_count: 0,
+              created_at: now(),
+              updated_at: now(),
+            });
+            db.layouts = db.layouts ?? { segments: [], roles: [], relatives: [] };
+            db.layouts.segments.push({
+              segment_id: sid,
+              position: { x: 60 + (db.layouts.segments.length % 3) * 480, y: 60 + Math.floor(db.layouts.segments.length / 3) * 440, width: 420, height: 260 },
+              collapsed: false,
+            });
+          }
+          for (const r of req.spec.roles ?? []) {
+            const seg = r.segment ? db.segments.find((s) => s.team_id === id && s.name === r.segment) : undefined;
+            if (!seg) continue;
+            const rid = nextId();
+            db.roles.push({
+              id: rid,
+              team_id: id,
+              segment_id: seg.id,
+              segment_name: seg.name,
+              name: r.name,
+              address: `team${id}:${seg.name}.${r.name}`,
+              agent_spec: r.agent_spec,
+              profile: r.profile,
+              state: 'inactive',
+              created_at: now(),
+              updated_at: now(),
+            });
+            db.layouts = db.layouts ?? { segments: [], roles: [], relatives: [] };
+            db.layouts.roles.push({ role_id: rid, segment_id: seg.id, position: { x: 80, y: 120 } });
+          }
+          const findRoleId = (addr: string): number | undefined => {
+            const dot = addr.indexOf('.');
+            if (dot <= 0) return undefined;
+            const segName = addr.slice(0, dot);
+            const roleName = addr.slice(dot + 1);
+            const seg = db.segments.find((s) => s.team_id === id && s.name === segName);
+            if (!seg) return undefined;
+            return db.roles.find((r) => r.segment_id === seg.id && r.name === roleName)?.id;
+          };
+          for (const rel of req.spec.relatives ?? []) {
+            const fromId = rel.from ? findRoleId(rel.from) : undefined;
+            const toId = rel.to ? findRoleId(rel.to) : undefined;
+            const f = rel.from ? rel.from.split('.').slice(1).join('.') : '';
+            const t = rel.to ? rel.to.split('.').slice(1).join('.') : '';
+            if (fromId === undefined || toId === undefined || fromId === toId) continue;
+            db.relatives.push({
+              id: nextId(),
+              team_id: id,
+              from_role_id: fromId,
+              from_role_name: f,
+              to_role_id: toId,
+              to_role_name: t,
+              type: rel.type,
+              created_at: now(),
+            });
+          }
+        }
         recalcTeamCounts();
         return { id, name: req.name, status: 'created' };
       },

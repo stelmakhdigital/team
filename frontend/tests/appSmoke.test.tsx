@@ -53,6 +53,23 @@ describe('App smoke', () => {
     expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument();
   });
 
+  it('Team Builder YAML panel: export + valid spec + create/merge buttons', async () => {
+    render(
+      <MemoryRouter initialEntries={['/teams/1']}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByText('Lead', {}, { timeout: 10_000 });
+    await (await screen.findByRole('button', { name: /yaml/i })).click();
+    const ta = await screen.findByRole('textbox', { name: 'Team YAML spec' });
+    const val = (ta as HTMLTextAreaElement).value;
+    expect(val).toContain('name: Dev Team');
+    expect(val).toContain('segments:');
+    expect(screen.getByText(/✓ valid YAML/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create team from yaml/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /merge into team/i })).toBeInTheDocument();
+  }, 15_000);
+
   it('renders Teams list with mock data', async () => {
     render(
       <MemoryRouter initialEntries={['/teams']}>
