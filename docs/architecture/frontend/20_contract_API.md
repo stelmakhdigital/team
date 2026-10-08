@@ -693,7 +693,7 @@ interface Message {
   team_id: number;
   queue_task_id?: number;
   from_role_id?: number;
-  from_role_name?: string;
+  from_role_name?: string;  // оператор (без from_role_id в request) → "You", is_mine: true
   to_role_id?: number;
   to_role_name?: string;
   type: string;
@@ -878,7 +878,7 @@ interface LibraryVersion {
 // POST /api/v1/library/:id/apply
 interface ApplyLibraryItemRequest {
   target_team_id?: number;  // если применяем к существующей команде
-  overrides?: Record<string, any>;  // переопределения
+  overrides?: Record<string, any>;  // переопределения (см. поведение ниже)
 }
 
 interface ApplyLibraryItemResponse {
@@ -895,6 +895,21 @@ interface ApplyLibraryItemResponse {
   };
 }
 ```
+
+Поведение по типам (backend slice 5b/6, 2026-10-08):
+- **team**: без `target_team_id` → новая команда (`applied`, `created_resources.teams`;
+  `overrides.name` — имя новой команды); с `target_team_id` → merge отсутствующих
+  сегментов/ролей/relatives (`merged`, дубли не создаются).
+- **workflow**: `target_team_id` обязателен → workflow создаётся в команде (`applied`);
+  дубль имени в команде → 409 conflict.
+- **segment**: `target_team_id` обязателен → merge сегмента по имени (`merged`);
+  идемпотентно (повторный apply — `created_resources` пуст).
+- **role**: `target_team_id` обязателен → роль создаётся в команде (`applied`).
+  Выбор сегмента (приоритет): `overrides.segment_id` (число; должен принадлежать команде,
+  иначе 404/400) → `overrides.segment` (имя; если нет — создаётся) → сегмент из снапшота
+  (нет — создаётся) → единственный сегмент (нет сегментов — создаётся `general`).
+  `agent_spec`-файл должен существовать (иначе 404); дубль имени роли в сегменте → 409.
+- `downloads_count` инкрементится при каждом apply.
 
 
 ______________________________________________________________________

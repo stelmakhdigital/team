@@ -14,7 +14,8 @@ if (typeof import.meta.env !== 'undefined') {
   import.meta.env.VITE_API_BASE_URL = BASE;
   if (API_KEY) import.meta.env.VITE_API_KEY = API_KEY;
 }
-const WS_URL = `${BASE.replace(/^http/, 'ws')}/ws`;
+// WS-аутентификация — только query ?api_key= (браузерный WS не шлёт заголовки)
+const WS_URL = `${BASE.replace(/^http/, 'ws')}/ws${API_KEY ? `?api_key=${encodeURIComponent(API_KEY)}` : ''}`;
 
 const backendAvailable = await (async () => {
   try {
@@ -618,4 +619,85 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
       ws.onerror = () => fail(new Error('WS error'));
     });
   }, 30_000);
+});
+
+// ---- slice 6: RBAC (автоскип без daemon ИЛИ без тестовых ключей) ----
+// Ключи: INTEGRATION_VIEWER_KEY / INTEGRATION_OPERATOR_KEY (DB-ключи, role viewer/operator);
+// INTEGRATION_API_KEY — admin (env-ключ демона).
+const VIEWER_KEY = process.env.INTEGRATION_VIEWER_KEY;
+const OPERATOR_KEY = process.env.INTEGRATION_OPERATOR_KEY;
+
+describe.runIf(backendAvailable && !!VIEWER_KEY && !!OPERATOR_KEY)('integration: slice 6 RBAC', () => {
+  const env = import.meta.env as Record<string, string | undefined>;
+
+  function useKey(key: string) {
+    const prev = env.VITE_API_KEY;
+    env.VITE_API_KEY = key;
+    const api = createRealAdapter();
+    return {
+      api,
+      done: () => {
+        if (prev === undefined) delete env.VITE_API_KEY;
+        else env.VITE_API_KEY = prev;
+      },
+    };
+  }
+
+  it('viewer: GET 200, POST → 403 forbidden', async () => {
+    const { api, done } = useKey(VIEWER_KEY!);
+    try {
+      const teams = await api.teams.getTeams();
+      expect(Array.isArray(teams.teams)).toBe(true);
+      await expect(api.teams.createTeam({ name: `IT-rbac-viewer-${Date.now()}` })).rejects.toMatchObject({
+        status: 403,
+        code: 'forbidden',
+      });
+      const audit = await api.history.getAuditLog({ limit: 1 });
+      expect(Array.isArray(audit.entries)).toBe(true);
+    } finally {
+      done();
+    }
+  }, 20_000);
+
+  it('operator: POST 201, PATCH role config → 403 forbidden (нет config.update)', async () => {
+    const admin = createRealAdapter();
+    const teams = await admin.teams.getTeams();
+    const team = teams.teams[0];
+    const topo = await admin.teams.getTopology(team.id);
+    const role = topo.roles[0];
+    const { api, done } = useKey(OPERATOR_KEY!);
+    try {
+      const created = await api.teams.createTeam({ name: `IT-rbac-op-${Date.now()}` });
+      expect(created.status).toBe('created');
+      await expect(api.teams.updateRoleConfig(role.id, {})).rejects.toMatchObject({
+        status: 403,
+        code: 'forbidden',
+      });
+    } finally {
+      done();
+    }
+  }, 20_000);
+
+  it('audit: запись DB-ключа содержит user_id/api_key_id', async () => {
+    const admin = createRealAdapter();
+    const teams = await admin.teams.getTeams();
+    const team = teams.teams[0];
+    const topo = await admin.teams.getTopology(team.id);
+    const { api, done } = useKey(OPERATOR_KEY!);
+    try {
+      await api.tasks.create({
+        team_id: team.id,
+        destination_role_id: topo.roles[0].id,
+        title: `IT-rbac-audit-${Date.now()}`,
+      });
+      const log = await admin.history.getAuditLog({ action: 'task.create', limit: 1 });
+      const e = log.entries[0];
+      expect(e).toBeDefined();
+      expect(e.user_name).toBeTruthy();
+      expect(typeof e.user_id).toBe('number');
+      expect(typeof e.api_key_id).toBe('number');
+    } finally {
+      done();
+    }
+  }, 20_000);
 });

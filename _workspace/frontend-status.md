@@ -1,9 +1,10 @@
 # Frontend status
 
 ## Current phase
-implementation (F1–F12 done; весь UI интегрирован с реальным backend; интеграционные тесты
-slice 4–5 автоматизированы: 15 интеграционных, 45/45 total; integration.md написан;
-next: RBAC-ветки после коммита slice 6)
+implementation (F1–F14 done; весь UI интегрирован с реальным backend; 55/55 тестов включая
+RBAC (slice 6, live на :8080) и auth (X-API-Key + WS ?api_key=); LibraryPage: save + apply
+для всех типов; контракт 20: §5.4 все типы apply, §4.2 "You", §3.5 range; B3 закрыт (в);
+next: финальный свип после коммита slice 6)
 
 ## Implemented
 - docs/architecture/frontend.md — архитектура и frontend-план (F1–F9)
@@ -49,6 +50,27 @@ next: RBAC-ветки после коммита slice 6)
   `Api.dashboard.getMetrics({range})`. Тесты идемпотентны (stamp-имена IT-*),
   автоскип без daemon; настраиваются `INTEGRATION_BASE_URL` / `INTEGRATION_API_KEY`
   (порт :8080 можно делить с backend-агентом — я гонял на :8081). Итог: 45/45.
+- F13 хвосты + auth-ready (2026-10-08):
+  1) **WS auth баг-фикс**: `getApiConfig()` добавляет `?api_key=` (или `&api_key=`) в wsUrl
+     при `VITE_API_KEY` — без этого `useWebSocket` при auth-демане (slice 6) получил бы 401.
+     Интеграционные тесты тоже шлют `?api_key=` (INTEGRATION_API_KEY).
+  2) **LibraryPage**: save — выбор команды (было хардкод source_id:1); Apply в detail-pane:
+     team → «Apply as new team» / «Merge into <select>»; workflow → «Apply to team <select>»;
+     role/segment → hint «not supported (400)».
+  3) Unit: apiConfig.test.ts (4), mock applyLibrary (6 сценариев), appSmoke Library (team+workflow).
+  4) Лид-решение blockers B3 (PG `?` vs pgx v5): **(в) PG out-of-scope до окружения**,
+     потом миграция на `$N` + e2e на PG-DSN.
+  Итог: **52/52** (37 unit + 15 integration), включая прогон против демона с DAEMON_API_KEYS.
+  WorkflowEditor drag → PATCH block подтверждён уже real (Api.workflows.updateBlock) — хвост F12 закрыт.
+- F14 slice 6 (RBAC) + role/segment-apply (2026-10-08, backend довёл WIP slice 6):
+  1) **3 RBAC-интеграционных теста** (автоскип без `INTEGRATION_VIEWER_KEY`/
+     `INTEGRATION_OPERATOR_KEY`): viewer GET 200/POST 403 `forbidden`; operator POST 201 /
+     PATCH role config 403; audit запись DB-ключа с user_id/api_key_id.
+     Live-прогон против демона backend'а на :8080 (env-live-key + itest-viewer/itest-operator).
+  2) **role/segment-apply**: mock `applyLibrary` (merge/applied, идемпотентность, дубль 409),
+     LibraryPage — Apply для всех типов (role/segment: target-team select);
+     контракт 20 §5.4 обновлён (все типы), §4.2 `from_role_name: "You"` (наблюдение закрыто).
+  Итог: **55/55** (37 unit + 18 интеграционных) против slice-6 демона; typecheck/build OK.
 - F9 (infra): UI готов к запуску в обоих режимах — `npm run dev` (mock, default, .env создан);
   real mode: same-origin + Vite-прокси `/api`,`/ws`,`/healthz` → backend (BACKEND_URL,
   default :8080) — CORS в dev не нужен; default base URL/ws URL = same-origin.
@@ -101,25 +123,26 @@ npm run build      # production build
 
 ## Validation
 - typecheck: OK
-- unit/component tests: OK (vitest, 45 тестов: topology + contentBounds, errors, mock-контракт (вкл. tasks lifecycle), UI states, app smoke (Dashboard/Teams/Tasks), real-integration×15)
-- production build: OK (81.9 KB gzip)
-- интеграция с живым backend: OK (Team Builder vertical, slice 2: dashboard summary/tasks + task history, slice 3: sessions lifecycle + history/transcript + alerts, tasks lifecycle, slice 4: messages/chatrooms, slice 5: workflows/library/audit/metrics/WS)
+- unit/component tests: OK (vitest, 55 тестов: topology + contentBounds, errors, api config (wsUrl+api_key), mock-контракт (вкл. tasks lifecycle + library apply все типы), UI states, app smoke (Dashboard/Teams/Tasks/Library), real-integration×18 (вкл. 3 RBAC))
+- production build: OK (82.9 KB gzip)
+- интеграция с живым backend: OK — прогон против slice-6 демона :8080 (auth:
+  env-live-key + DB-ключи itest-viewer/itest-operator): Team Builder, slice 2/3, tasks,
+  messages/chatrooms, workflows, library (все типы apply), audit (user_id/api_key_id),
+  metrics, WS (?api_key=), RBAC 403
 
 ## Docs (лид)
 - `docs/architecture/integration.md` — написан 2026-10-08 (модель, auth, ошибки, WS,
   интеграционные тесты, как поднять backend, протокол синхронизации).
 
 ## Backend impact
-- Slice 4–5: форматы сходятся; наблюдения (non-blocking) в `answer_backend.md`:
-  from_role_name omitempty в GET /messages; имя item `"team-<name>"` в save_to_library;
-  chatroom last_message (optional) не возвращается.
-- Slice 6 (RBAC): когда закоммитится — прогнать 15 интеграционных тестов с DB-ключом,
-  добавить ветки 403 `forbidden` (viewer/operator).
+- Slice 4–5: форматы сходятся; наблюдения: from_role_name — **закрыто** (slice 6, "You");
+  имя item `"team-<name>"` в save_to_library (уточнение, не блокирует);
+  chatroom last_message (optional) — open, non-blocking.
+- Slice 6 (RBAC): **live-проверено** (3 RBAC-теста, 55/55); ждём коммит WIP slice 6
+  для финального свипа.
 
 ## Blockers
 - см. _workspace/blockers.md
 
 ## Next step
-- RBAC: ветка `forbidden` в error-обработчике + интеграционные тесты 403 (после коммита slice 6).
-- (не-blocking) real-интеграция WorkflowEditor drag (PATCH block — endpoint уже покрыт тестом)
-  и apply-library из LibraryPage (applyLibrary уже в фасадe).
+- После коммита slice 6 — финальный свип (55 тестов) + пометки «done» в статусах.

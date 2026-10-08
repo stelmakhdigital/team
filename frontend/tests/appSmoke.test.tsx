@@ -43,4 +43,35 @@ describe('App smoke', () => {
     newTask.click();
     expect(await screen.findByText('Destination role *', {}, { timeout: 10_000 })).toBeInTheDocument();
   }, 20_000);
+
+  it('renders Library with save-to-library + apply controls (team item)', async () => {
+    render(
+      <MemoryRouter initialEntries={['/library']}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Library' }, { timeout: 10_000 })).toBeInTheDocument();
+    // save-row: team-выбор + кнопка
+    expect(await screen.findByRole('button', { name: /save team to library/i }, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Team to save', {}, { timeout: 10_000 })).toBeInTheDocument();
+    // открыть item (team) → Apply-секция
+    const card = await screen.findByText('Standard Dev Team', {}, { timeout: 10_000 });
+    card.closest('button')!.click();
+    expect(await screen.findByRole('button', { name: /apply as new team/i }, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Merge into team', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Merge' })).toBeInTheDocument();
+    expect(screen.getByText('Versions')).toBeInTheDocument();
+  }, 20_000);
+
+  it('renders Library workflow item → apply to team select', async () => {
+    render(
+      <MemoryRouter initialEntries={['/library']}>
+        <App />
+      </MemoryRouter>,
+    );
+    const card = await screen.findByText('Build & Review', {}, { timeout: 10_000 });
+    card.closest('button')!.click();
+    expect(await screen.findByLabelText('Apply workflow to team', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
+  }, 20_000);
 });

@@ -146,4 +146,64 @@ describe('MockAdapter contract compatibility', () => {
     expect(closed.task.closure_reason).toBe('handed_off_to');
     expect(closed.task.closure_target_id).toBe(res.new_task_id);
   }, 30_000);
+
+  it('library apply: 404 / team new / team merge / workflow target / segment merge / role apply', async () => {
+    const api = createMockAdapter();
+
+    // 404: неизвестный item
+    await expect(api.library.applyLibrary(999, {})).rejects.toMatchObject({ status: 404, code: 'not_found' });
+
+    // team без target → новая команда (overrides.name), downloads_count++
+    const before = (await api.teams.getTeams()).teams.length;
+    const teamItem = await api.library.saveToLibrary({ type: 'team', source_id: 1, name: 'L-team' });
+    const applied = await api.library.applyLibrary(teamItem.id, { overrides: { name: 'Applied team' } });
+    expect(applied.status).toBe('applied');
+    expect(applied.created_resources?.teams).toHaveLength(1);
+    const newId = applied.created_resources!.teams![0];
+    const teams = await api.teams.getTeams();
+    expect(teams.teams).toHaveLength(before + 1);
+    expect(teams.teams.find((t) => t.id === newId)?.name).toBe('Applied team');
+    expect((await api.library.getLibraryItem(teamItem.id)).item.downloads_count).toBe(1);
+
+    // team c target → merged
+    const merged = await api.library.applyLibrary(teamItem.id, { target_team_id: 1 });
+    expect(merged.status).toBe('merged');
+    expect(merged.updated_resources?.teams).toEqual([1]);
+
+    // workflow: без target → 400; с target → applied
+    const wf = await api.workflows.createWorkflow({ team_id: 1, name: 'wf-lib', blocks: [] });
+    const wfItem = await api.library.saveToLibrary({ type: 'workflow', source_id: wf.id, name: 'L-wf' });
+    await expect(api.library.applyLibrary(wfItem.id, {})).rejects.toMatchObject({ status: 400 });
+    const wfApplied = await api.library.applyLibrary(wfItem.id, { target_team_id: 1 });
+    expect(wfApplied.status).toBe('applied');
+
+    // segment: без target → 400; с target → merged (создаёт сегмент), повтор идемпотентен
+    const segItem = await api.library.saveToLibrary({ type: 'segment', source_id: 1, name: 'Ops' });
+    await expect(api.library.applyLibrary(segItem.id, {})).rejects.toMatchObject({ status: 400 });
+    const segApplied = await api.library.applyLibrary(segItem.id, { target_team_id: 1 });
+    expect(segApplied.status).toBe('merged');
+    expect(segApplied.created_resources?.segments).toHaveLength(1);
+    const segAgain = await api.library.applyLibrary(segItem.id, { target_team_id: 1 });
+    expect(segAgain.created_resources?.segments).toEqual([]);
+    const topo1 = await api.teams.getTopology(1);
+    expect(topo1.segments.some((s) => s.name === 'Ops')).toBe(true);
+
+    // role: без target → 400; с target → applied (+создание сегмента по overrides.segment);
+    // дубль имени в сегменте → 409
+    const roleItem = await api.library.saveToLibrary({ type: 'role', source_id: 1, name: 'Ops' });
+    await expect(api.library.applyLibrary(roleItem.id, {})).rejects.toMatchObject({ status: 400 });
+    const roleApplied = await api.library.applyLibrary(roleItem.id, {
+      target_team_id: 1,
+      overrides: { segment: 'NewSeg' },
+    });
+    expect(roleApplied.status).toBe('applied');
+    expect(roleApplied.created_resources?.roles).toHaveLength(1);
+    expect(roleApplied.created_resources?.segments).toHaveLength(1);
+    const topo2 = await api.teams.getTopology(1);
+    expect(topo2.roles.some((r) => r.name === 'Ops' && r.segment_name === 'NewSeg')).toBe(true);
+    const dupRole = await api.library.saveToLibrary({ type: 'role', source_id: 1, name: 'Ops' });
+    await expect(
+      api.library.applyLibrary(dupRole.id, { target_team_id: 1, overrides: { segment: 'NewSeg' } }),
+    ).rejects.toMatchObject({ status: 409, code: 'conflict' });
+  }, 30_000);
 });

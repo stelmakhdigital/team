@@ -6,6 +6,7 @@ import type {
   CreateTeamRequest,
   Message,
   Profile,
+  Segment,
   Session,
   SessionDetail,
   Task,
@@ -843,9 +844,6 @@ export function createMockAdapter(): Api {
         const db = getDb();
         const item = db.library.find((i) => i.id === id);
         if (!item) throw new ApiClientError(404, 'not_found', `Library item ${id} not found`);
-        if (item.type === 'role' || item.type === 'segment') {
-          throw new ApiClientError(400, 'validation_failed', `apply is not supported for type "${item.type}" yet`);
-        }
         item.downloads_count += 1;
         if (item.type === 'workflow') {
           if (!req?.target_team_id) {
@@ -855,6 +853,86 @@ export function createMockAdapter(): Api {
             throw new ApiClientError(404, 'not_found', `Team ${req.target_team_id} not found`);
           }
           return { status: 'applied', updated_resources: { teams: [req.target_team_id] } };
+        }
+        if (item.type === 'segment') {
+          // merge в команду (target обязателен); идемпотентно по имени
+          if (!req?.target_team_id) {
+            throw new ApiClientError(400, 'validation_failed', 'target_team_id is required for segment apply');
+          }
+          const team = db.teams.find((t) => t.id === req.target_team_id);
+          if (!team) throw new ApiClientError(404, 'not_found', `Team ${req.target_team_id} not found`);
+          const existing = db.segments.find((s) => s.team_id === team.id && s.name === item.name);
+          if (existing) return { status: 'merged', created_resources: { segments: [], roles: [] } };
+          const segId = nextId();
+          db.segments.push({
+            id: segId,
+            team_id: team.id,
+            name: item.name,
+            config: {},
+            roles_count: 0,
+            created_at: now(),
+            updated_at: now(),
+          });
+          recalcTeamCounts();
+          return { status: 'merged', created_resources: { segments: [segId], roles: [] } };
+        }
+        if (item.type === 'role') {
+          // apply в команду (target обязателен); сегмент: overrides.segment_id →
+          // overrides.segment (создаётся, если нет) → первый сегмент → создаётся 'general'
+          if (!req?.target_team_id) {
+            throw new ApiClientError(400, 'validation_failed', 'target_team_id is required for role apply');
+          }
+          const team = db.teams.find((t) => t.id === req.target_team_id);
+          if (!team) throw new ApiClientError(404, 'not_found', `Team ${req.target_team_id} not found`);
+          const teamSegments = db.segments.filter((s) => s.team_id === team.id);
+          let segment: Segment | undefined = teamSegments[0];
+          let createdSegmentId: number | undefined;
+          if (req?.overrides?.segment_id !== undefined) {
+            const sid = Number(req.overrides.segment_id);
+            segment = teamSegments.find((s) => s.id === sid);
+            if (!segment) throw new ApiClientError(404, 'not_found', `Segment ${sid} not found in team ${team.id}`);
+          } else if (typeof req?.overrides?.segment === 'string') {
+            segment = teamSegments.find((s) => s.name === req.overrides!.segment);
+            if (!segment) {
+              const segId = nextId();
+              segment = {
+                id: segId,
+                team_id: team.id,
+                name: req.overrides!.segment,
+                config: {},
+                roles_count: 0,
+                created_at: now(),
+                updated_at: now(),
+              };
+              db.segments.push(segment);
+              createdSegmentId = segId;
+            }
+          } else if (!segment) {
+            const segId = nextId();
+            segment = { id: segId, team_id: team.id, name: 'general', config: {}, roles_count: 0, created_at: now(), updated_at: now() };
+            db.segments.push(segment);
+            createdSegmentId = segId;
+          }
+          if (db.roles.some((r) => r.segment_id === segment!.id && r.name === item.name)) {
+            throw new ApiClientError(409, 'conflict', `Role "${item.name}" already exists in segment "${segment!.name}"`);
+          }
+          const roleId = nextId();
+          db.roles.push({
+            id: roleId,
+            team_id: team.id,
+            segment_id: segment!.id,
+            segment_name: segment!.name,
+            name: item.name,
+            address: `${segment!.name}.${item.name}`,
+            agent_spec: 'mock-spec',
+            state: 'active',
+            created_at: now(),
+            updated_at: now(),
+          });
+          recalcTeamCounts();
+          const created: { segments?: number[]; roles: number[] } = { roles: [roleId] };
+          if (createdSegmentId) created.segments = [createdSegmentId];
+          return { status: 'applied', created_resources: created, updated_resources: { teams: [team.id] } };
         }
         // type === 'team'
         if (req?.target_team_id) {

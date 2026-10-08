@@ -1,6 +1,6 @@
 # Frontend — роль и статус (точка восстановления сессии)
 
-> Файл для восстановления работы. **Последнее обновление: 2026-10-08, ~11:15 (после F12, коммит `83d8c92` pushed).**
+> Файл для восстановления работы. **Последнее обновление: 2026-10-08, ~12:30 (после F14).**
 > Рабочая зона: `frontend/**` (плюс статус-файлы `_workspace/frontend-status.md`, `_workspace/integration-status.md`, `_workspace/blockers.md`, доки `docs/architecture/frontend.md`, `docs/architecture/integration.md` (владею как лид), контракт `docs/architecture/frontend/20_contract_API.md` + `21_team_builder.md`).
 > Роль: **frontend-инженер + lead-интегратор** (могу менять любые файлы для интеграции,
 > но рабочую зону backend не трогаю — бекенду отдаю списки в `answer_backend.md`, читаю его отчёты в `answer_frontend.md`).
@@ -16,7 +16,7 @@
 - Коммит-айдент: `stelmakhdigital <budaev.digital@gmail.com>`; remote `git@github.com:stelmakhdigital/team.git`, ветка `master`.
 - **НЕ коммитить WIP backend**: untracked `backend/**`, `agents/`, `answer_*.md`, `backend.md`, `backend/logs/` и чужие изменения `_workspace/backend-status.md`, `docs/architecture/backend.md`, `docs/contracts/api-decisions.md` — это зона backend-агента, он сам закоммитит.
 
-## 2. Что сделано (F1–F12)
+## 2. Что сделано (F1–F14)
 - **F1** каркас: layout (AppShell sidebar), 8 маршрутов, env-конфиг.
 - **F2** типы 1-в-1 с контрактом, API client, mock adapter + seed.
 - **F3** Dashboard: SummaryCards, TaskList, SessionGrid, AlertsPanel, MetricsChart (SVG).
@@ -41,27 +41,45 @@
   Фасад: `Api.library.applyLibrary` (POST /library/{id}/apply, real+mock), `Api.dashboard.getMetrics({range})`.
   Контракт 20 §3.5: `?range=1h|24h|7d`. Тесты идемпотентны (stamp-имена `IT-*`), автоскип без daemon,
   настраиваются `INTEGRATION_BASE_URL` (default :8080) / `INTEGRATION_API_KEY`.
+- **F13** хвосты + auth-ready WS + LibraryPage apply (2026-10-08):
+  1) **WS auth (критичный баг)**: `useWebSocket` не шёл `?api_key=` → при включённом auth (slice 6)
+     браузерный WS был бы 401. Фикс в `getApiConfig()`: wsUrl += `?api_key=` (или `&api_key=`),
+     если задан `VITE_API_KEY`. Интеграционные тесты тоже шлют `?api_key=` (INTEGRATION_API_KEY).
+     Проверено: **52/52 против демона с DAEMON_API_KEYS** (REST X-API-Key + WS ?api_key=).
+  2) **LibraryPage**: save теперь с выбором команды (было хардкод `source_id: 1`);
+     detail-pane: Apply-секция (team: «Apply as new team» + «Merge into <select>»;
+     workflow: «Apply to team <select>»; role/segment: hint «not supported (400)»).
+  3) Unit: `tests/apiConfig.test.ts` (4: wsUrl+api_key, query-merge, mode), mock `applyLibrary` (6 сценариев),
+     appSmoke: Library (save-row + apply-контролы, team + workflow items).
+  4) Лид-решение **blockers B3** (PG `?` vs pgx v5 `$N`): **(в) — PG out-of-scope до окружения**;
+     при появлении окружения — миграция на `$N` + e2e на PG-DSN. ADR-002 остаётся целью.
+- **F14** slice 6 (RBAC) + role/segment-apply (2026-10-08, backend-агент довёл WIP slice 6):
+  1) **3 RBAC-интеграционных теста** (`INTEGRATION_VIEWER_KEY`/`INTEGRATION_OPERATOR_KEY`,
+     автоскип без ключей): viewer GET 200/POST 403 `forbidden`; operator POST 201 /
+     PATCH role config 403; audit запись DB-ключа с user_id/api_key_id.
+     Live-прогон против демона backend'а на :8080 (env-live-key + itest-* ключи, созданы через CLI).
+  2) **role/segment-apply**: mock `applyLibrary` (merge/applied, идемпотентность, дубль 409),
+     LibraryPage — Apply для всех типов (role/segment: target-team select);
+     контракт 20 §5.4 обновлён (поведение по всем типам), §4.2 `from_role_name: "You"`.
+  Итог: **55/55** (37 unit + 18 интеграционных) против slice-6 демона; typecheck/build OK. ADR-002 остаётся целью.
 
-## 3. Текущий статус (2026-10-08, ~11:10)
-- Git: HEAD = **`83d8c92`** (F12, pushed); до него: `57aed07` (docs), `ba52616` (F11).
-- Тесты: **45/45** (30 unit + 15 интеграционных против живого daemon; автоскип без daemon); typecheck OK; production build OK (81.9 KB gzip). Два последовательных прогона зелёные.
-- **Backend-агент активен (2026-10-08, ~10:56+)**: в WIP — **slice 6 (RBAC + api_keys + secrets)**;
-  его демон на :8080 (`./bin/daemon`, DB `/tmp/daemon-slice6.db`, `DAEMON_API_KEYS` — auth ВКЛ).
-  Чужой демон не убивать: свои прогоны — `INTEGRATION_BASE_URL=http://localhost:8081` (собственный демон)
-  или `INTEGRATION_API_KEY` против его демона. Slice 6 ещё не закоммичен.
-- `docs/architecture/integration.md` — **написан** (лид-обязанность, blockers B1 закрыта).
-- Контракт 20 актуален: §3.5 range; §5.4 apply; §3.6/§3.7 lifecycle.
-- Наблюдения для backend (non-blocking, в `answer_backend.md`): from_role_name omitempty в GET /messages;
-  имя item `"team-<name>"` в save_to_library; chatroom last_message (optional) не возвращается.
+## 3. Текущий статус (2026-10-08, ~12:30, после F14)
+- Git: HEAD = **F14-коммит** (см. `git log --oneline -3`); до него: F13, `83d8c92` (F12), `ba52616` (F11).
+- Тесты: **55/55** (37 unit + 18 интеграционных, включая 3 RBAC); прогонялось против
+  демона backend'а на :8080 (slice 6 WIP, auth: env-live-key + DB-ключи itest-viewer/itest-operator).
+  typecheck OK; build OK (82.9 KB gzip).
+- **Backend-агент активен**: WIP **slice 6 (RBAC + api_keys + secrets + role/segment-apply)**
+  ещё не закоммичен; его демон на :8080 (DB `/tmp/daemon-slice6.db`, auth ВКЛ). Не убивать.
+  Ключи для прогонов: `env-live-key` (admin, env) + DB-ключи (`./bin/daemon admin keys create`);
+  мои: itest-viewer/itest-operator (значения — в истории сессии / можно создать новые).
+- Контракт 20 актуален: §5.4 apply (все типы), §4.2 ("You"), §3.5 range, §3.6/§3.7 lifecycle.
+- `docs/architecture/integration.md` написан; B3 закрыт решением (в).
+- Open (non-blocking, backend): chatroom `last_message` (optional) не возвращается.
 
 ### Мои следующие шаги
-1. Slice 6 (когда закоммитится): прогнать 15 интеграционных тестов с DB-ключом (admin);
-   добавить ветку `forbidden` (403) в `src/api/errors.ts` friendly-map + интеграционные RBAC-тесты
-   (viewer → 403 на POST; operator → 403 на PATCH /roles/{id}/config, 200 на остальное).
-2. (не-blocking) real-интеграция WorkflowEditor drag → `PATCH /workflows/:id/blocks/:blockId`
-   (endpoint уже покрыт интеграционным тестом; UI ещё на моках для этого действия) и
-   apply-library из LibraryPage (`applyLibrary` уже в фасадe).
-3. При необходимости — ветка `forbidden` в UI error-обработчике (friendly-текст).
+1. После коммита slice 6 — финальный свип (55 тестов) + пометка «done» в статусах.
+2. (опционально) OpenAPI: договорено с backend — в конце проекта.
+3. (опционально) WS: ack subscribe (у backend) — сейчас задокументировано, что event до subscribe теряется.
 
 ## 4. Ключевые файлы
 | Файл | Назначение |
@@ -106,6 +124,9 @@ LD_LIBRARY_PATH=/tmp/pwlibs/extracted/usr/lib/x86_64-linux-gnu node /tmp/shots/<
 
 ## 7. Как восстановить сессию
 1. Прочитать этот файл + `_workspace/integration-status.md` (таблица + последние 2–3 записи change-log) + `_workspace/blockers.md` + `answer_backend.md` (мой последний ответ backend'у).
-2. `cd frontend && npm test` — ожидается **45/45** (интеграционные скипаются без daemon; поднять по п.5, `INTEGRATION_BASE_URL=http://localhost:8081`).
-3. `git log --oneline -3` — HEAD должен быть `83d8c92` (или новее, если продолжил).
-4. Дальше — «Следующие шаги» (п.3): RBAC-ветки после коммита slice 6, WorkflowEditor drag, apply-library из UI.
+2. `cd frontend && npm test` — ожидается **55/55** (интеграционные скипаются без daemon;
+   RBAC-тесты — без `INTEGRATION_VIEWER_KEY`/`INTEGRATION_OPERATOR_KEY`).
+   Запуск против демонов: `INTEGRATION_BASE_URL` (default :8080) + `INTEGRATION_API_KEY` (admin);
+   свои прогоны — :8081 (свой демон), :8080 — демон backend'а (slice 6, `env-live-key`).
+3. `git log --oneline -3` — HEAD = F14-коммит (или новее, если продолжил).
+4. Дальше — «Следующие шаги» (п.3): финальный свип после коммита slice 6.

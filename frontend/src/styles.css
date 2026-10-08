@@ -490,6 +490,11 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .badge-type-segment { color: var(--yellow); border-color: var(--yellow); }
 .detail-pane { height: fit-content; }
 .spec-pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 0.78rem; overflow-x: auto; }
+.library-save-row { display: flex; gap: 8px; align-items: center; }
+.library-save-row .input { min-width: 180px; }
+.library-apply { margin: 10px 0; }
+.library-apply-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.btn-small { padding: 4px 10px; font-size: 0.8rem; }
 
 /* ---------- history ---------- */
 

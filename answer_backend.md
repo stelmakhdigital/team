@@ -1,61 +1,48 @@
-# Ответ лид → backend (2026-10-08, ~11:05)
+# Ответ лид → backend (2026-10-08, ~12:30)
 
-## ✅ Slice 4–5: интеграционные тесты frontend готовы, всё зелёное
+## ✅ Slice 6 + role/segment-apply: live-проверено, всё зелёное
 
-`frontend/tests/realIntegration.test.ts`: **7 → 15 тестов** (45/45 с unit-тестами),
-прогонено против вашего WIP-бинаря (slice 4–5, до slice 6):
+Прогнал полный набор интеграционных тестов **против вашего демона 127.0.0.1:8080**
+(DB `/tmp/daemon-slice6.db`, WIP slice 6):
 
-- messages: direct (delivered_to=[role]) / broadcast (все роли), `system` → 400,
-  list + фильтры team_id (формы: is_mine, to_role_name);
-- chatrooms: авто-создание (team-level + `<segment>-general`), send + list (is_mine, "You");
-- workflows: create ± blocks/connections (индексы 0-based в POST /workflows → реальные
-  id), create block/connection (реальные id), PATCH block (changes.position/config old/new),
-  list + фильтр team_id;
-- library: save → 409 unique (type,name) → list (+groups) → get (spec segments/roles/relatives
-  + versions) → apply без target (new team, overrides.name, downloads_count++) →
-  apply c target (merged); `save_to_library` в `POST /teams/{id}/save` → `library_item_id`;
-  workflow-apply: без target → 400, повтор в ту же команду → 409;
-- audit: запись `library.save` после действия, фильтр `action`, формы
-  (timestamp/user_name/ip_address);
-- metrics: 12 точек × 5 серий для range 1h/24h/7d;
-- WS `/ws`: subscribe `dashboard` → `task.created` при создании задачи (формат
-  `{type, data{task_id, title, state}, timestamp}` — по контракту).
-
-Ничего ломать в frontend для slice 4–5 не пришлось, кроме двух добавлений в фасад
-(контракт уже предусматривал): `Api.library.applyLibrary` (POST /library/{id}/apply)
-и `Api.dashboard.getMetrics({range})`.
-
-## 🟡 Наблюдения (non-blocking, учесть в slice 6+/следующем прогоне)
-
-1. **`GET /messages`: `from_role_name` для оператора omitempty** (отсутствует в JSON),
-   тогда как chatroom-сообщения дают `"You"`. Контракт §4.2 ожидает `from_role_name?`
-   — формально ок (optional), но для консистентности: заполнять `"You"` и там, либо
-   зафиксировать в api-decisions. Приоритет низкий (уведёт RBAC-user model).
-2. **`save_to_library` в `POST /teams/{id}/save`**: имя item = `"team-<team name>"`
-   (не задокументировано в контракте 20 §5.2/5.3). Либо задокументировать как уточнение,
-   либо принимать `name` из request. Учту в контракте как уточнение, если вы подтвердите.
-3. **Chatroom `last_message`** (контракт §4.2, optional) — в live-ответах не возвращается
-   даже после отправки сообщения. Nice-to-have.
-4. **WS**: подтвердите, что событие, опубликованное до обработки `subscribe`, теряется
-   (нет ack) — я задокументировал это в `docs/architecture/integration.md` §4
-   (клиенты должны идемпотентно рефетчить при reconnect).
+- `INTEGRATION_API_KEY=env-live-key` (admin) + `INTEGRATION_VIEWER_KEY`/`INTEGRATION_OPERATOR_KEY`
+  (создал через CLI: `itest-viewer` (viewer), `itest-operator` (operator)).
+- **55/55** (37 unit + 18 интеграционных): все 15 базовых (Team Builder, tasks, sessions,
+  messages/chatrooms, workflows, library, audit, metrics, WS) + **3 новых RBAC-теста**:
+  - viewer: `GET /teams` 200 / `POST /teams` → **403 `forbidden`** / `GET /audit` 200;
+  - operator: `POST /teams` 201 / `PATCH /roles/{id}/config` → **403 `forbidden`**;
+  - audit: запись DB-ключа содержит `user_name` + `user_id` + `api_key_id`.
+- WS под auth (`?api_key=`) — работает (тест 15 зелёный с ключом).
 
 ## 📄 Контракт 20: обновлён (лид)
 
-- §3.5 `GET /dashboard/metrics?range=1h|24h|7d` (default 24h; всегда 12 точек) —
-  зафиксирован параметр (у вас уже работает).
-- Написан `docs/architecture/integration.md` (моя открытая обязанность, blockers B1).
+- §5.4 Apply: зафиксировано поведение по всем типам — team (new/merge, `overrides.name`),
+  workflow (target обязателен, дубль 409), **segment** (target обязателен, merge по имени,
+  идемпотентно), **role** (target обязателен, приоритет сегмента: `overrides.segment_id` →
+  `overrides.segment` (создаётся) → снапшот → единственный → `general`; 404 на bad
+  `segment_id`; дубль роли 409).
+- §4.2 Message: `from_role_name` оператора → `"You"`, `is_mine: true` (наблюдение 1 закрыто).
+- §3.5: `?range=1h|24h|7d` (ранее).
 
-## 🔧 Инфраструктура интеграционных тестов
+## 🟡 Открытые (non-blocking)
 
-- Тесты теперь принимают `INTEGRATION_BASE_URL` (default `http://localhost:8080`) и
-  `INTEGRATION_API_KEY` (если daemon с `DAEMON_API_KEYS`). Порт можно свободно делить:
-  я гонял свои тесты на :8081, не трогая ваш демон на :8080.
-- Slice 6: когда будете готовы, прогоню 15 интеграционных тестов с DB-ключом
-  (admin) и добавлю ветки RBAC (viewer → 403 `forbidden` на POST, operator → 403
-  на config.update) — скажите, когда (и какой ключ/порт).
+1. **`chatroom.last_message`** (контракт §4.3, optional) — по-прежнему не возвращается.
+   Низкий приоритет, в UI не критично (last-сообщение видно в chatroom-списке).
+2. **B3 (PG `?` vs pgx v5 `$N`) — решение лида зафиксировано в `_workspace/blockers.md`**:
+   **(в) PG out-of-scope до появления окружения** (весь проект/тесты/live — на sqlite).
+   Когда PG появится — задача: миграция репозиториев на `$N` (вариант (а)) +
+   e2e-прогон `go test` с PG-DSN. ADR-002 остаётся целью.
+
+## 🔧 Frontend (F13/F14, мои коммиты)
+
+- WS-auth баг-фикс: `getApiConfig()` добавляет `?api_key=` в wsUrl (без него useWebSocket
+  при auth-демане был 401). UI в real+auth режиме теперь подключается.
+- LibraryPage: save c выбором команды + Apply для **всех** типов (team: new/merge;
+  workflow: to team; segment: merge; role: to team) — mock синхронизирован.
+- Интеграционные тесты: +3 RBAC (автоскип без `INTEGRATION_VIEWER_KEY`/
+  `INTEGRATION_OPERATOR_KEY`); +auth-прогон. Итого 55/55.
 
 ## Отчёт
 
-- frontend: 45/45 (30 unit + 15 integration), typecheck OK, build OK (81.9 KB gzip).
-- Статусы обновлены: `_workspace/{frontend,integration}-status.md`, `frontend.md`.
+- frontend: typecheck OK; 55/55; build OK (82.9 KB gzip).
+- Жду коммита slice 6 для финального свипа (текущий прогон — по WIP).

@@ -18,7 +18,7 @@
 | Message Center | done (slice 4: messages, chatrooms, event bus; slice 6: unread_count per user) | **done (real, verified live 2026-10-08)** | ready (уточнения в api-decisions) | **done (real)** | mark-read: GET /chatrooms/{id}/messages (DB-ключ с user) |
 | WS (real-time) | done (slice 5a: /ws, subscribe channels, EventBus) | **done (real, verified live: 101 Switching Protocols, badge connected)** | ready | **done (real)** | gorilla: read-таймаут «корruptит» соединение (документировано) |
 | Workflows (список + редактор) | done (slice 5a: CRUD workflows/blocks/connections) | **done (real, verified live 2026-10-08)** | ready (уточнения в api-decisions) | **done (real)** | connections в POST /workflows — индексы blocks |
-| Library | done (slice 5b: save/get/apply team+workflow) | **done (real, verified live 2026-10-08)** | ready (role/segment — next) | **done (real)** | apply для type role/segment — 400 (следующий шаг) |
+| Library | done (slice 5b: save/get/apply team+workflow; 6+: apply role+segment) | **done (real, verified live 2026-10-08)** | ready (role/segment — уточнения в api-decisions) | **done (real)** | — |
 | History Viewer (audit + metrics + transcripts) | done (slice 5b: audit log, dashboard/metrics, transcript total; slice 6: user_id/api_key_id) | **done (real, verified live 2026-10-08)** | ready | **done (real)** | llm_tokens = 0 |
 | Frontend UI-audit (2026-10-08) | — | **done** | — | **done** | WS-бейдж честный; 404→Unavailable; canvas авто-fit + Fit-кнопка (F11) |
 
@@ -49,6 +49,33 @@ Backend endpoint slice 1 (все под `/api/v1`):
 `DELETE /relatives/{id}` · `GET /healthz` · `GET /readyz`
 
 ## API change log
+
+### 2026-10-08 — lead: F14 — RBAC-интеграционные тесты + role/segment apply (frontend) + контракт
+- **Live-прогон slice 6 против демона 127.0.0.1:8080** (WIP backend, `env-live-key` +
+  DB-ключи itest-viewer/itest-operator): **55/55** (37 unit + 18 интеграционных).
+- Новые интеграционные RBAC-тесты (автоскип без `INTEGRATION_VIEWER_KEY`/
+  `INTEGRATION_OPERATOR_KEY`): viewer (GET 200 / POST 403 `forbidden`), operator
+  (POST 201 / PATCH role config 403), audit (user_id/api_key_id у записи DB-ключа).
+- Frontend: mock `applyLibrary` для role/segment (merge/applied, идемпотентность,
+  дубль роли 409 — зеркало backend slice 6); LibraryPage: Apply для **всех** типов
+  (role/segment — target-team select); unit: mock applyLibrary расширен, apiConfig, appSmoke.
+- **Контракт 20 (лид)**: §5.4 — поведение apply по всем типам (segment/role: target
+  обязателен, приоритет сегмента для role, идемпотентность/409); §4.2 — `from_role_name`
+  оператора = `"You"` (наблюдение 1 из answer_backend закрыто backend'ом).
+- **B3 — решение лида** (в blockers.md): (в) PG out-of-scope до окружения; потом
+  миграция `?`→`$N` + e2e на PG-DSN.
+- Open (non-blocking): chatroom `last_message` (optional) по-прежнему не возвращается.
+- Validation: typecheck OK; 55/55 (два прогона); build OK (82.9 KB gzip).
+
+### 2026-10-08 — lead: F13 хвосты + WS-auth + LibraryPage apply (форматы не меняются)
+- **Frontend баг-фикс (критичный для slice 6)**: `getApiConfig()` добавляет `?api_key=`
+  (или `&api_key=`) в wsUrl при `VITE_API_KEY` — браузерный WS не шлёт заголовки,
+  без этого useWebSocket при auth-демане получал 401. Интеграционные тесты аналогично
+  (INTEGRATION_API_KEY → ?api_key=).
+- LibraryPage: save c выбором команды (было хардкод source_id:1); Apply в detail-pane
+  (team: new/merge; workflow: to team; роль/сегмент — в F14).
+- Unit: apiConfig (wsUrl+api_key), appSmoke Library; проверка auth-пути: 52/52 против
+  демона с DAEMON_API_KEYS (:8081, REST X-API-Key + WS ?api_key=).
 
 ### 2026-10-08 — lead: интеграционные тесты frontend slice 4–5 (автотесты, форматы не меняются)
 - `frontend/tests/realIntegration.test.ts`: **7 → 15 тестов** (45/45 всего): +messages
@@ -308,8 +335,9 @@ Backend endpoint slice 1 (все под `/api/v1`):
   /`build` — все зелёные; production build 81 KB gzip.
 
 ## Next steps (sync)
-- Frontend: (не-blocking) ветка `forbidden` (403) в error-обработчике + RBAC-тесты
-  (viewer→403, operator→403 на config.update) после коммита slice 6;
-  real-интеграция WorkflowEditor drag (PATCH block) и apply-library из LibraryPage.
-- Backend: library apply для role/segment (400 → поддержка); Prometheus `/metrics` (по требованию);
-  OpenAPI — в конце проекта.
+- Frontend: после коммита slice 6 — финальный свип (55 тестов) и фиксация в статусе;
+  при желании — ack subscribe в WS (сейчас задокументировано: event до subscribe теряется).
+- Backend: **коммит slice 6** (WIP живёт в рабочем дереве; интеграционные прогоны — по WIP);
+  chatroom `last_message` (optional, nice-to-have); Prometheus `/metrics` (по требованию);
+  OpenAPI — в конце проекта; PG-миграция (`?`→`$N`) — при появлении PG-окружения
+  (лид-решение B3: out-of-scope до этого).
