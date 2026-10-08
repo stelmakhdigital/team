@@ -45,45 +45,56 @@ per-user с DB-ключом (slice 6). Наблюдение 2 (F12) закрыт
 
 ---
 
-# Новый срез (2026-10-08, ~15:00) — UI-редизайн: live-данные сессий (контракт R4)
+# Slice 7: session live metrics + session.output — статус и что осталось (2026-10-08, ~17:00)
 
-Пользователь принял **редизайн UI в стиле openRIG** (топология — центр; деталь —
-`_workspace/openrig-ui-research.md`, план — `_workspace/ui-redesign-plan.md`).
-Frontend R1 (граф на React Flow: авто-layout, live-карточки ролей) — уже в worktree
-(см. `_workspace/ui-redesign-plan.md` F1–R1). Дальше фазы R2–R5.
+## Статус frontend (для контекста)
+Редизайн UI в стиле openRIG: R1 (граф React Flow + авто-layout), R2 (edit-режим),
+YAML-конфигурирование, R3 (токены + таблица + дашборд) — **done**, всё на master
+(1e5501c, 37185c1, 0aac0aa, 28417b2, 85f101c). Тесты 68/68.
 
-## Что прошу от backend — «live-метрики сессий» (отдельный срез, не блокирует R2/R3)
+## ✅ Slice 7 backend — reviewed (d0721cb)
+Принял вашу реализацию, выглядит правильно:
+- `session_live.go`: model из configs/sessions/session-<id>.yaml; context-метрики —
+  парсинг usage из JSONL-хвоста transcript (256KB); TUI/ANSI без usage → omit (честно).
+  Окно контекста: config.context_window, иначе 200000 — ок, задокументировано.
+- `session_tailer.go`: батчи 500ms, **тишина при молчании** (ключевое требование —
+  соблюдено), max 500 строк/батч, truncate/rotate → переоткрытие, стрелки ≤4000.
+  Каналы: `team:{id}` + `session:{id}` + dashboard (newEvent) — суперсет контракта, ок.
+- SessionView: model / context_used_percentage / context_total_input_tokens /
+  context_total_output_tokens / log_path — все omitempty (контракт 20 §3.6, additive).
+- `go build ./...` и `go test ./internal/service/` — зелёные (проверял сам).
 
-Контракт 20 §3.6 я **уже обновил** (см. diff `docs/architecture/frontend/20_contract_API.md`):
+## ❗ Что осталось от вас (definition of done slice 7)
 
-1. **`SessionDetail` += опциональные live-поля** (omit/null = неизвестно → UI покажет «--»):
-   - `model?: string`
-   - `context_used_percentage?: number` (0..100)
-   - `context_total_input_tokens?: number`
-   - `context_total_output_tokens?: number`
-   - `log_path?: string`
-2. **WS-событие `session.output`** (live-терминал): батчи строк лога, batch ≤ 500ms,
-   каналы `session:{id}` и `dashboard`. Форма (контракт §4.3):
-   ```
-   { session_id: number, role_name?: string,
-     lines: [{ ts, text, stream: 'stdout'|'stderr'|'log' }] }
-   ```
-   Источником строк — tail файла лога сессии (у нас transcript = строки лога файла).
-   `subscribe`-канал `session:{id}` уже есть.
+1. **HTTP-интеграционные тесты** (в `internal/api`, паттерн как в handlers_test.go):
+   - `GET /sessions/:id` у сессии с pi-agent_spec: присутствуют `model` и `log_path`;
+     context-поля — omit для TUI-рантайма (assert absence/omitempty, не 0);
+   - **WS e2e**: connect → `subscribe ['session:{id}']` → запустить сессию (или
+     дописать строку в transcript-лог) → получить `session.output` c `lines[]`
+     (`{ts ISO, text, stream:'stdout'}`); после stop — тейлер остановлен
+     (нет событий по сессии).
+   - (опционально) assert, что в `lines` нет событий без новых строк (молчание).
+2. **Live-чек на демоне**: ваш демон на :8080 (`env-live-key`, /tmp/daemon-slice6.db)
+   сейчас, похоже, на старом бинаре. Когда допишете тесты — **пересоберите и
+   перезапустите его с кодом master** (или напишите, что пересобрали) — я прогоню
+   свой фронтенд-интеграционный свип против :8080.
+   Альтернатива: я подниму свой демон на :8081 (lead-env-key) как в F15 — но
+   :8080 с новым кодом нужен в любом случае (это ваше production-окружение).
+3. **Известное ограничение (окей, зафиксировать в доке срез-7)**: тейлер живёт в
+   памяти — после рестарта демона live-терминал у выживших сессий не возобновится
+   (процессы в любом случае детчают/умирают). Достаточно пометки, чинить не надо.
 
-### Требования/критерии
-- Опциональность: если рантайм не отдаёт context%/tokens — **omit**, не 0 (UI: «--»).
-  Не ломать existing-клиентов (новые поля additive).
-- `session.output` не должен заваливать канал при молчании сессии (батч-интервал ≤500ms,
-  только при новых строках).
-- Mock-режим frontend я покрываю сам (принцип «mock не отстаёт») — мне нужен только
-  реальный контракт + интеграционные тесты.
+## Моя часть (делаю сам, параллельно)
+- Frontend R4: mock-адаптер (live-поля + генерация `session.output` в mock-сессиях),
+  RoleNode — реальные ctx%/tokens, TerminalPreviewPopover (live-строки по WS).
+- `frontend/tests/realIntegration.test.ts`: +2 интеграционных теста (metrics на
+  GET /sessions/:id; WS session.output) — под ваши :8080-ключи
+  (INTEGRATION_API_KEY / VIEWER / OPERATOR, как в F12-F15).
 
-### Порядок
-- R2 (edit-режим графа) и R3 (визуальная консистентность) я делаю **параллельно**,
-  не жду этот срез — слоты «--» уже на карточках.
-- После вашего среза — R4 в UI (реальные context%/tokens + live-терминал popover).
+## Контракт
+`docs/architecture/frontend/20_contract_API.md` §3.6/§4.3 — **не менял** под вашу
+реализацию: форма событий и набор полей совпали с тем, что я описал ранее.
+Единственное уточнение для доков: канал `team:{id}` тоже получает session.output
+(суперсет) — впишите в контракт §4.3, когда трогали будете (или я).
 
-Вопрос: ок по форме `session.output` и набору полей `SessionDetail`? Если хотите
-по-другому (например, отдельный `GET /sessions/:id/metrics` вместо WS) — скажите,
-контракт поправлю. Контракт — источник истины, меняю как лид, но согласовываю с вами.
+Вопросов к форме нет. Жду: (1) HTTP-тесты, (2) :8080 на новом бинаре → свип.
