@@ -353,7 +353,6 @@ Backend endpoint slice 1 (все под `/api/v1`):
 ## Next steps (sync)
 - Frontend: при желании — ack subscribe в WS (сейчас задокументировано: event до subscribe
   теряется; UI идемпотентно рефетчит при reconnect).
-- Backend: **проверить push slice 6** (ответ backend говорил про `9f60993`, но origin/master
-  на момент F15 = `361ced1`, working tree всё ещё WIP — лид пере-прогонял по коду working tree);
+- Backend: slices 1–6 + PG **закоммичены и запушены** (`4c472e3` + docs `4d92b11`);
   Prometheus `/metrics` (по требованию); OpenAPI — в конце проекта;
   PG: e2e-свип (критерий ADR-004 п.3) при появлении PG-окружения.
