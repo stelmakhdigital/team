@@ -73,11 +73,11 @@
   font-size: 10px;
   letter-spacing: 0.03em;
   text-transform: lowercase;
-  color: var(--muted, #94a3b8);
+  color: var(--muted);
 }
 .segment-node-count {
   font-size: 10px;
-  color: var(--dim, #64748b);
+  color: var(--dim);
 }
 
 /* ---- Role card (seat) ---- */
@@ -137,7 +137,7 @@
   margin-left: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
-  color: var(--dim, #64748b);
+  color: var(--dim);
 }
 
 .role-node-body {
@@ -156,7 +156,7 @@
 }
 .role-node-line .mono {
   font-size: 10px;
-  color: var(--muted, #94a3b8);
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -166,12 +166,12 @@
   padding: 1px 5px;
   border-radius: 4px;
   background: rgba(56, 189, 248, 0.12);
-  color: var(--accent, #38bdf8);
+  color: var(--sky);
   border: 1px solid rgba(56, 189, 248, 0.25);
 }
 .state-label {
   font-size: 10px;
-  color: var(--dim, #64748b);
+  color: var(--dim);
 }
 
 .role-node-metrics {
@@ -185,16 +185,16 @@
 .role-node-metrics .metric {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
-  color: var(--muted, #94a3b8);
+  color: var(--muted);
 }
 .role-node-metrics .metric[data-slot='context'] {
   font-weight: 700;
   font-size: 11px;
-  color: #34d399;
+  color: var(--emerald);
 }
 .role-node-metrics .metric.dim {
   margin-left: auto;
-  color: var(--dim, #64748b);
+  color: var(--dim);
   max-width: 45%;
   white-space: nowrap;
   overflow: hidden;
@@ -208,17 +208,17 @@
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.5);
   flex-shrink: 0;
-  background: var(--dim, #64748b);
+  background: var(--dim);
 }
 .activity-dot.act-running {
-  background: #10b981;
+  background: var(--emerald, #10b981);
   animation: topo-pulse 1.8s ease-in-out infinite;
 }
 .activity-dot.act-failed {
-  background: #ef4444;
+  background: var(--red);
 }
 .activity-dot.act-stopped {
-  background: #64748b;
+  background: var(--dim, #64748b);
 }
 @keyframes topo-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
@@ -234,7 +234,7 @@
   height: 6px;
   min-width: 6px;
   min-height: 6px;
-  background: var(--accent, #38bdf8);
+  background: var(--sky);
   border: 1px solid rgba(255, 255, 255, 0.6);
   opacity: 0;
   transition: opacity 0.15s;
@@ -275,7 +275,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
   letter-spacing: 0.04em;
-  color: var(--dim, #64748b);
+  color: var(--dim);
   background: rgba(2, 6, 23, 0.6);
   border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
   border-radius: 6px;

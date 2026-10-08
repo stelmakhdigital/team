@@ -126,4 +126,18 @@ describe('App smoke', () => {
     expect(await screen.findByLabelText('Apply workflow to team', {}, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
   }, 20_000);
+
+  it('Team Builder Table view: roles with state/session/runtime', async () => {
+    render(
+      <MemoryRouter initialEntries={['/teams/1']}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByText('Lead', {}, { timeout: 10_000 });
+    await (await screen.findByRole('tab', { name: 'Table' })).click();
+    const table = await screen.findByRole('table', { name: 'Topology table' });
+    expect(table).toBeInTheDocument();
+    expect(screen.getAllByText('pi-go-backend').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('running').length).toBeGreaterThan(0);
+  }, 15_000);
 });

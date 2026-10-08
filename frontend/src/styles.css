@@ -11,6 +11,13 @@
   --yellow: #d29922;
   --purple: #a371f7;
   --pink: #f778ba;
+  /* topology palette (R3, ref openRIG) */
+  --emerald: #10b981;
+  --sky: #38bdf8;
+  --amber: #f59e0b;
+  --violet: #a78bfa;
+  --blue: #60a5fa;
+  --dim: #64748b;
   font-size: 15px;
 }
 
@@ -162,6 +169,15 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 .progress-fill { height: 100%; background: var(--accent); border-radius: 999px; }
 
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); margin-right: 4px; }
+.dot-running, .dot-active { animation: dot-pulse 1.8s ease-in-out infinite; }
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  50% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot-running, .dot-active { animation: none; }
+}
+.session-stats { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; letter-spacing: 0.02em; }
 .dot-running, .dot-active { background: var(--green); }
 .dot-idle { background: var(--yellow); }
 .dot-failed, .dot-blocked { background: var(--red); }
@@ -568,3 +584,42 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .spec-err { color: #f87171; font-size: 11px; font-family: ui-monospace, monospace; }
 .spec-actions { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
 .spec-actions .btn { flex: 1; white-space: nowrap; }
+
+/* ---------- topology view tabs + table (R3) ---------- */
+.topo-view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.topo-tab {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.topo-tab:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
+.topo-tab.active {
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border-color: var(--sky, #38bdf8);
+}
+.topo-tab:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.topo-table-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--bg);
+  padding: 14px;
+}
+.topo-table th { position: static; }
+.topo-table-row { cursor: pointer; }
+.topo-table-row:hover td { background: var(--bg-panel-2); }
+.topo-table-role { font-weight: 600; margin-left: 2px; }

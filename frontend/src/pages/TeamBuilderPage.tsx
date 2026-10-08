@@ -8,6 +8,8 @@ import { errorMessage, ErrorState, Spinner } from '../components/ui/States';
 import { validateTopologyGraph } from '../lib/topology';
 import type { RelativeType, ValidateTopologyResponse } from '../types/api';
 import TopologyCanvas, { type TopologySelection } from '../components/Topology/TopologyCanvas';
+import TopologyTableView from '../components/Topology/TopologyTableView';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { autoLayoutMoves } from '../components/Topology/layout/autoLayout';
 import Toolbar from '../components/TeamBuilder/Toolbar';
 import SpecYamlPanel from '../components/TeamBuilder/SpecYamlPanel';
@@ -25,6 +27,9 @@ export default function TeamBuilderPage() {
   const [editMode, setEditMode] = useState(false);
   const [connectType, setConnectType] = useState<RelativeType>('delegates_to');
   const [specOpen, setSpecOpen] = useState(false);
+  const [view, setView] = useState<'graph' | 'table'>('graph');
+  const narrow = useMediaQuery('(max-width: 900px)');
+  const showGraph = view === 'graph' && !narrow;
   const navigate = useNavigate();
 
   const commitRefetch = useCallback(() => refetch(), [refetch]);
@@ -198,20 +203,37 @@ export default function TeamBuilderPage() {
         {editMode && <Toolbar connectType={connectType} onConnectType={(t) => setConnectType(t as RelativeType)} />}
 
         <div className="builder-main">
+          <div className="topo-view-tabs" role="tablist" aria-label="Topology view">
+            <button role="tab" aria-selected={showGraph && view === 'graph'} className={showGraph ? 'topo-tab active' : 'topo-tab'} onClick={() => setView('graph')} disabled={narrow}>
+              Graph
+            </button>
+            <button role="tab" aria-selected={!showGraph} className={!showGraph ? 'topo-tab active' : 'topo-tab'} onClick={() => setView('table')}>
+              Table
+            </button>
+            {narrow && <span className="muted small">graph hidden on narrow viewport</span>}
+          </div>
           <div className="topology-canvas-wrap">
-            <div className="topology-canvas">
-              <TopologyCanvas
-                data={data}
-                editMode={editMode}
-                selection={selection}
-                onSelect={setSelection}
-                onRoleMoved={onRoleMoved}
-                onSegmentMoved={onSegmentMoved}
-                onConnect={onConnect}
-                onDropSegment={onDropSegment}
-                onDropRole={onDropRole}
+            {showGraph ? (
+              <div className="topology-canvas">
+                <TopologyCanvas
+                  data={data}
+                  editMode={editMode}
+                  selection={selection}
+                  onSelect={setSelection}
+                  onRoleMoved={onRoleMoved}
+                  onSegmentMoved={onSegmentMoved}
+                  onConnect={onConnect}
+                  onDropSegment={onDropSegment}
+                  onDropRole={onDropRole}
+                />
+              </div>
+            ) : (
+              <TopologyTableView
+                segments={segments}
+                roles={roles}
+                onSelect={(id) => setSelection({ type: 'role', id })}
               />
-            </div>
+            )}
             {localHints && (localHints.errors.length > 0 || localHints.warnings.length > 0) && (
               <div className="local-hints" aria-live="polite">
                 {localHints.errors.map((e) => (
