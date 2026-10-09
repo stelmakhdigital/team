@@ -232,16 +232,16 @@ func TestConfigRBAC(t *testing.T) {
 	if st != http.StatusForbidden {
 		t.Fatalf("viewer PUT /config: %d %v", st, out)
 	}
-	// operator: PUT — 200 (config.update у admin+operator)
+	// operator: PUT — 403 (config.update admin-only; не выдаём operator)
 	st, out, _ = do(t, "PUT", base+"/logging.level", map[string]any{"value": "debug"},
 		map[string]string{"X-API-Key": opKey})
-	if st != http.StatusOK {
-		t.Fatalf("operator PUT /config: %d %v", st, out)
+	if st != http.StatusForbidden {
+		t.Fatalf("operator PUT /config: want 403, got %d %v", st, out)
 	}
-	// operator: DELETE — 200
+	// operator: DELETE — 403
 	st, out, _ = do(t, "DELETE", base+"/logging.level", nil, map[string]string{"X-API-Key": opKey})
-	if st != http.StatusOK {
-		t.Fatalf("operator DELETE /config: %d %v", st, out)
+	if st != http.StatusForbidden {
+		t.Fatalf("operator DELETE /config: want 403, got %d %v", st, out)
 	}
 	// admin (env-ключ): GET — 200
 	st, out, _ = do(t, "GET", base, nil, map[string]string{"X-API-Key": "env-admin"})

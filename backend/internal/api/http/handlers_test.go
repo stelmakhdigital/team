@@ -878,13 +878,13 @@ func TestRBACViewerForbidden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// operator: PATCH role config — 200 (U4: config.update выдан admin+operator)
+	// operator: PATCH role config — 403 (config.update только у admin; не выдаём operator)
 	st, out, _ = do(t, "PATCH", base+"/roles/"+roleID+"/config", map[string]any{"config": map[string]any{"x": 1}},
 		map[string]string{"X-API-Key": opKey})
-	if st != http.StatusOK {
-		t.Fatalf("operator PATCH role config: want 200, got %d %v", st, out)
+	if st != http.StatusForbidden {
+		t.Fatalf("operator PATCH role config: want 403, got %d %v", st, out)
 	}
-	// viewer: PATCH role config — 403 (config.update только у admin+operator)
+	// viewer: PATCH role config — 403 (config.update только у admin)
 	st, out, _ = do(t, "PATCH", base+"/roles/"+roleID+"/config", map[string]any{"config": map[string]any{"x": 1}},
 		map[string]string{"X-API-Key": viewKey})
 	if st != http.StatusForbidden {
@@ -938,8 +938,8 @@ func TestRBACViewerForbidden(t *testing.T) {
 		case "team.create":
 			opEntry = em
 		case "role.update":
-			// U4: config.update выдан и operator — в аудите 2 записи
-			// (operator + admin); admin-запись — от env-ключа (operator:<4hex>)
+			// config.update admin-only: только admin-запись (env-ключ operator:<4hex>);
+			// operator PATCH role config → 403 (audit-записи нет)
 			if n, ok := em["user_name"].(string); ok && strings.HasPrefix(n, "operator:") {
 				adminEntry = em
 			}

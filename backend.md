@@ -95,9 +95,11 @@
 - **API**: `GET /api/v1/config` → `{meta, sections, environment}`; `PUT/DELETE
   /api/v1/config/{key}` (тип-валидация по `type` → 400; secret/readonly → 403;
   unknown → 404; `needs_restart` = новое ≠ текущего эффективного).
-- **RBAC**: `config.read` (GET; admin+operator+viewer), `config.update`
-  (PUT/DELETE; **теперь admin+operator** — раньше только admin; миграция 0008;
-  AllPermissions + `config.read`).
+- **RBAC**: `config.read` (GET; admin+operator+viewer; миграция 0008), `config.update`
+  (PUT/DELETE; **admin-only**). ВАЖНО: `config.update` НЕ выдаём operator — та же
+  permission защищает `PATCH /roles/{id}/config` (slice 6), и выдача operator изменила бы
+  RBAC slice 6 (operator смог бы редактировать role config). Поэтому U4 daemon-config
+  write = admin-only (по существующей модели).
 - **Meta**: project/instance/version/uptime/git_commit/git_branch/started_at +
   `config_hash` = `sha256:` над отсортированным JSON эффективных значений.
 - **Ключевые файлы**: `internal/config/{config.go,filelayer.go}`,

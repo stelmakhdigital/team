@@ -105,8 +105,8 @@ func TestAuthDBKeysAndRoles(t *testing.T) {
 	if ac.HasPerm("tasks.create") != true {
 		t.Error("operator must have tasks.create")
 	}
-	if !ac.HasPerm("config.update") {
-		t.Error("operator must have config.update (U4: admin+operator)")
+	if ac.HasPerm("config.update") {
+		t.Error("operator must NOT have config.update (stays admin-only; shared with role-config)")
 	}
 	if !ac.HasPerm("config.read") {
 		t.Error("operator must have config.read")

@@ -15,9 +15,7 @@ INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM security_roles r CROSS JOIN permissions p
 WHERE p.name = 'config.read';
 
--- U4: config.update теперь выдан и operator (admin+operator)
-INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM security_roles r CROSS JOIN permissions p
-WHERE r.name = 'operator' AND p.name = 'config.update';
+-- NB: config.update остаётся admin-only (не выдаём operator): эта же permission
+-- защищает PATCH /roles/{id}/config (slice 6) — выдача operator изменила бы RBAC
+-- slice 6 (operator смог бы редактировать role config). U4 daemon-config write = admin-only.
 
-UPDATE security_roles SET description = 'read/write, config update' WHERE name = 'operator';
