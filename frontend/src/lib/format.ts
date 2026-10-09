@@ -24,6 +24,19 @@ export function formatRelative(iso?: string): string {
   return `${Math.round(h / 24)}d ago`;
 }
 
+// P0.2: осталось до дедлайна (секунды) → "45m" / "3h" / "2d" (или просрочка)
+export function formatRelativeFromSecs(secs: number): string {
+  const neg = secs < 0;
+  const s = Math.abs(secs);
+  const min = Math.round(s / 60);
+  let core: string;
+  if (min < 1) core = '<1m';
+  else if (min < 60) core = `${min}m`;
+  else if (min < 24 * 60) core = `${Math.round(min / 60)}h`;
+  else core = `${Math.round(min / (24 * 60))}d`;
+  return neg ? `${core} overdue` : core;
+}
+
 export function formatUptime(seconds?: number): string {
   if (seconds === undefined || seconds < 0) return '—';
   const h = Math.floor(seconds / 3600);

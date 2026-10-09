@@ -63,6 +63,7 @@ export function createRealAdapter(): Api {
             offset: params?.offset,
           })}`,
         ),
+      overdue: (params) => http(`${B}/tasks/overdue${toQuery({ limit: params?.limit, offset: params?.offset })}`),
       create: (req) => http(`${B}/tasks`, { method: 'POST', body: req }),
       get: (id) => http(`${B}/tasks/${id}`),
       updateState: (id, req) => http(`${B}/tasks/${id}/state`, { method: 'PATCH', body: req }),

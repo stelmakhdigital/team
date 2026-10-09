@@ -303,12 +303,12 @@ function seed(): DB {
   });
 
   t.tasks = [
-    mkTask(1, 'Implement auth middleware', 'in_progress', 'Backend.Worker', 1, 'Dev Team', { progress: 45 }),
+    mkTask(1, 'Implement auth middleware', 'in_progress', 'Backend.Worker', 1, 'Dev Team', { progress: 45, closure_required_at: iso(90) }),
     mkTask(2, 'Write integration tests', 'pending', 'Backend.Worker', 2, 'Dev Team'),
-    mkTask(3, 'Review PR #142', 'in_progress', 'Review.Reviewer', 3, 'Dev Team', { progress: 80 }),
-    mkTask(4, 'Fix flaky CI job', 'blocked', 'Backend.Worker2', 1, 'Dev Team', { is_blocked: true, is_stale: true, updated_at: iso(60 * 3) }),
+    mkTask(3, 'Review PR #142', 'in_progress', 'Review.Reviewer', 3, 'Dev Team', { progress: 80, closure_required_at: iso(-120) }),
+    mkTask(4, 'Fix flaky CI job', 'blocked', 'Backend.Worker2', 1, 'Dev Team', { is_blocked: true, is_stale: true, updated_at: iso(60 * 3), closure_required_at: iso(120) }),
     mkTask(5, 'Update deployment docs', 'done', 'Infra.Docs', 4, 'Platform Team', { destination_role_id: 6 }),
-    mkTask(6, 'Migrate config schema', 'in_progress', 'Infra.Lead', 2, 'Platform Team', { destination_role_id: 5, progress: 20 }),
+    mkTask(6, 'Migrate config schema', 'in_progress', 'Infra.Lead', 2, 'Platform Team', { destination_role_id: 5, progress: 20, closure_required_at: iso(-60) }),
   ];
 
   t.sessions = [

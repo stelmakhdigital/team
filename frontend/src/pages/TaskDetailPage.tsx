@@ -3,7 +3,7 @@ import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { ErrorState, PageSkeleton, Spinner, Badge } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
-import { formatDateTime, formatRelative } from '../lib/format';
+import { formatDateTime, formatRelative, formatRelativeFromSecs } from '../lib/format';
 
 // U4b: task drill-down — full task detail + history timeline + subtasks (fetch-by-id).
 export default function TaskDetailPage() {
@@ -25,6 +25,23 @@ export default function TaskDetailPage() {
     ...(t.source_role_name ? ([['Source', t.source_role_name]] as Array<[string, React.ReactNode]>) : []),
     ['Priority', String(t.priority)],
     ['Progress', t.progress !== undefined ? `${t.progress}%` : '—'],
+    [
+      'Deadline',
+      t.closure_required_at ? (
+        <span>
+          {formatDateTime(t.closure_required_at)}
+          {t.is_overdue ? (
+            <span className="due-overdue"> OVERDUE</span>
+          ) : (
+            t.remaining_secs != null ? (
+              <span className="muted small"> · {formatRelativeFromSecs(t.remaining_secs)} left</span>
+            ) : null
+          )}
+        </span>
+      ) : (
+        '—'
+      ),
+    ],
     ['Closure', t.closure_reason ? `${t.closure_reason}` : '—'],
     ['Created', formatDateTime(t.created_at)],
     ['Updated', `${formatRelative(t.updated_at)} (${formatDateTime(t.updated_at)})`],

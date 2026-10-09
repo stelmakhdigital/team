@@ -836,3 +836,11 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .wf-rename .input { min-width: 200px; }
 .lib-rename { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
 .lib-rename-btn { margin-left: 8px; vertical-align: middle; }
+
+/* P0.2: Overdue / дедлайны задач */
+.tabs { display: flex; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid var(--border); }
+.tab { background: transparent; border: none; border-bottom: 2px solid transparent; padding: 8px 14px; font-size: 0.85rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+.tab:hover { color: var(--text); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tab-active { color: var(--accent); border-bottom-color: var(--accent); }
+.due-overdue { display: inline-block; margin-left: 4px; padding: 1px 8px; font-size: 0.68rem; font-weight: 700; color: #fff; background: var(--red-strong); border-radius: 10px; letter-spacing: 0.02em; vertical-align: middle; }

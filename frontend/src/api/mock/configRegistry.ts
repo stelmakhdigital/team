@@ -32,7 +32,7 @@ const SECTION_DESC: Record<string, string> = {
   workspace: 'Рабочая область (workspace)',
 };
 
-const SECTION_ORDER = ['server', 'storage', 'sessions', 'watchdog', 'security', 'logging', 'workspace'];
+const SECTION_ORDER = ['server', 'storage', 'tasks', 'sessions', 'watchdog', 'security', 'logging', 'workspace'];
 
 export const CONFIG_REGISTRY: RegKey[] = [
   { key: 'server.listen_addr', section: 'server', type: 'string', description: 'Адрес прослушивания HTTP', default_value: ':8080', env_var: 'DAEMON_LISTEN_ADDR', requires_restart: true, editable: true },
@@ -41,6 +41,7 @@ export const CONFIG_REGISTRY: RegKey[] = [
   { key: 'server.shutdown_timeout', section: 'server', type: 'duration', description: 'Таймаут graceful shutdown (константа)', default_value: '10s', requires_restart: true, editable: false },
   { key: 'storage.dsn', section: 'storage', type: 'string', description: 'DSN БД (sqlite:<path> или postgres://...)', default_value: 'sqlite:./daemon.db', env_var: 'DAEMON_DB_DSN', requires_restart: true, editable: true },
   { key: 'storage.migrate', section: 'storage', type: 'boolean', description: 'Мигрировать при старте', default_value: true, env_var: 'DAEMON_MIGRATE', requires_restart: true, editable: true },
+  { key: 'tasks.closure_required_secs', section: 'tasks', type: 'duration', description: 'Дедлайн закрытия: сколько у задачи на закрытие после in_progress (read-at-transition, без рестарта)', default_value: '7200s', env_var: 'DAEMON_TASKS_CLOSURE_REQUIRED_SECS', requires_restart: false, editable: true },
   { key: 'sessions.poll_interval', section: 'sessions', type: 'duration', description: 'Период reaper-проверки сессий', default_value: '5s', env_var: 'DAEMON_SESSION_POLL_SECS', requires_restart: true, editable: true },
   { key: 'sessions.configs_dir', section: 'sessions', type: 'path', description: 'Конфиги pi-сессий', default_value: 'configs/sessions', env_var: 'DAEMON_SESSION_CONFIGS_DIR', requires_restart: true, editable: true },
   { key: 'watchdog.enabled', section: 'watchdog', type: 'boolean', description: 'Watchdog включён', default_value: true, env_var: 'DAEMON_WATCHDOG_ENABLED', requires_restart: true, editable: true },

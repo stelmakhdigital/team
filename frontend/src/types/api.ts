@@ -537,6 +537,10 @@ export interface Task {
   progress?: number;
   is_stale?: boolean;
   is_blocked?: boolean;
+  // P0.2: дедлайн закрытия
+  is_overdue?: boolean;
+  closure_required_at?: string;
+  remaining_secs?: number;
 }
 
 export interface GetTasksResponse {
@@ -548,6 +552,10 @@ export interface ListTasksParams {
   team_id?: number;
   state?: TaskState;
   destination_role_id?: number;
+  limit?: number;
+  offset?: number;
+}
+export interface GetOverdueParams {
   limit?: number;
   offset?: number;
 }
@@ -654,6 +662,7 @@ export interface WatchdogAlert {
 export type AttentionKind =
   | 'task_blocked'
   | 'task_escalated'
+  | 'task_overdue'
   | 'alert_unread'
   | 'workflow_attention'
   | 'session_failed';

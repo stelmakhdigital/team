@@ -12,11 +12,11 @@ describe('U4: config API (mock)', () => {
     setMockError(null);
   });
 
-  it('getConfig returns 7 sections / 20 keys + meta + environment, with layered sources', async () => {
+  it('getConfig returns 8 sections / 21 keys + meta + environment, with layered sources', async () => {
     const api = createMockAdapter();
     const res = await api.config.getConfig();
-    expect(res.sections.map((s) => s.name)).toEqual(['server', 'storage', 'sessions', 'watchdog', 'security', 'logging', 'workspace']);
-    expect(res.sections.reduce((n, s) => n + s.keys.length, 0)).toBe(20);
+    expect(res.sections.map((s) => s.name)).toEqual(['server', 'storage', 'tasks', 'sessions', 'watchdog', 'security', 'logging', 'workspace']);
+    expect(res.sections.reduce((n, s) => n + s.keys.length, 0)).toBe(21);
     expect(res.meta.project).toBe('team');
     expect(res.meta.config_hash).toMatch(/^sha256:/);
     // layered sources are demonstrable

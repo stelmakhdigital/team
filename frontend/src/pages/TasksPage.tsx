@@ -23,6 +23,7 @@ export default function TasksPage() {
   const { toast } = useToast();
   const [teamFilter, setTeamFilter] = useState<number | 'all'>('all');
   const [stateFilter, setStateFilter] = useState<TaskState | 'all'>('all');
+  const [view, setView] = useState<'all' | 'overdue'>('all');
   const [creating, setCreating] = useState(false);
   const [closedId, setClosedId] = useState<number | null>(null);
   const [handoffId, setHandoffId] = useState<number | null>(null);
@@ -38,8 +39,12 @@ export default function TasksPage() {
       }),
     [teamFilter, stateFilter],
   );
+  // P0.2: bounded list of overdue tasks (dedicated GET /tasks/overdue)
+  const overdue = useQuery('tasks.overdue', () => api.tasks.overdue({ limit: 200 }), []);
+  const active = view === 'overdue' ? overdue : list;
+  const rows = active.data?.tasks ?? [];
 
-  const refetch = () => list.refetch();
+  const refetch = () => active.refetch();
 
   const act = (label: string, fn: () => Promise<unknown>) =>
     fn()
@@ -58,44 +63,59 @@ export default function TasksPage() {
         </button>
       </div>
 
-      <div className="filters">
-        <label>
-          Team
-          <select
-            value={String(teamFilter)}
-            onChange={(e) => setTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-          >
-            <option value="all">All teams</option>
-            {teams.data?.teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          State
-          <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value as TaskState | 'all')}>
-            {STATE_FILTERS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="tabs" role="tablist" aria-label="Tasks view">
+        <button role="tab" aria-selected={view === 'all'} className={`tab${view === 'all' ? ' tab-active' : ''}`} onClick={() => setView('all')}>
+          All tasks
+        </button>
+        <button role="tab" aria-selected={view === 'overdue'} className={`tab${view === 'overdue' ? ' tab-active' : ''}`} onClick={() => setView('overdue')}>
+          Overdue{overdue.data ? ` (${overdue.data.total})` : ''}
+        </button>
       </div>
 
-      {teams.loading && <Spinner label="Loading teams…" />}
-      {list.loading && <PageSkeleton label="Loading tasks…" />}
-      {list.error && <ErrorState error={list.error} onRetry={refetch} />}
-      {list.data && list.data.tasks.length === 0 && (
+      {view === 'all' && (
+        <div className="filters">
+          <label>
+            Team
+            <select
+              value={String(teamFilter)}
+              onChange={(e) => setTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            >
+              <option value="all">All teams</option>
+              {teams.data?.teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            State
+            <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value as TaskState | 'all')}>
+              {STATE_FILTERS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+
+      {teams.loading && view === 'all' && <Spinner label="Loading teams…" />}
+      {active.loading && <PageSkeleton label={view === 'overdue' ? 'Loading overdue tasks…' : 'Loading tasks…'} />}
+      {active.error && <ErrorState error={active.error} onRetry={refetch} />}
+      {active.data && rows.length === 0 && (
         <EmptyState
-          title={teamFilter === 'all' && stateFilter === 'all' ? 'No tasks' : 'No tasks match the filters'}
-          hint="Create a task to put it into a role's queue, or clear the filters above."
-          action={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ New task</button>}
+          title={view === 'overdue' ? 'No overdue tasks' : teamFilter === 'all' && stateFilter === 'all' ? 'No tasks' : 'No tasks match the filters'}
+          hint={
+            view === 'overdue'
+              ? 'Every in-progress / blocked task is within its closure deadline. 🎉'
+              : 'Create a task to put it into a role’s queue, or clear the filters above.'
+          }
+          action={view === 'overdue' ? undefined : <button className="btn btn-primary" onClick={() => setCreating(true)}>+ New task</button>}
         />
       )}
-      {list.data && list.data.tasks.length > 0 && (
+      {active.data && rows.length > 0 && (
         <div className="card">
           <div className="table-wrap"><table className="table">
             <thead>
@@ -105,13 +125,14 @@ export default function TasksPage() {
                 <th>Team</th>
                 <th>Role</th>
                 <th>State</th>
+                <th>Due</th>
                 <th>Prio</th>
                 <th>Updated</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {list.data.tasks.map((t) => (
+              {rows.map((t) => (
                 <TaskRow
                   key={t.id}
                   task={t}
@@ -203,6 +224,20 @@ function TaskRow({
             {task.is_stale ? ' · stale' : ''}
           </Badge>
         </td>
+        <td className="muted">
+          {task.closure_required_at ? (
+            <>
+              {formatDateTime(task.closure_required_at)}
+              {task.is_overdue && (
+                <div>
+                  <span className="due-overdue">OVERDUE</span>
+                </div>
+              )}
+            </>
+          ) : (
+            '—'
+          )}
+        </td>
         <td className="muted">{task.priority}</td>
         <td className="muted">{formatRelative(task.updated_at)}</td>
         <td>
@@ -222,7 +257,7 @@ function TaskRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={8} className="row-detail">
+          <td colSpan={9} className="row-detail">
             <TaskDetail taskId={task.id} />
           </td>
         </tr>

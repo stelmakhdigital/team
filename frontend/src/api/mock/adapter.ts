@@ -110,6 +110,16 @@ function humanDur(ms: number): string {
   return rh ? `${d}д ${rh}ч` : `${d}д`;
 }
 
+// P0.2: is_overdue + remaining_secs из closure_required_at (мок, зеркалит backend).
+function decorateOverdue(t: Task): Task {
+  if (t.closure_required_at && (t.state === 'in_progress' || t.state === 'blocked')) {
+    const ms = new Date(t.closure_required_at).getTime() - Date.now();
+    t.is_overdue = ms < 0;
+    t.remaining_secs = Math.round(ms / 1000);
+  }
+  return t;
+}
+
 export function createMockAdapter(): Api {
   return {
     teams: {
@@ -736,6 +746,27 @@ export function createMockAdapter(): Api {
             });
           }
         }
+        // 1.3. overdue (in_progress/blocked, deadline passed; skip escalated + already-blocked) -> high
+        for (const t of db.tasks) {
+          const isBlocked = t.state === 'blocked';
+          if (
+            (t.state === 'in_progress' || t.state === 'blocked') &&
+            t.closure_required_at &&
+            new Date(t.closure_required_at).getTime() < now &&
+            !escalated.has(t.id) &&
+            !(isBlocked && !escalated.has(t.id))
+          ) {
+            const overMs = now - new Date(t.closure_required_at).getTime();
+            items.push({
+              kind: 'task_overdue', id: String(t.id), severity: 'high',
+              title: t.title,
+              detail: `Команда ${t.team_name} · просрочено на ${humanDur(overMs)}`,
+              created_at: t.closure_required_at,
+              suggested_action: 'Открыть задачу',
+              link: { path: `/tasks/${t.id}`, label: t.title },
+            });
+          }
+        }
         // 3. unread alerts -> severity by event type
         for (const a of db.alerts) {
           if (a.is_read) continue;
@@ -851,6 +882,25 @@ export function createMockAdapter(): Api {
         const limit = params?.limit ?? 100;
         const offset = params?.offset ?? 0;
         const page = list.slice(offset, offset + limit);
+        return { tasks: clone(page).map(decorateOverdue), total: list.length };
+      },
+
+      async overdue(params) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const nowMs = Date.now();
+        const list = db.tasks
+          .filter(
+            (t) =>
+              (t.state === 'in_progress' || t.state === 'blocked') &&
+              t.closure_required_at &&
+              new Date(t.closure_required_at).getTime() < nowMs,
+          )
+          .sort((a, b) => new Date(a.closure_required_at!).getTime() - new Date(b.closure_required_at!).getTime());
+        const limit = params?.limit ?? 50;
+        const offset = params?.offset ?? 0;
+        const page = list.slice(offset, offset + limit).map(decorateOverdue);
         return { tasks: clone(page), total: list.length };
       },
 
@@ -891,7 +941,7 @@ export function createMockAdapter(): Api {
         const db = getDb();
         const t = db.tasks.find((x) => x.id === id);
         if (!t) throw new ApiClientError(404, 'not_found', `Task ${id} not found`);
-        return { task: clone(t), subtasks: clone(db.tasks.filter((x) => x.parent_task_id === id)) };
+        return { task: decorateOverdue(clone(t)), subtasks: clone(db.tasks.filter((x) => x.parent_task_id === id)).map(decorateOverdue) };
       },
 
       async updateState(id, req) {
@@ -909,6 +959,8 @@ export function createMockAdapter(): Api {
         t.state = req.state;
         t.updated_at = now();
         if (req.state === 'in_progress' && !t.started_at) t.started_at = now();
+        // P0.2: дедлайн закрытия в in_progress (мок: now + 2h, зеркалит backend)
+        if (req.state === 'in_progress') t.closure_required_at = new Date(Date.now() + 2 * 3600_000).toISOString();
         if (isTerminalTaskState(req.state)) {
           t.closure_reason = req.closure_reason;
           t.closure_target_id = req.closure_target_id;

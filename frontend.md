@@ -218,8 +218,8 @@ X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/
 | Team Builder | ✅ drop-hint (пустой сегмент) | ✅ Spinner (canvas) | ✅ ErrorState | Edit/Team — текстовые кнопки, focus |
 | Workflows | ✅ +CTA | ✅ PageSkeleton | ✅ ErrorState+retry | ссылки-строки, focus |
 | Workflow Editor | n/a (редактор сущности) | ✅ Spinner | ✅ ErrorState | rename/delete aria-label, focus |
-| Tasks | ✅ +CTA («match filters») | ✅ PageSkeleton | ✅ ErrorState+retry | row-toggle aria, action-кнопки, focus |
-| Task Detail | ✅ subtask/history инлайн | ✅ PageSkeleton | ✅ ErrorState+retry | EntityLink, focus |
+| Tasks | ✅ +CTA («match filters» / «No overdue») | ✅ PageSkeleton | ✅ ErrorState+retry | Overdue-tab (role/aria-selected), Due-колонка + OVERDUE-бейдж, row-toggle aria, action-кнопки, focus |
+| Task Detail | ✅ subtask/history инлайн | ✅ PageSkeleton | ✅ ErrorState+retry | EntityLink, Deadline-строка (+ OVERDUE), focus |
 | Session Detail | ✅ transcript/history инлайн | ✅ PageSkeleton | ✅ ErrorState+retry | focus |
 | Messages | ✅ dm/chatrooms/chat | ✅ Spinner | ✅ ErrorState/Unavailable | chatroom-кнопки, input aria, focus |
 | Library | ✅ «Nothing here» | ✅ PageSkeleton | ✅ ErrorState+retry | rename ✎ aria-label, focus |
@@ -311,6 +311,27 @@ X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/
 **Тесты:** `tests/attention.test.tsx` (4: рендер списка + severity-бейджи, CTA-навигация → /tasks/:id, пустое состояние, бейдж-счётчик > 0). Контраст: `contrast-check.mjs` — 22 пары, exit 0 (бейдж = та же пара, что critical-бейдж).
 
 **Скриншоты** (`_workspace/ui-screenshots/`): `attention-2560x1440.png` (список + бейдж), `attention-mobile-480x850.png` (rail + внутренний скролл таблицы), `attention-empty-2560x1440.png` (пусто, «Всё спокойно», бейдж скрыт).
+
+### 3f. Overdue / дедлайны задач (P0.2, 2026-10-09, T-20261009161158)
+
+Задача получает честный дедлайн закрытия: выставляется в `in_progress`, виден в UI, просроченные — отдельный bounded-список + в Attention. Подробности — в `docs/contracts/api-decisions.md` §P0.2 (backend).
+
+**API-клиент:**
+- `api.tasks.overdue({ limit?, offset? })` → `GET /tasks/overdue` (реал) + мок (зеркалит backend: фильтр in_progress/blocked + `closure_required_at < now`, сортировка, pagination; `decorateOverdue` вычисляет `is_overdue`/`remaining_secs` как backend).
+- Типы: `Task` + `is_overdue?`/`closure_required_at?`/`remaining_secs?`; `AttentionKind` + `'task_overdue'`; `GetOverdueParams`.
+- Мок: `closure_required_at` у сид-задач (#1 in_progress просрочен, #4 blocked просрочен, #3/#6 в дедлайне); `updateState` ставит дедлайн при `→ in_progress` (now+2h).
+
+**UI:**
+- **TasksPage**: вкладка «Overdue (N)» (`role=tab`/`aria-selected`, `.tabs`) поверх «All tasks». В Overdue-вью — bounded-список из `GET /tasks/overdue` (фильтры team/state скрыты, они к нему неприменимы); loading → PageSkeleton, пусто → EmptyState «No overdue tasks», ошибка → ErrorState+retry.
+- **Due-колонка** в таблице задач (в обеих вью): `closure_required_at` (форматировано) + красный бейдж **OVERDUE** (`.due-overdue`, `--red-strong`) когда `is_overdue`. У `pending`/без дедлайна — «—».
+- **TaskDetailPage**: строка **Deadline** (формат + `OVERDUE` когда просрочена, иначе «· Xh left» из `remaining_secs`). Новый форматтер `formatRelativeFromSecs`.
+- **AttentionPage**: рендерит `task_overdue` item generically (severity high + CTA «Открыть задачу») — без изменений в компоненте (новый `kind` покрывается схемой). Мок `attention.list` эмитит `task_overdue` (зеркалит backend, дедуп: blocked уже в `task_blocked`).
+- **Settings**: новый key `tasks.closure_required_secs` (duration, `requires_restart=false`) показывается авто (секция Tasks в реестре; `requires_restart=false` → apply без рестарта).
+- **WS**: `task.*`-события уже триггерят refetch задач/attention (существующий паттерн) → дедлайны и overdue-бейдж обновляются live.
+
+**Тесты:** `tests/overdue.test.tsx` (5: Overdue-tab present, OVERDUE-бейдж в All-вью, Overdue-tab фильтрует (внутри-дедлайн задача скрыта), Deadline-строка в деталке, Attention task_overdue «Открыть задачу»). `settings.test.tsx` обновлён (8 секций / 21 key). Контраст: `contrast-check.mjs` — 22 пары, exit 0 (OVERDUE-бейдж = та же пара, что `--red-strong`).
+
+**Скриншоты** (`_workspace/ui-screenshots/`): `overdue-list-2560x1440.png` (Overdue-tab, 2 задачи, Due + OVERDUE), `tasks-due-2560x1440.png` (All-вью с Due-колонкой), `overdue-detail-2560x1440.png` (деталка, Deadline + OVERDUE), `attention-overdue-2560x1440.png` (Attention с task_overdue).
 
 ## 4. Ключевые файлы
 | Файл | Назначение |

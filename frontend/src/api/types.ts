@@ -39,6 +39,7 @@ import type {
   GetTranscriptResponse,
   GetTasksResponse,
   GetTaskResponse,
+  GetOverdueParams,
   GetWorkflowResponse,
   GetWorkflowsResponse,
   ListSessionsParams,
@@ -141,6 +142,7 @@ export interface Api {
   };
   tasks: {
     list(params?: ListTasksParams): Promise<GetTasksResponse>;
+    overdue(params?: GetOverdueParams): Promise<GetTasksResponse>;
     create(req: CreateTaskRequest): Promise<CreateTaskResponse>;
     get(id: number): Promise<GetTaskResponse>;
     updateState(id: number, req: UpdateTaskStateRequest): Promise<Task>;
