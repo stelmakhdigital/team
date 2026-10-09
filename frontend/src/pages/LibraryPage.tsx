@@ -4,7 +4,7 @@ import YAML from 'yaml';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import {  EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError , Badge, errorMessage } from '../components/ui/States';
+import {  EmptyState, ErrorState, PageSkeleton, Spinner, Unavailable, isNotFoundError , Badge, errorMessage } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 
@@ -133,7 +133,7 @@ export default function LibraryPage() {
 
       <div className="library-layout">
         <div>
-          {list.loading && <Spinner label="Loading library…" />}
+          {list.loading && <PageSkeleton label="Loading library…" rows={3} />}
           {list.error &&
           (isNotFoundError(list.error) ? (
             <Unavailable feature="Library" hint="The library endpoint is not implemented in the backend yet (planned)." />

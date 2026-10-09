@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';import { useQuery } from '../hooks/useQuery';
 import { api } from '../api';
-import { ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
+import { ErrorState, PageSkeleton, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
 import { useWebSocket } from '../hooks/useWebSocket';
 import SummaryCards from '../components/Dashboard/SummaryCards';
 import TaskList from '../components/Dashboard/TaskList';
@@ -30,7 +30,7 @@ export default function DashboardPage() {
   });
   onMessage(setWs);
 
-  if (summary.loading) return <div className="page"><Spinner label="Loading dashboard…" /></div>;
+  if (summary.loading) return <div className="page"><PageSkeleton label="Loading dashboard…" /></div>;
   if (summary.error) return <div className="page"><ErrorState error={summary.error} onRetry={summary.refetch} /></div>;
 
   return (

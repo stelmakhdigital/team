@@ -212,7 +212,7 @@ X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/
 
 | Страница | Empty | Loading | Error | A11y / примечание |
 |---|---|---|---|---|
-| Dashboard | ✅ per-panel (tasks/sessions/alerts) | ✅ per-panel Spinner | ✅ per-panel ErrorState/Unavailable | EntityLink, progressbar, глоб. WS-бейдж |
+| Dashboard | ✅ per-panel (tasks/sessions/alerts) | ✅ PageSkeleton (initial) + per-panel Spinner | ✅ per-panel ErrorState/Unavailable | EntityLink, progressbar, глоб. WS-бейдж |
 | Teams | ✅ +CTA | ✅ PageSkeleton | ✅ ErrorState+retry | ссылки-строки, focus |
 | Team Builder | ✅ drop-hint (пустой сегмент) | ✅ Spinner (canvas) | ✅ ErrorState | Edit/Team — текстовые кнопки, focus |
 | Workflows | ✅ +CTA | ✅ PageSkeleton | ✅ ErrorState+retry | ссылки-строки, focus |
@@ -221,7 +221,7 @@ X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/
 | Task Detail | ✅ subtask/history инлайн | ✅ PageSkeleton | ✅ ErrorState+retry | EntityLink, focus |
 | Session Detail | ✅ transcript/history инлайн | ✅ PageSkeleton | ✅ ErrorState+retry | focus |
 | Messages | ✅ dm/chatrooms/chat | ✅ Spinner | ✅ ErrorState/Unavailable | chatroom-кнопки, input aria, focus |
-| Library | ✅ «Nothing here» | ✅ Spinner | ✅ ErrorState+retry | rename ✎ aria-label, focus |
+| Library | ✅ «Nothing here» | ✅ PageSkeleton | ✅ ErrorState+retry | rename ✎ aria-label, focus |
 | History | ✅ per tab | ✅ PageSkeleton ×3 | ✅ ErrorState/Unavailable | tabs (role/aria-selected), focus |
 | Settings | n/a (реестр всегда) | ✅ Spinner | ✅ ErrorState+retry | edit ✎ aria-label, refresh, contrast AA |
 

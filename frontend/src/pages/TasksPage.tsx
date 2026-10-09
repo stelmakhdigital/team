@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import { Badge, EmptyState, ErrorState, errorMessage, Spinner } from '../components/ui/States';
+import { Badge, EmptyState, ErrorState, errorMessage, PageSkeleton, Spinner } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
 import { useToast } from '../components/ui/Toast';
 import { formatDateTime, formatRelative } from '../lib/format';
@@ -86,7 +86,7 @@ export default function TasksPage() {
       </div>
 
       {teams.loading && <Spinner label="Loading teams…" />}
-      {list.loading && <Spinner label="Loading tasks…" />}
+      {list.loading && <PageSkeleton label="Loading tasks…" />}
       {list.error && <ErrorState error={list.error} onRetry={refetch} />}
       {list.data && list.data.tasks.length === 0 && (
         <EmptyState
