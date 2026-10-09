@@ -171,6 +171,8 @@ func requiredPermission(method, path string) string {
 			return "teams.update"
 		case res == "segments" && id != "" && sub == "roles":
 			return "teams.update"
+		case res == "tasks" && id != "" && sub == "resolve": // P0.3: ручной resolve = tasks.update
+			return "tasks.update"
 		default:
 			return res + ".create"
 		}

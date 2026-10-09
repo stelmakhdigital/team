@@ -102,3 +102,22 @@ type HistoryEntry struct {
 	Metadata        map[string]any
 	CreatedAt       time.Time
 }
+
+// TaskWake — P0.3: причина-триггер для разблокировки заблокированной задачи.
+// kind: timer | task. Вид watchdog запланирован (P1.6), в коде пока не реализуется.
+// Ref: kind=task → task_id (string) referenced-задачи; kind=timer → fire-at (RFC3339Nano).
+// FiredAt: закрытие wake (fired ИЛИ resolve) — идемпотентность.
+type TaskWake struct {
+	ID           int64
+	TaskID       int64
+	Kind         string // timer | task (watchdog: planned)
+	Ref          string
+	Continuation string
+	CreatedAt    time.Time
+	FiredAt      *time.Time
+}
+
+const (
+	WakeKindTimer = "timer"
+	WakeKindTask  = "task"
+)

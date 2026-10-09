@@ -107,6 +107,8 @@ func run() error {
 		Enabled:          cfg.WatchdogEnabled,
 	})
 	wd.Bus = bus
+	// P0.3: timer-wakes срабатывают в watchdog-loop (task → pending).
+	wd.FireTimerWakes = tsvc.FireArmedTimerWakes
 	alerts := &service.AlertStoreRef{Events: stores.Watchdog, Teams: stores.Teams, DB: db}
 
 	// P0.1 — Attention view ("Что требует меня")

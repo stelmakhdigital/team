@@ -641,3 +641,57 @@ past = true, done = false, закрытие не сбрасывает; `TestList
 данными/сортировка/limit) + HTTP (`TestTasksOverdueEndpoint`: 401/пусто/с данными/
 limit/поля/is_overdue в деталке/**viewer 200**; `TestAttentionTaskOverdue`:
 kind=task_overdue, severity=high, link).
+
+## P0.3 — Block with wake (backend, 2026-10-09)
+
+Заблокированная задача не «сидит молча»: у блока есть причина-триггер (**wake**)
+и текст «как продолжить»; разблокировка — по срабатыванию wake или ручным resolve
+с записью решения в историю.
+
+**Миграция 0010**: `task_wakes` (id, task_id FK→queue_tasks ON DELETE CASCADE,
+kind, ref, continuation, created_at, fired_at nullable). TIMESTAMP — TEXT
+(RFC3339Nano, UTC), единая конвенция. Индексы: `(task_id)`, `(kind, fired_at)`
+(арм. timer-wakes для watchdog), `(ref)` (task-wakes по referenced).
+
+**`kind`**: `timer` | `task`. Вид **`watchdog` — запланирован (P1.6), НЕ
+реализуется** в этой карточке: остаётся в схеме-документации, в коде пока только
+timer|task (валидация отклоняет `watchdog` → 400). `ref` — единая колонка с
+зависимым смыслом: **kind=task → task_id** (string) referenced-задачи;
+**kind=timer → fire-at** (RFC3339Nano, = now + `after`), чтобы watchdog-проверка
+была `ref < now`. `after` (duration, e.g. `30m`) — только вход; хранится fire-at.
+
+**`fired_at` = «закрытие» wake** (fired ИЛИ resolve). Идемпотентность: fired wake
+не срабатывает повторно (`MarkFired` = `UPDATE ... WHERE fired_at IS NULL`;
+`fireWakeTx` — no-op, если задача уже не blocked / wake уже fired).
+
+**Создание wake** (`TaskService.UpdateTaskState`, только при переходе **в `blocked`**):
+- `wake` опциональный (без wake — как раньше, совместимость; в UI encouraged).
+- Валидация → **400**: неверный kind; `timer` без валидного `after`; `task` без
+  `task_id`. Продолжение `continuation` — string, «как продолжить».
+- Если у задачи уже есть арм. wake — закрываем (идемпотентность re-block).
+
+**Разблокировка (wake → blocked → pending + системный комментарий в history):**
+- **timer**: watchdog-loop (`WatchdogService.Scan` → `FireTimerWakes` →
+  `TaskService.FireArmedTimerWakes`): арм. timer-wakes с `ref < now` →
+  `blocked → pending` + history «wake timer fired» + `task.state_changed`.
+  Выбран существующий loop-механизм (watchdog, `ScanInterval` 30s).
+- **task**: когда referenced-задача transition в `done`/`canceled`
+  (`UpdateTaskState` И `HandoffTask`) → арм. task-wakes с `ref=<closed_id>` →
+  `blocked → pending` + history «wake task #N closed». Срабатывание внутри той же
+  tx закрытия (атомарно); publish — после commit.
+- **ручной resolve**: `POST /api/v1/tasks/{id}/resolve` (body `decision` string,
+  обязателен) → `blocked → pending` + history `type=resolve, decision` +
+  `task.state_changed` (существующий EventBus, канал `team:<id>`). 409 на не-blocked,
+  400 без decision. RBAC: `tasks.update` (admin/operator; viewer → 403).
+
+**`GET /tasks/{id}`**: поле `wake` (самая свежая wake задачи): `{
+kind, ref, continuation, fired, fired_at, remaining_secs (timer only = fire_at - now) }`.
+
+**OpenAPI**: +1 op (`resolveTask`) → 66 ops; `GetTaskResponse` +`wake`;
+`UpdateTaskStateRequest` +`wake`; схемы `TaskWake`/`TaskWakeSpec`;
+`check_openapi.py` PASS (66/66).
+
+**Тесты**: service (`TestWakeCreatedOnBlockTimer/Task`, `TestWakeTimerFires`,
+`TestWakeTaskTriggerOnClose`, `TestWakeIdempotency`, `TestResolveTask` 200/409/400 +
+wake закрыт, `TestBlockWakeValidation`) + HTTP (`TestResolveTaskEndpoint`
+401/400/200/409/403-viewer; `TestBlockWithWakeEndpoint` timer/task/400/без-wake).

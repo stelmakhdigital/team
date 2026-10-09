@@ -547,6 +547,42 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/tasks/{id}/resolve:
+    post:
+      operationId: resolveTask
+      summary: "Ручной resolve заблокированной задачи (P0.3): blocked → pending"
+      description: |
+        Разблокирует задачу по ручному решению: blocked → pending + запись решения
+        в history (type resolve, decision) + событие. `decision` обязателен.
+        409 если задача не blocked. RBAC: tasks.update (admin/operator).
+      tags: [tasks]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, description: "Причина/решение: почему задача снова в работу" }
+      responses:
+        '200':
+          description: Задача разблокирована (blocked → pending)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task: { $ref: '#/components/schemas/Task' }
+                  status: { type: string, enum: [resolved] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/tasks/{id}/history:
     get:
       operationId: getTaskHistory
@@ -1755,6 +1791,7 @@ components:
         subtasks:
           type: array
           items: { $ref: '#/components/schemas/Task' }
+        wake: { $ref: '#/components/schemas/TaskWake' }  # P0.3: current/most-recent wake
     UpdateTaskStateRequest:
       type: object
       required: [state]
@@ -1763,6 +1800,25 @@ components:
         closure_reason: { type: string, enum: [handed_off_to, blocked_on, denied, canceled, no_follow_on, escalation] }
         closure_target_id: { type: integer, format: int64 }
         comment: { type: string }
+        wake: { $ref: '#/components/schemas/TaskWakeSpec' }  # P0.3: при blocked (опционально)
+    TaskWake:
+      type: object
+      required: [kind, fired]
+      properties:
+        kind: { type: string, enum: [timer, task] }
+        ref: { type: string, description: "kind=task: task_id; kind=timer: fire-at (RFC3339)" }
+        continuation: { type: string, description: "«как продолжить»" }
+        fired: { type: boolean, description: "закрыт (fired ИЛИ resolve)" }
+        fired_at: { type: string, format: date-time }
+        remaining_secs: { type: integer, format: int64, description: "timer only: fire_at - now (neg = fired)" }
+    TaskWakeSpec:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [timer, task] }
+        after: { type: string, description: "timer: duration, e.g. 30m" }
+        task_id: { type: integer, format: int64, description: "task: referenced task_id" }
+        continuation: { type: string, description: "«как продолжить»" }
     HandoffTaskRequest:
       type: object
       required: [to_role_id]

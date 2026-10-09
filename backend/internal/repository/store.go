@@ -24,6 +24,7 @@ type Stores struct {
 	Relatives      *RelativeRepo
 	Tasks          *TaskRepo
 	History        *HistoryRepo
+	Wakes          *WakeRepo // P0.3: block with wake
 	Sessions       *SessionRepo
 	SessionHistory *SessionHistoryRepo
 	Watchdog       *WatchdogRepo
@@ -51,6 +52,7 @@ func NewStores(db *sql.DB) *Stores {
 		Relatives:           &RelativeRepo{db: db},
 		Tasks:               &TaskRepo{db: db},
 		History:             &HistoryRepo{db: db},
+		Wakes:               &WakeRepo{db: db},
 		Sessions:            &SessionRepo{db: db},
 		SessionHistory:      &SessionHistoryRepo{db: db},
 		Watchdog:            &WatchdogRepo{db: db},

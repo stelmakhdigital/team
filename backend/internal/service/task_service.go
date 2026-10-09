@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"daemon/internal/models"
@@ -32,12 +33,23 @@ type historyStore interface {
 	ListByTask(ctx context.Context, tx repository.DBTX, taskID int64, limit, offset int) ([]*models.HistoryEntry, int, error)
 }
 
+// wakeStore — P0.3: wake для заблокированной задачи.
+type wakeStore interface {
+	Create(ctx context.Context, tx repository.DBTX, w *models.TaskWake) error
+	GetLatestByTask(ctx context.Context, tx repository.DBTX, taskID int64) (*models.TaskWake, error)
+	GetActiveByTask(ctx context.Context, tx repository.DBTX, taskID int64) (*models.TaskWake, error)
+	ListArmedTimers(ctx context.Context, tx repository.DBTX, now time.Time) ([]*models.TaskWake, error)
+	ListArmedByRef(ctx context.Context, tx repository.DBTX, ref string) ([]*models.TaskWake, error)
+	MarkFired(ctx context.Context, tx repository.DBTX, id int64, at time.Time) error
+}
+
 type TaskService struct {
 	db       *sql.DB
 	teams    teamStore
 	roles    roleStore
 	tasks    taskStore
 	history  historyStore
+	wakes    wakeStore
 	sessions sessionStore
 	alerts   *repository.WatchdogRepo
 	// Bus — real-time события (task.created/task.state_changed); nil = без событий.
@@ -50,7 +62,7 @@ type TaskService struct {
 func NewTaskService(db *sql.DB, s *repository.Stores) *TaskService {
 	return &TaskService{
 		db: db, teams: s.Teams, roles: s.Roles, tasks: s.Tasks, history: s.History,
-		sessions: s.Sessions, alerts: s.Watchdog,
+		wakes: s.Wakes, sessions: s.Sessions, alerts: s.Watchdog,
 	}
 }
 
@@ -147,8 +159,19 @@ type UpdateTaskStateRequest struct {
 	ClosureReason   *models.ClosureReason `json:"closure_reason,omitempty"`
 	ClosureTargetID *int64                `json:"closure_target_id,omitempty"`
 	Comment         string                `json:"comment,omitempty"`
-	ActorType       string                `json:"-"` // human | daemon
-	ActorRoleID     *int64                `json:"-"`
+	// P0.3: wake при переходе в blocked (опционально; без wake — как раньше).
+	Wake        *WakeSpec `json:"wake,omitempty"`
+	ActorType   string    `json:"-"` // human | daemon
+	ActorRoleID *int64    `json:"-"`
+}
+
+// WakeSpec — P0.3: причина-триггер для разблокировки (block with wake).
+// kind=timer: After (duration, e.g. "30m"); kind=task: TaskID (referenced-задача).
+type WakeSpec struct {
+	Kind         string `json:"kind"` // timer | task
+	After        string `json:"after,omitempty"`
+	TaskID       *int64 `json:"task_id,omitempty"`
+	Continuation string `json:"continuation,omitempty"`
 }
 
 // UpdateTaskState — переход состояния задачи + append в history + авто-закрытие родителя.
@@ -209,6 +232,13 @@ func (s *TaskService) UpdateTaskState(ctx context.Context, req UpdateTaskStateRe
 		updated.CompletedAt = &now
 	}
 
+	// P0.3: wake при блокировке (опционально; валидация → 400).
+	if req.State == models.TaskBlocked && req.Wake != nil {
+		if err := s.createWake(ctx, tx, req.ID, req.Wake, now); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := s.tasks.UpdateState(ctx, tx, req.ID, &updated); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, notFound("task")
@@ -246,6 +276,16 @@ func (s *TaskService) UpdateTaskState(ctx context.Context, req UpdateTaskStateRe
 		}
 	}
 
+	// P0.3: referenced-задача закрыта (done/canceled) → её task-wakes срабатывают.
+	var firedDependent []*models.Task
+	if req.State == models.TaskDone || req.State == models.TaskCanceled {
+		if fd, err := s.fireDependentTaskWakes(ctx, tx, req.ID); err != nil {
+			return nil, err
+		} else {
+			firedDependent = fd
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -254,6 +294,13 @@ func (s *TaskService) UpdateTaskState(ctx context.Context, req UpdateTaskStateRe
 		"task_id": updated.ID, "from_state": from,
 		"to_state": string(updated.State), "updated_at": now.Format(rfc3339),
 	}, fmt.Sprintf("team:%d", updated.TeamID), fmt.Sprintf("task:%d", updated.ID)))
+	// P0.3: publish по каждой разблокированной по task-wake задаче.
+	for _, ft := range firedDependent {
+		s.Bus.Publish(newEvent("task.state_changed", map[string]any{
+			"task_id": ft.ID, "from_state": "blocked", "to_state": string(ft.State),
+			"updated_at": now.Format(rfc3339), "wake_fired": true,
+		}, fmt.Sprintf("team:%d", ft.TeamID), fmt.Sprintf("task:%d", ft.ID)))
+	}
 	return &updated, nil
 }
 
@@ -367,11 +414,224 @@ func (s *TaskService) HandoffTask(ctx context.Context, req HandoffTaskRequest) (
 			return nil, err
 		}
 	}
+	// P0.3: handoff закрывает задачу (done) → её task-wakes срабатывают.
+	firedDependent, err := s.fireDependentTaskWakes(ctx, tx, current.ID)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	handoffNow := time.Now().UTC()
+	for _, ft := range firedDependent {
+		s.Bus.Publish(newEvent("task.state_changed", map[string]any{
+			"task_id": ft.ID, "from_state": "blocked", "to_state": string(ft.State),
+			"updated_at": handoffNow.Format(rfc3339), "wake_fired": true,
+		}, fmt.Sprintf("team:%d", ft.TeamID), fmt.Sprintf("task:%d", ft.ID)))
+	}
 	return &HandoffTaskResult{ClosedTask: &updated, NewTask: newTask}, nil
+}
+
+// ---------- P0.3: Block with wake ----------
+
+// createWake — P0.3: создание wake при блокировке (within tx). Валидация → 400.
+// Если у задачи уже есть арм. wake — закрываем (идемпотентность re-block).
+func (s *TaskService) createWake(ctx context.Context, tx repository.DBTX, taskID int64, spec *WakeSpec, now time.Time) error {
+	if active, err := s.wakes.GetActiveByTask(ctx, tx, taskID); err == nil && active != nil {
+		if err := s.wakes.MarkFired(ctx, tx, active.ID, now); err != nil {
+			return err
+		}
+	}
+	w := &models.TaskWake{TaskID: taskID, Kind: spec.Kind, Continuation: spec.Continuation}
+	switch spec.Kind {
+	case models.WakeKindTimer:
+		d, err := time.ParseDuration(spec.After)
+		if err != nil || d <= 0 {
+			return NewValidation("invalid wake.after duration",
+				[]FieldError{{Field: "wake.after", Reason: "must be a positive duration, e.g. 30m"}})
+		}
+		w.Ref = now.Add(d).UTC().Format(time.RFC3339Nano) // fire-at
+	case models.WakeKindTask:
+		if spec.TaskID == nil || *spec.TaskID <= 0 {
+			return NewValidation("wake.task_id is required for kind=task",
+				[]FieldError{{Field: "wake.task_id", Reason: "required"}})
+		}
+		w.Ref = strconv.FormatInt(*spec.TaskID, 10)
+	default:
+		return NewValidation(fmt.Sprintf("invalid wake kind %q", spec.Kind),
+			[]FieldError{{Field: "wake.kind", Reason: "must be timer|task"}})
+	}
+	return s.wakes.Create(ctx, tx, w)
+}
+
+// fireWakeTx — ядро: разблокировка задачи по сработавшему wake (blocked → pending +
+// history + fired_at), within tx. no-op (fired=false), если задача уже не blocked /
+// wake уже fired. Не публикует (caller публикует после commit).
+func (s *TaskService) fireWakeTx(ctx context.Context, tx repository.DBTX, w *models.TaskWake, reason string) (bool, error) {
+	task, err := s.tasks.GetByID(ctx, tx, w.TaskID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return false, nil // задача удалена
+		}
+		return false, err
+	}
+	if task.State != models.TaskBlocked {
+		return false, nil // уже разблокирована (идемпотентность)
+	}
+	now := time.Now().UTC()
+	if err := s.wakes.MarkFired(ctx, tx, w.ID, now); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return false, nil // уже fired
+		}
+		return false, err
+	}
+	updated := *task
+	updated.State = models.TaskPending
+	updated.BlockedSince = nil
+	if err := s.tasks.UpdateState(ctx, tx, w.TaskID, &updated); err != nil {
+		return false, err
+	}
+	from := string(task.State)
+	if err := s.history.Create(ctx, tx, &models.HistoryEntry{
+		QueueTaskID: w.TaskID, FromState: &from, ToState: string(models.TaskPending),
+		ActorType: "daemon", Comment: ptr(reason),
+		Metadata: map[string]any{"type": "wake_fired", "wake_kind": w.Kind},
+	}); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// fireWake — один wake (отдельная транзакция) + publish.
+func (s *TaskService) fireWake(ctx context.Context, w *models.TaskWake, reason string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	fired, err := s.fireWakeTx(ctx, tx, w, reason)
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if fired {
+		if task, err := s.tasks.GetByID(ctx, s.db, w.TaskID); err == nil {
+			s.Bus.Publish(newEvent("task.state_changed", map[string]any{
+				"task_id": task.ID, "from_state": "blocked", "to_state": string(task.State),
+				"updated_at": time.Now().UTC().Format(rfc3339), "wake_fired": true,
+			}, fmt.Sprintf("team:%d", task.TeamID), fmt.Sprintf("task:%d", task.ID)))
+		}
+	}
+	return nil
+}
+
+// fireDependentTaskWakes — P0.3: referenced-задача закрыта (done/canceled) → её
+// task-wakes срабатывают (blocked → pending). Within tx. Возвращает разблокированные
+// задачи (для publish после commit).
+func (s *TaskService) fireDependentTaskWakes(ctx context.Context, tx repository.DBTX, closedID int64) ([]*models.Task, error) {
+	wakes, err := s.wakes.ListArmedByRef(ctx, tx, strconv.FormatInt(closedID, 10))
+	if err != nil {
+		return nil, err
+	}
+	var fired []*models.Task
+	for _, w := range wakes {
+		didFire, err := s.fireWakeTx(ctx, tx, w, fmt.Sprintf("wake task #%d closed", closedID))
+		if err != nil {
+			return nil, err
+		}
+		if didFire {
+			if t, err := s.tasks.GetByID(ctx, tx, w.TaskID); err == nil {
+				fired = append(fired, t)
+			}
+		}
+	}
+	return fired, nil
+}
+
+// FireArmedTimerWakes — P0.3: timer-wakes, чей срок наступил (watchdog-loop).
+// Возвращает число сработавших.
+func (s *TaskService) FireArmedTimerWakes(ctx context.Context) int {
+	wakes, err := s.wakes.ListArmedTimers(ctx, s.db, time.Now().UTC())
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, w := range wakes {
+		if err := s.fireWake(ctx, w, "wake timer fired"); err == nil {
+			n++
+		}
+	}
+	return n
+}
+
+type ResolveTaskRequest struct {
+	ID          int64
+	Decision    string // обязателен — почему задача снова в работу
+	ActorType   string // human | daemon
+	ActorRoleID *int64
+}
+
+// ResolveTask — P0.3: ручной resolve заблокированной задачи: blocked → pending +
+// запись решения в history (type resolve, decision) + событие. 409 на не-blocked.
+func (s *TaskService) ResolveTask(ctx context.Context, req ResolveTaskRequest) (*models.Task, error) {
+	current, err := s.getTask(ctx, req.ID)
+	if err != nil {
+		return nil, err
+	}
+	if req.Decision == "" {
+		return nil, NewValidation("decision is required to resolve a blocked task",
+			[]FieldError{{Field: "decision", Reason: "required"}})
+	}
+	if current.State != models.TaskBlocked {
+		return nil, NewConflict(fmt.Sprintf("task %d is %s, only blocked tasks can be resolved", current.ID, current.State))
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := time.Now().UTC()
+	actor := req.ActorType
+	if actor == "" {
+		actor = "human"
+	}
+	// закрыть арм. wake (идемпотентность: не сработает повторно)
+	if active, err := s.wakes.GetActiveByTask(ctx, tx, req.ID); err == nil && active != nil {
+		if err := s.wakes.MarkFired(ctx, tx, active.ID, now); err != nil {
+			return nil, err
+		}
+	}
+	updated := *current
+	updated.State = models.TaskPending
+	updated.BlockedSince = nil
+	if err := s.tasks.UpdateState(ctx, tx, req.ID, &updated); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, notFound("task")
+		}
+		return nil, err
+	}
+	from := string(current.State)
+	if err := s.history.Create(ctx, tx, &models.HistoryEntry{
+		QueueTaskID: req.ID, FromState: &from, ToState: string(models.TaskPending),
+		ActorType: actor, ActorRoleID: req.ActorRoleID,
+		Comment:  ptr("resolve: " + req.Decision),
+		Metadata: map[string]any{"type": "resolve", "decision": req.Decision},
+	}); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	updated.UpdatedAt = now
+	s.Bus.Publish(newEvent("task.state_changed", map[string]any{
+		"task_id": updated.ID, "from_state": from, "to_state": string(updated.State),
+		"updated_at": now.Format(rfc3339), "resolved": true,
+	}, fmt.Sprintf("team:%d", updated.TeamID), fmt.Sprintf("task:%d", updated.ID)))
+	return &updated, nil
 }
 
 // ---------- Запросы ----------
@@ -464,6 +724,7 @@ func (s *TaskService) ListOverdue(ctx context.Context, limit, offset int) ([]*Ta
 type TaskDetail struct {
 	Task     *TaskView   `json:"task"`
 	Subtasks []*TaskView `json:"subtasks"`
+	Wake     *WakeView   `json:"wake,omitempty"` // P0.3: current/most-recent wake
 }
 
 func (s *TaskService) GetTask(ctx context.Context, id int64) (*TaskDetail, error) {
@@ -481,7 +742,36 @@ func (s *TaskService) GetTask(ctx context.Context, id int64) (*TaskDetail, error
 	} else if childViews, err := s.viewsFor(ctx, children); err == nil {
 		sub.Subtasks = childViews
 	}
+	if w, err := s.wakes.GetLatestByTask(ctx, s.db, id); err == nil {
+		sub.Wake = wakeView(w, time.Now().UTC())
+	}
 	return sub, nil
+}
+
+// WakeView — P0.3: wake в формате контракта (GET /tasks/{id}).
+type WakeView struct {
+	Kind          string  `json:"kind"`          // timer | task
+	Ref           string  `json:"ref,omitempty"` // task: task_id; timer: fire-at (RFC3339)
+	Continuation  string  `json:"continuation,omitempty"`
+	Fired         bool    `json:"fired"`
+	FiredAt       *string `json:"fired_at,omitempty"`
+	RemainingSecs *int64  `json:"remaining_secs,omitempty"` // timer only: fire_at - now (neg = fired)
+}
+
+func wakeView(w *models.TaskWake, now time.Time) *WakeView {
+	if w == nil {
+		return nil
+	}
+	v := &WakeView{Kind: w.Kind, Ref: w.Ref, Continuation: w.Continuation, Fired: w.FiredAt != nil}
+	if w.FiredAt != nil {
+		v.FiredAt = ptr(w.FiredAt.Format(rfc3339))
+	}
+	if w.Kind == models.WakeKindTimer {
+		if fa, err := time.Parse(time.RFC3339Nano, w.Ref); err == nil {
+			v.RemainingSecs = ptr(int64(fa.Sub(now).Seconds()))
+		}
+	}
+	return v
 }
 
 type TaskHistoryEntryView struct {

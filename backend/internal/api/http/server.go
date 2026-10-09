@@ -82,6 +82,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("GET /api/v1/tasks/{id}", h.GetTask)
 	mux.HandleFunc("PATCH /api/v1/tasks/{id}/state", h.UpdateTaskState)
 	mux.HandleFunc("POST /api/v1/tasks/{id}/handoff", h.HandoffTask)
+	mux.HandleFunc("POST /api/v1/tasks/{id}/resolve", h.ResolveTask) // P0.3
 	mux.HandleFunc("GET /api/v1/tasks/{id}/history", h.GetTaskHistory)
 
 	// Slice 2 — Dashboard

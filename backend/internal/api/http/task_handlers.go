@@ -112,6 +112,15 @@ type updateTaskStateBody struct {
 	ClosureReason   *string `json:"closure_reason"`
 	ClosureTargetID *int64  `json:"closure_target_id"`
 	Comment         string  `json:"comment"`
+	// P0.3: wake при блокировке (опционально).
+	Wake *service.WakeSpec `json:"wake"`
+}
+
+type wakeBody struct {
+	Kind         string `json:"kind"`
+	After        string `json:"after,omitempty"`
+	TaskID       *int64 `json:"task_id,omitempty"`
+	Continuation string `json:"continuation,omitempty"`
 }
 
 // UpdateTaskState — PATCH /api/v1/tasks/{id}/state
@@ -133,6 +142,9 @@ func (h *handlers) UpdateTaskState(w http.ResponseWriter, r *http.Request) {
 	if body.ClosureReason != nil {
 		cr := models.ClosureReason(*body.ClosureReason)
 		req.ClosureReason = &cr
+	}
+	if body.Wake != nil {
+		req.Wake = &service.WakeSpec{Kind: body.Wake.Kind, After: body.Wake.After, TaskID: body.Wake.TaskID, Continuation: body.Wake.Continuation}
 	}
 	task, err := h.tsvc.UpdateTaskState(r.Context(), req)
 	if err != nil {
@@ -180,6 +192,39 @@ func (h *handlers) HandoffTask(w http.ResponseWriter, r *http.Request) {
 		"task":   detail.Task,
 		"status": "handed_off",
 	})
+}
+
+// resolveBody — P0.3: ручной resolve заблокированной задачи.
+type resolveBody struct {
+	Decision string `json:"decision"`
+}
+
+// ResolveTask — POST /api/v1/tasks/{id}/resolve (P0.3). blocked → pending + запись
+// решения в history + событие. 409 на не-blocked; 400 без decision.
+func (h *handlers) ResolveTask(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body resolveBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	task, err := h.tsvc.ResolveTask(r.Context(), service.ResolveTaskRequest{
+		ID: id, Decision: body.Decision, ActorType: "human",
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	detail, err := h.tsvc.GetTask(r.Context(), task.ID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"task": detail.Task, "status": "resolved"})
 }
 
 // GetTaskHistory — GET /api/v1/tasks/{id}/history?limit=&offset=

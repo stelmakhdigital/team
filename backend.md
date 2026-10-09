@@ -69,6 +69,7 @@
 | U4 Backend: Config subsystem (Settings, layered resolution, overrides, RBAC) | DONE (backend; openapi 60 ops) |
 | P0.1 Attention view «Что требует меня» (`GET /attention`: blocked/escalated + unread alerts) | DONE (backend; openapi 64 ops; RBAC viewer-ok) |
 | P0.2 Overdue / дедлайны задач (`closure_required_at`, `GET /tasks/overdue`, attention `task_overdue`) | DONE (backend; openapi 65 ops; RBAC viewer-ok; +config-key tasks.closure_required_secs) |
+| P0.3 Block with wake (`task_wakes`, `POST /tasks/{id}/resolve`, wake при block) | DONE (backend; openapi 66 ops; resolve RBAC tasks.update; wake в detalke) |
 | Фронтенд F1–F15 + UI-редизайн R1–R5 (граф React Flow, edit, YAML, токены, R4 live-терминал, R5 рефакторинг) | DONE (зона лида) |
 
 ### Осталось (не блокирует)
@@ -224,6 +225,39 @@ OpenAPI: +3 операции (всего 63); `check_openapi.py` PASS.
   `TestOverdueIsOverdueLogic`, `TestListOverdue`) + HTTP (`TestTasksOverdueEndpoint`,
   `TestAttentionTaskOverdue`). Конфиг-тесты обновлены (21 ключ/8 секций; `tasks.closure_required_secs`
   = read-at-transition исключение).
+
+### 3f. P0.3 — Block with wake (backend, 2026-10-09)
+Заблокированная задача получает причину-триггер (wake) + «как продолжить»; разблокировка —
+по срабатыванию wake (timer/task) или ручным resolve. Подробности — в
+`docs/contracts/api-decisions.md` §P0.3.
+
+- **Миграция 0010** (sqlite+postgres): `task_wakes` (id, task_id FK, kind, ref, continuation,
+  created_at, fired_at nullable) + индексы. kind: `timer`|`task` (`watchdog` запланирован
+  P1.6, в коде не реализуется). `ref`: task→task_id, timer→fire-at (RFC3339Nano).
+- **Создание wake** (`UpdateTaskState`, только в `blocked`): `wake` опциональный (без —
+  как раньше); валидация → 400 (неверный kind / timer без after / task без task_id);
+  re-block закрывает старый арм. wake.
+- **Разблокировка** (wake → `blocked → pending` + history + `task.state_changed`):
+  - **timer**: watchdog-loop (`Scan` → `FireTimerWakes` → `FireArmedTimerWakes`), `ref < now`.
+  - **task**: referenced-задача `done`/`canceled` (`UpdateTaskState` И `HandoffTask`) →
+    арм. task-wakes c `ref=<closed_id>` (в той же tx, publish после commit).
+  - **resolve**: `POST /tasks/{id}/resolve` (`decision` обязателен) → `blocked → pending` +
+    history `type=resolve, decision`; 409 на не-blocked, 400 без decision; RBAC `tasks.update`.
+- **`fired_at` = закрытие wake** (fired ИЛИ resolve) → идемпотентность (не срабатывает повторно).
+- **`GET /tasks/{id}`**: +`wake` объект (`kind, ref, continuation, fired, fired_at,
+  remaining_secs` для timer).
+- **Код**: миграции 0010, `models.TaskWake`, `wake_repo.go` (new, WakeRepo), `store.go`
+  (`Wakes`), `task_service.go` (`WakeSpec`/`WakeView`/`createWake`/`fireWakeTx`/`fireWake`/
+  `fireDependentTaskWakes`/`FireArmedTimerWakes`/`ResolveTask` + wake в `GetTask`),
+  `watchdog.go` (`FireTimerWakes` callback + в `Scan`), `task_handlers.go`
+  (`ResolveTask` + `wake` в body), `server.go` (route), `middleware.go` (RBAC resolve),
+  `main.go` (wiring `wd.FireTimerWakes = tsvc.FireArmedTimerWakes`).
+- **OpenAPI**: +1 op (`resolveTask`) → 66 ops; `GetTaskResponse` +`wake`;
+  `UpdateTaskStateRequest` +`wake`; схемы `TaskWake`/`TaskWakeSpec`; `check_openapi.py` PASS.
+- **Тесты**: service (`TestWakeCreatedOnBlockTimer/Task`, `TestWakeTimerFires`,
+  `TestWakeTaskTriggerOnClose`, `TestWakeIdempotency`, `TestResolveTask`,
+  `TestBlockWakeValidation`) + HTTP (`TestResolveTaskEndpoint` 401/400/200/409/403;
+  `TestBlockWithWakeEndpoint` timer/task/400/без-wake).
 
 ## 4. Как проверить
 ```

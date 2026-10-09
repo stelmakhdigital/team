@@ -42,6 +42,8 @@ type WatchdogService struct {
 	cfg      WatchdogConfig
 	// Bus — real-time событие alert.created; nil = без событий.
 	Bus *EventBus
+	// P0.3: timer-wakes (подвязка на TaskService.FireArmedTimerWakes; nil = без).
+	FireTimerWakes func(ctx context.Context) int
 }
 
 func NewWatchdogService(db *sql.DB, s *repository.Stores, cfg WatchdogConfig) *WatchdogService {
@@ -75,6 +77,10 @@ func (w *WatchdogService) Scan(ctx context.Context) int {
 	n += w.checkStaleTasks(ctx)
 	n += w.checkBlockedTasks(ctx)
 	n += w.checkFailedSessions(ctx)
+	// P0.3: timer-wakes, чей срок наступил → разблокировка (не создаёт алерт).
+	if w.FireTimerWakes != nil {
+		w.FireTimerWakes(ctx)
+	}
 	return n
 }
 
