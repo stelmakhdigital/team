@@ -11,7 +11,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ## P0.5 → P1.0 Projects: сущность «проект» (мультипроектность, по запрос пользователя)
 
-### P1.0 Projects entity + привязка к командам/сессиям — `in_progress`
+### P1.0 Projects entity + привязка к командам/сессиям — `done` (T-20261009200032, 1 раунд; projects CRUD, layered working_dir, фильтры, 71 ops; миноры: UI-сессий страницы нет — API-фильтр готов)
 - **Контекст**: сейчас `working_dir` задаётся вручную на каждой сессии; сущности
   Project нет (команда не привязана к директории; фильтр «по проекту» невозможен).
   Ориентир — OpenRIG work tree: workspace → project → mission → slice; seat работает
@@ -93,7 +93,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ## P1 — ядро ценности (средний/большой объём)
 
-### P1.4 Workflow engine: close-step → next task — `new`
+### P1.4 Workflow engine: close-step → next task — `in_progress`
 - **Scope**: active-воркфлоу становится движком: `agent`/`task`-блоки
   привязываются к ролям; при старте инстанса (или при активации воркфлоу)
   создаётся задача для первого блока; closure задачи (done +
