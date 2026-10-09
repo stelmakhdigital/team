@@ -72,12 +72,16 @@ function friendlyMessage(code: string, message: string): { title: string; hint?:
     case 'not_found':
       return { title: 'Not found', hint: 'The requested resource does not exist or was removed.' };
     case 'conflict':
-      return { title: 'Conflict', hint: 'The data changed on the server. Refresh and try again.' };
+      return { title: 'Conflict', hint: 'The value already exists or changed on the server (name taken / stale data). Refresh and try again.' };
+    case 'bad_request':
+      return { title: 'Invalid input', hint: message || 'The request was malformed.' };
     case 'validation':
     case 'validation_failed':
       return { title: 'Validation error', hint: message };
     case 'network':
       return { title: 'Network error', hint: 'Cannot reach the server. Check connectivity and retry.' };
+    case 'server':
+      return { title: 'Server error', hint: 'The backend returned an error. Try again in a moment.' };
     default:
       return { title: 'Something went wrong', hint: message };
   }
@@ -129,8 +133,14 @@ export function Badge({ kind, value, children, title }: {
   );
 }
 
+/** Human-readable message for a thrown error. For API errors it maps the
+ * stable code to specifics (409/403/404/… carry context instead of a raw
+ * code) so toasts and inline errors are self-explanatory. */
 export function errorMessage(err: unknown): string {
-  if (err instanceof ApiClientError) return err.message;
+  if (err instanceof ApiClientError) {
+    const f = friendlyMessage(err.code, err.message);
+    return f.hint && f.hint !== err.message ? `${f.title}: ${f.hint}` : f.title;
+  }
   if (err instanceof Error) return err.message;
-  return 'Unknown error';
+  return 'Something went wrong';
 }

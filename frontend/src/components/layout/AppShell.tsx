@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { getApiConfig } from '../../api/config';
 import { getMockError, setMockError } from '../../api/mock/adapter';
 import type { MockErrorKind } from '../../api/mock/adapter';
+import { useWebSocket } from '../../hooks/useWebSocket';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: '▦', end: true },
@@ -17,9 +18,18 @@ const NAV = [
 
 const MOCK_ERRORS: (MockErrorKind | '')[] = ['', 'unauthorized', 'forbidden', 'not_found', 'conflict', 'server', 'network'];
 
+// X3: global real-time status (one connection in the shell → badge on every page).
+const WS_LABEL: Record<string, string> = {
+  mock: 'live · mock',
+  connected: 'real-time: connected',
+  reconnecting: 'real-time: reconnecting…',
+  disconnected: 'real-time: offline',
+};
+
 export default function AppShell() {
   const cfg = getApiConfig();
   const [simError, setSimError] = useState<MockErrorKind | ''>(getMockError() ?? '');
+  const { status: wsStatus } = useWebSocket([]);
   const changeSimError = (k: MockErrorKind | '') => {
     setSimError(k);
     setMockError(k || null);
@@ -46,6 +56,9 @@ export default function AppShell() {
           ))}
         </nav>
         <div className="sidebar-footer">
+          <div className={`ws-badge ws-${wsStatus}`} title="WebSocket real-time status (auto-reconnects on drop)">
+            {WS_LABEL[wsStatus] ?? wsStatus}
+          </div>
           <div className={`mode-badge mode-${cfg.mode}`}>{cfg.mode === 'mock' ? 'MOCK API' : 'LIVE API'}</div>
           {cfg.mode === 'mock' && (
             <label className="dev-error">

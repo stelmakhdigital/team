@@ -220,6 +220,7 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 .ws-mock { color: var(--yellow); border-color: var(--yellow); }
 .ws-connected { color: var(--green); border-color: var(--green); }
 .ws-reconnecting { color: var(--yellow); }
+.ws-disconnected { color: var(--red); border-color: var(--red); }
 
 /* ---------- buttons / forms ---------- */
 

@@ -298,6 +298,7 @@ function CreateTaskModal({
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [priority, setPriority] = useState(3);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const roles = useQuery(`tasks.create.roles.${teamId}`, () => api.teams.getTopology(teamId), [teamId]);
 
@@ -305,11 +306,12 @@ function CreateTaskModal({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || roleId === '') return;
+    setFormError(null);
     try {
       const res = await create.mutate({ team_id: teamId, destination_role_id: Number(roleId), title: title.trim(), body, priority });
       onCreated(res.id);
     } catch (err) {
-      alert(errorMessage(err instanceof Error ? err : new Error('Failed to create task')));
+      setFormError(errorMessage(err ?? new Error('Failed to create task')));
     }
   };
 
@@ -352,6 +354,7 @@ function CreateTaskModal({
             Priority (0–9)
             <input type="number" min={0} max={9} value={priority} onChange={(e) => setPriority(Number(e.target.value))} />
           </label>
+          {formError && <div className="form-error">{formError}</div>}
           <div className="modal-actions">
             <button type="button" className="btn" onClick={onClose}>
               Cancel

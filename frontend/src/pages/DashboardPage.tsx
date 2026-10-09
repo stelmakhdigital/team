@@ -15,7 +15,7 @@ export default function DashboardPage() {
   const sessions = useQuery('dashboard.sessions', () => api.dashboard.getSessions());
   const alerts = useQuery('dashboard.alerts', () => api.dashboard.getAlerts());
   const metrics = useQuery('dashboard.metrics', () => api.dashboard.getMetrics());
-  const { status, onMessage } = useWebSocket(['dashboard']);
+  const { onMessage } = useWebSocket(['dashboard']);
   const { toast } = useToast();
 
   // live updates: refetch on relevant events (WS events are synthetic in mock mode)
@@ -37,7 +37,6 @@ export default function DashboardPage() {
     <div className="page">
       <div className="page-head">
         <h1>Dashboard</h1>
-        <span className={`ws-badge ws-${status}`}>real-time: {status}</span>
       </div>
 
       {summary.data && <SummaryCards summary={summary.data} />}
