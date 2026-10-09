@@ -38,6 +38,14 @@ func (h *handlers) ListTasks(w http.ResponseWriter, r *http.Request) {
 		}
 		f.DestinationRole = &id
 	}
+	if v := q.Get("project_id"); v != "" { // P1.0: фильтр по проекту
+		id, err := parseIDParam(v)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		f.ProjectID = &id
+	}
 	limit, offset := limitOffset(q)
 	f.Limit, f.Offset = limit, offset
 
@@ -64,6 +72,7 @@ func (h *handlers) ListTasksOverdue(w http.ResponseWriter, r *http.Request) {
 
 type createTaskBody struct {
 	TeamID            int64          `json:"team_id"`
+	ProjectID         *int64         `json:"project_id"` // P1.0: override; иначе наследуется от team.project
 	ParentTaskID      *int64         `json:"parent_task_id"`
 	DestinationRoleID int64          `json:"destination_role_id"`
 	SourceRoleID      *int64         `json:"source_role_id"`
@@ -81,7 +90,7 @@ func (h *handlers) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	task, err := h.tsvc.CreateTask(r.Context(), service.CreateTaskRequest{
-		TeamID: body.TeamID, ParentTaskID: body.ParentTaskID,
+		TeamID: body.TeamID, ProjectID: body.ProjectID, ParentTaskID: body.ParentTaskID,
 		DestinationRoleID: body.DestinationRoleID, SourceRoleID: body.SourceRoleID,
 		Title: body.Title, Body: body.Body, BodyContext: body.BodyContext, Priority: body.Priority,
 	})

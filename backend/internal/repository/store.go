@@ -42,6 +42,8 @@ type Stores struct {
 	Audit           *AuditRepo
 	// U4 — Config (overrides)
 	ConfigOverrides *ConfigRepo
+	// P1.0 — Projects (мультипроектность)
+	Projects *ProjectRepo
 }
 
 func NewStores(db *sql.DB) *Stores {
@@ -66,6 +68,7 @@ func NewStores(db *sql.DB) *Stores {
 		LibraryVersions:     &LibraryVersionRepo{db: db},
 		Audit:               &AuditRepo{db: db},
 		ConfigOverrides:     &ConfigRepo{db: db},
+		Projects:            &ProjectRepo{db: db},
 	}
 }
 
@@ -73,6 +76,14 @@ var (
 	ErrNotFound = errors.New("not found")
 	ErrConflict = errors.New("conflict")
 )
+
+// nullableInt64 — *int64 → any (nil = NULL) для nullable FK-колонн (P1.0).
+func nullableInt64(p *int64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
 
 // IsUniqueViolation — определение unique-violation для sqlite/postgres.
 func IsUniqueViolation(err error) bool {

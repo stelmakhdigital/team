@@ -52,6 +52,7 @@ type TaskService struct {
 	wakes    wakeStore
 	sessions sessionStore
 	alerts   *repository.WatchdogRepo
+	projects *repository.ProjectRepo // P1.0
 	// Bus — real-time события (task.created/task.state_changed); nil = без событий.
 	Bus *EventBus
 	// P0.2: tasks.closure_required_secs на момент перехода в in_progress (layered config).
@@ -62,14 +63,33 @@ type TaskService struct {
 func NewTaskService(db *sql.DB, s *repository.Stores) *TaskService {
 	return &TaskService{
 		db: db, teams: s.Teams, roles: s.Roles, tasks: s.Tasks, history: s.History,
-		wakes: s.Wakes, sessions: s.Sessions, alerts: s.Watchdog,
+		wakes: s.Wakes, sessions: s.Sessions, alerts: s.Watchdog, projects: s.Projects,
 	}
+}
+
+// resolveTaskProject — P1.0: project_id задачи = override (req.ProjectID) или
+// наследуется от team.project. Возвращает nil, если проект не существует.
+func (s *TaskService) resolveTaskProject(ctx context.Context, override *int64, team *models.Team) *int64 {
+	var pid *int64
+	if override != nil {
+		pid = override
+	} else if team != nil && team.ProjectID != nil {
+		pid = team.ProjectID
+	}
+	if pid == nil || s.projects == nil {
+		return pid
+	}
+	if _, err := s.projects.GetByID(ctx, s.db, *pid); err != nil {
+		return nil // проект удалён/не существует → не привязываем
+	}
+	return pid
 }
 
 // ---------- Create ----------
 
 type CreateTaskRequest struct {
 	TeamID            int64          `json:"-"`
+	ProjectID         *int64         `json:"project_id"` // P1.0: override; иначе наследуется от team.project
 	ParentTaskID      *int64         `json:"parent_task_id"`
 	DestinationRoleID int64          `json:"destination_role_id"`
 	SourceRoleID      *int64         `json:"source_role_id"`
@@ -111,6 +131,9 @@ func (s *TaskService) CreateTask(ctx context.Context, req CreateTaskRequest) (*m
 		}
 	}
 
+	// P1.0: разрешение project_id задачи ДО tx (чтобы не держать соединение)
+	projectID := s.resolveTaskProject(ctx, req.ProjectID, team)
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -118,7 +141,7 @@ func (s *TaskService) CreateTask(ctx context.Context, req CreateTaskRequest) (*m
 	defer func() { _ = tx.Rollback() }()
 
 	task := &models.Task{
-		TeamID: team.ID, ParentTaskID: req.ParentTaskID,
+		TeamID: team.ID, ProjectID: projectID, ParentTaskID: req.ParentTaskID,
 		DestinationRoleID: req.DestinationRoleID, SourceRoleID: req.SourceRoleID,
 		Title: req.Title, Body: req.Body, BodyContext: req.BodyContext,
 		State: models.TaskPending, Priority: req.Priority,
@@ -372,7 +395,7 @@ func (s *TaskService) HandoffTask(ctx context.Context, req HandoffTaskRequest) (
 	defer func() { _ = tx.Rollback() }()
 
 	newTask := &models.Task{
-		TeamID: current.TeamID, ParentTaskID: current.ParentTaskID,
+		TeamID: current.TeamID, ProjectID: current.ProjectID, ParentTaskID: current.ParentTaskID,
 		DestinationRoleID: req.ToRoleID, SourceRoleID: &current.DestinationRoleID,
 		Title: current.Title, Body: current.Body, BodyContext: current.BodyContext,
 		State: models.TaskPending, Priority: current.Priority,
@@ -640,6 +663,7 @@ func (s *TaskService) ResolveTask(ctx context.Context, req ResolveTaskRequest) (
 type TaskView struct {
 	ID                int64          `json:"id"`
 	TeamID            int64          `json:"team_id"`
+	ProjectID         *int64         `json:"project_id,omitempty"` // P1.0
 	TeamName          string         `json:"team_name"`
 	ParentTaskID      *int64         `json:"parent_task_id,omitempty"`
 	Title             string         `json:"title"`
@@ -1002,7 +1026,7 @@ func (s *TaskService) viewsFor(ctx context.Context, tasks []*models.Task) ([]*Ta
 	out := make([]*TaskView, 0, len(tasks))
 	for _, t := range tasks {
 		v := &TaskView{
-			ID: t.ID, TeamID: t.TeamID, TeamName: teamName[t.TeamID],
+			ID: t.ID, TeamID: t.TeamID, ProjectID: t.ProjectID, TeamName: teamName[t.TeamID],
 			ParentTaskID: t.ParentTaskID,
 			Title:        t.Title, Body: t.Body, BodyContext: t.BodyContext,
 			State: string(t.State), Priority: t.Priority,

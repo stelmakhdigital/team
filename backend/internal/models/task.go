@@ -67,6 +67,7 @@ func (c ClosureReason) Valid() bool {
 type Task struct {
 	ID                int64
 	TeamID            int64
+	ProjectID         *int64 // P1.0: свойство работы (наследуется от team.project или override)
 	ParentTaskID      *int64
 	DestinationRoleID int64
 	SourceRoleID      *int64

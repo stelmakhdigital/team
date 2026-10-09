@@ -1271,6 +1271,106 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/projects:
+    get:
+      operationId: listProjects
+      summary: Список проектов (по умолчанию активные; ?archived=true / ?include_archived=true / ?name=)
+      tags: [projects]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+        - { name: name, in: query, schema: { type: string } }
+        - { name: archived, in: query, schema: { type: boolean } }
+        - { name: include_archived, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Список проектов
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListProjectsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: createProject
+      summary: "Создать проект (existing: path; new: parent_path + name)"
+      description: >-
+        kind=existing: path обязан существовать и быть writable (иначе 400); git определяется
+        (.git есть). kind=new: parent_path + name → создать каталог, git init (если git доступен;
+        иначе git=false + warning), README-заготовка. Дубликаты name/path → 409.
+      tags: [projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProjectRequest' }
+      responses:
+        '201':
+          description: Проект создан (project + необязательный warning)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateProjectResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/projects/{id}:
+    get:
+      operationId: getProject
+      summary: Проект + счётчики (команды/задачи/активные сессии)
+      tags: [projects]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Проект + counts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetProjectResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      operationId: updateProject
+      summary: "Изменить name/description (path immutable → 409)"
+      tags: [projects]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProjectRequest' }
+      responses:
+        '200':
+          description: Проект обновлён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: archiveProject
+      summary: "Архивировать проект (DELETE = archive, идемпотентно)"
+      tags: [projects]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Проект архивирован (archived=true)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/config:
     get:
       operationId: listConfig
@@ -2515,6 +2615,66 @@ components:
         environment:
           type: array
           items: { $ref: '#/components/schemas/ConfigEnvVar' }
+    Project:
+      type: object
+      required: [id, name, path, kind, git, archived, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        path: { type: string, description: "Абсолютный путь; immutable после создания" }
+        kind: { type: string, enum: [existing, new] }
+        git: { type: boolean }
+        description: { type: string }
+        archived: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ProjectResponse:
+      type: object
+      required: [project]
+      properties:
+        project: { $ref: '#/components/schemas/Project' }
+    ListProjectsResponse:
+      type: object
+      required: [projects, total]
+      properties:
+        projects:
+          type: array
+          items: { $ref: '#/components/schemas/Project' }
+        total: { type: integer }
+    CreateProjectRequest:
+      type: object
+      required: [name, kind]
+      properties:
+        name: { type: string }
+        kind: { type: string, enum: [existing, new] }
+        path: { type: string, description: "kind=existing: существующий каталог" }
+        parent_path: { type: string, description: "kind=new: parent-каталог (создаётся parent/name)" }
+        description: { type: string }
+    CreateProjectResponse:
+      type: object
+      required: [project]
+      properties:
+        project: { $ref: '#/components/schemas/Project' }
+        warning: { type: string, description: "напр., git не доступен" }
+    ProjectCounts:
+      type: object
+      required: [teams, tasks, active_sessions]
+      properties:
+        teams: { type: integer }
+        tasks: { type: integer }
+        active_sessions: { type: integer }
+    GetProjectResponse:
+      type: object
+      required: [project, counts]
+      properties:
+        project: { $ref: '#/components/schemas/Project' }
+        counts: { $ref: '#/components/schemas/ProjectCounts' }
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        path: { type: string, description: "если задан → 409 (immutable)" }
     SetConfigRequest:
       type: object
       required: [value]

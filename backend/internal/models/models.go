@@ -25,6 +25,7 @@ type Team struct {
 	Description string
 	SpecPath    string
 	State       TeamState
+	ProjectID   *int64 // P1.0: привязка к проекту (nullable; команды без проекта — как раньше)
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

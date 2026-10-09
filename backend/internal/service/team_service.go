@@ -63,6 +63,7 @@ type TeamService struct {
 	roles     roleStore
 	relatives relativeStore
 	chatRooms chatRoomStore
+	projects  *repository.ProjectRepo // P1.0
 	// SpecsDir — корень для чтения agent.yaml (GET /roles/{id}/config).
 	SpecsDir string
 }
@@ -75,6 +76,7 @@ func NewTeamService(db *sql.DB, s *repository.Stores) *TeamService {
 		roles:     s.Roles,
 		relatives: s.Relatives,
 		chatRooms: s.Chatrooms,
+		projects:  s.Projects,
 		SpecsDir:  "agents",
 	}
 }
@@ -227,6 +229,7 @@ type Layout struct {
 type CreateTeamRequest struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
+	ProjectID   *int64    `json:"project_id,omitempty"` // P1.0: привязка к проекту (опционально)
 	Spec        *TeamSpec `json:"spec,omitempty"`
 }
 
@@ -241,13 +244,31 @@ func (s *TeamService) CreateTeam(ctx context.Context, req CreateTeamRequest) (*m
 		}
 	}
 
+	// P1.0: валидация проекта ДО tx (чтобы не держать соединение при GetByID)
+	var projectID *int64
+	if req.ProjectID != nil {
+		if s.projects != nil {
+			p, err := s.projects.GetByID(ctx, s.db, *req.ProjectID)
+			if err != nil {
+				if err == repository.ErrNotFound {
+					return nil, notFound("project")
+				}
+				return nil, err
+			}
+			if p.Archived {
+				return nil, NewConflict(fmt.Sprintf("project %d is archived, cannot be used for a new team", p.ID))
+			}
+			projectID = req.ProjectID
+		}
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	team := &models.Team{Name: req.Name, Description: req.Description}
+	team := &models.Team{Name: req.Name, Description: req.Description, ProjectID: projectID}
 	if err := s.teams.Create(ctx, tx, team); err != nil {
 		if repository.IsUniqueViolation(err) {
 			return nil, NewConflict(fmt.Sprintf("team %q already exists", req.Name))

@@ -14,6 +14,7 @@ import (
 type createSessionBody struct {
 	RoleID      int64          `json:"role_id"`
 	QueueTaskID *int64         `json:"queue_task_id"`
+	ProjectID   *int64         `json:"project_id"` // P1.0: явный проект (опционально)
 	RuntimeType string         `json:"runtime_type"`
 	Command     string         `json:"command"`
 	Args        []string       `json:"args"`
@@ -34,7 +35,7 @@ func (h *handlers) CreateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sess, err := h.ssvc.CreateSession(r.Context(), teamID, service.CreateSessionRequest{
-		RoleID: body.RoleID, QueueTaskID: body.QueueTaskID,
+		RoleID: body.RoleID, QueueTaskID: body.QueueTaskID, ProjectID: body.ProjectID,
 		RuntimeType: body.RuntimeType, Command: body.Command, Args: body.Args,
 		WorkingDir: body.WorkingDir, Config: body.Config,
 	})
@@ -66,6 +67,14 @@ func (h *handlers) ListSessions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		f.RoleID = &id
+	}
+	if v := q.Get("project_id"); v != "" { // P1.0: фильтр по проекту
+		id, err := parseIDParam(v)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+		f.ProjectID = &id
 	}
 	if v := q.Get("state"); v != "" {
 		st := models.SessionState(v)

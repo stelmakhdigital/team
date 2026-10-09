@@ -39,6 +39,7 @@ type SessionService struct {
 	tHistory historyStore
 	sessions sessionStore
 	sHistory sessionHistoryStore
+	projects *repository.ProjectRepo // P1.0
 	// LogsDir — transcript-файлы (logs/sessions/<id>.log).
 	// ConfigsDir — конфиги pi-сессий (configs/sessions/<id>.yaml).
 	LogsDir    string
@@ -54,7 +55,7 @@ func NewSessionService(db *sql.DB, s *repository.Stores, rt *runtime.Registry) *
 	return &SessionService{
 		db: db, runt: rt,
 		teams: s.Teams, roles: s.Roles, tasks: s.Tasks, tHistory: s.History,
-		sessions: s.Sessions, sHistory: s.SessionHistory,
+		sessions: s.Sessions, sHistory: s.SessionHistory, projects: s.Projects,
 		LogsDir: "logs/sessions", ConfigsDir: "configs/sessions",
 		tails: make(map[int64]*tailState),
 	}
@@ -63,6 +64,7 @@ func NewSessionService(db *sql.DB, s *repository.Stores, rt *runtime.Registry) *
 type CreateSessionRequest struct {
 	RoleID      int64          `json:"role_id"`
 	QueueTaskID *int64         `json:"queue_task_id,omitempty"`
+	ProjectID   *int64         `json:"project_id,omitempty"` // P1.0: явный проект (опционально)
 	RuntimeType string         `json:"runtime_type,omitempty"`
 	Command     string         `json:"command,omitempty"`
 	Args        []string       `json:"args,omitempty"`
@@ -136,6 +138,12 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 		}
 	}
 
+	// P1.0: разрешение working_dir + project_id (explicit > task.project > team.project)
+	workingDir, projectID, err := resolveWorkingDir(ctx, s.db, s.projects, req.WorkingDir, req.ProjectID, task, team)
+	if err != nil {
+		return nil, err
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -143,9 +151,9 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 	defer func() { _ = tx.Rollback() }()
 
 	sess := &models.Session{
-		TeamID: team.ID, RoleID: role.ID, QueueTaskID: req.QueueTaskID,
+		TeamID: team.ID, RoleID: role.ID, QueueTaskID: req.QueueTaskID, ProjectID: projectID,
 		RuntimeType: rtType, State: models.SessionStarting,
-		WorkingDir: req.WorkingDir, Command: command, Config: req.Config,
+		WorkingDir: workingDir, Command: command, Config: req.Config,
 	}
 	if err := s.sessions.Create(ctx, tx, sess); err != nil {
 		return nil, err
@@ -467,6 +475,7 @@ func (s *SessionService) transitionTaskAsDaemon(ctx context.Context, taskID int6
 type SessionView struct {
 	ID             int64   `json:"id"`
 	TeamID         int64   `json:"team_id"`
+	ProjectID      *int64  `json:"project_id,omitempty"` // P1.0
 	TeamName       string  `json:"team_name"`
 	RoleID         int64   `json:"role_id"`
 	RoleName       string  `json:"role_name"`
@@ -547,7 +556,7 @@ func (s *SessionService) viewsFor(ctx context.Context, sessions []*models.Sessio
 	now := time.Now().UTC()
 	for _, x := range sessions {
 		v := &SessionView{
-			ID: x.ID, TeamID: x.TeamID, TeamName: teamName[x.TeamID],
+			ID: x.ID, TeamID: x.TeamID, ProjectID: x.ProjectID, TeamName: teamName[x.TeamID],
 			RoleID: x.RoleID, RoleName: roleName[x.RoleID],
 			RuntimeType: x.RuntimeType, RuntimeRef: x.RuntimeRef,
 			State: string(x.State), QueueTaskID: x.QueueTaskID,

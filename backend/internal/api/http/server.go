@@ -29,6 +29,8 @@ type Options struct {
 	Config *service.ConfigService
 	// P0.1 — Attention view ("Что требует меня")
 	Attention *service.AttentionService
+	// P1.0 — Projects (мультипроектность)
+	Projects *service.ProjectService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -39,7 +41,8 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	}
 	h := &handlers{svc: svc, tsvc: tsvc, ssvc: opts.Sessions, msvc: opts.Messages,
 		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
-		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention}
+		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention,
+		projects: opts.Projects}
 
 	mux := http.NewServeMux()
 
@@ -136,6 +139,13 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 
 	// P0.1 — Attention view ("Что требует меня"): единый срез требующего действия
 	mux.HandleFunc("GET /api/v1/attention", h.ListAttention)
+
+	// P1.0 — Projects (мультипроектность)
+	mux.HandleFunc("GET /api/v1/projects", h.ListProjects)
+	mux.HandleFunc("POST /api/v1/projects", h.CreateProject)
+	mux.HandleFunc("GET /api/v1/projects/{id}", h.GetProject)
+	mux.HandleFunc("PATCH /api/v1/projects/{id}", h.UpdateProject)
+	mux.HandleFunc("DELETE /api/v1/projects/{id}", h.ArchiveProject)
 
 	// U4 — Config (Settings)
 	mux.HandleFunc("GET /api/v1/config", h.ListConfig)

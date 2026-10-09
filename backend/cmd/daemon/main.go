@@ -114,6 +114,9 @@ func run() error {
 	// P0.1 — Attention view ("Что требует меня")
 	attention := service.NewAttentionService(db, stores)
 
+	// P1.0 — Projects (мультипроектность)
+	projSvc := service.NewProjectService(db, stores)
+
 	// Slice 4 — Message Center
 	msvc := service.NewMessageService(db, stores)
 	msvc.Bus = bus
@@ -143,7 +146,7 @@ func run() error {
 		Sessions: ssvc, Alerts: alerts, Messages: msvc,
 		Workflows: wsvc, Events: bus,
 		Library: lservice, Audit: aservice, Metrics: msvcMetrics,
-		Auth: authSvc, Config: cvc, Attention: attention,
+		Auth: authSvc, Config: cvc, Attention: attention, Projects: projSvc,
 	})
 
 	server := &http.Server{

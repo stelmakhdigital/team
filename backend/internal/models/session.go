@@ -31,6 +31,7 @@ func (s SessionState) Active() bool {
 type Session struct {
 	ID          int64
 	TeamID      int64
+	ProjectID   *int64 // P1.0: проект, из которого разрешён working_dir
 	RoleID      int64
 	QueueTaskID *int64
 	RuntimeType string

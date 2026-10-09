@@ -70,6 +70,7 @@
 | P0.1 Attention view «Что требует меня» (`GET /attention`: blocked/escalated + unread alerts) | DONE (backend; openapi 64 ops; RBAC viewer-ok) |
 | P0.2 Overdue / дедлайны задач (`closure_required_at`, `GET /tasks/overdue`, attention `task_overdue`) | DONE (backend; openapi 65 ops; RBAC viewer-ok; +config-key tasks.closure_required_secs) |
 | P0.3 Block with wake (`task_wakes`, `POST /tasks/{id}/resolve`, wake при block) | DONE (backend; openapi 66 ops; resolve RBAC tasks.update; wake в detalke) |
+| P1.0 Projects / мультипроектность (`projects`, привязки team/task/session, разрешение working_dir, фильтры, RBAC projects.*) | DONE (backend; openapi 71 ops; path immutable; archive=idempotent; backward-compat) |
 | Фронтенд F1–F15 + UI-редизайн R1–R5 (граф React Flow, edit, YAML, токены, R4 live-терминал, R5 рефакторинг) | DONE (зона лида) |
 
 ### Осталось (не блокирует)
@@ -258,6 +259,39 @@ OpenAPI: +3 операции (всего 63); `check_openapi.py` PASS.
   `TestWakeTaskTriggerOnClose`, `TestWakeIdempotency`, `TestResolveTask`,
   `TestBlockWakeValidation`) + HTTP (`TestResolveTaskEndpoint` 401/400/200/409/403;
   `TestBlockWithWakeEndpoint` timer/task/400/без-wake).
+
+### 3g. P1.0 — Projects / мультипроектность (backend, 2026-10-09)
+Сущность «проект»: реестр рабочих директорий, привязка к командам/задачам/сессиям,
+автозаполнение `working_dir` при запуске сессии, фильтры.
+
+- **Миграция 0011** (sqlite+postgres): `projects(id, name UNIQUE, path UNIQUE, kind
+  CHECK('existing','new'), git, description, archived, created_at, updated_at)`; nullable
+  `project_id` на `teams`/`queue_tasks`/`sessions`; permissions `projects.read/create/update`
+  (read — viewer; create/update — operator+).
+- **Модель/репо**: `models.Project`; `repository.ProjectRepo` (Create/Get/List/Archive/
+  UpdateMeta + счётчики команд/задач/активных сессий).
+- **Сервис** (`service.ProjectService`): create existing/new (fs-валидация: existing —
+  path существует+writable, git по `.git`; new — parent + mkdir + `git init` + README,
+  `warning` если git недоступен), archive (идемпотентно), update (name/desc; path→409),
+  summary (counts), **`ResolveWorkingDir`** (общая `resolveWorkingDir` — layered: explicit
+  > task.project > team.project > explicit/empty; 400 missing / 409 archived).
+- **Привязки**: `TeamService.CreateTeam` + `project_id` (валидация 404/409, до tx);
+  `TaskService.CreateTask` + `project_id` (override иначе наследуется от team.project, до tx);
+  `HandoffTask` наследует; `SessionService.CreateSession` + `project_id` + разрешение
+  `working_dir` (до tx).
+- **HTTP** (`project_handlers.go`): GET/POST /projects, GET/PATCH/DELETE /projects/{id};
+  `project_id` в create task/session/team body; фильтры `GET /tasks?project_id=`,
+  `GET /sessions?project_id=`; `project_id` в TaskView/SessionView/teamView.
+- **OpenAPI**: +5 ops (`listProjects/createProject/getProject/updateProject/archiveProject`)
+  → 71 ops; схемы `Project`/`ProjectResponse`/`ListProjectsResponse`/`CreateProjectRequest`/
+  `CreateProjectResponse`/`ProjectCounts`/`GetProjectResponse`/`UpdateProjectRequest`;
+  `check_openapi.py` PASS.
+- **Тесты**: service (`project_service_test.go`: create existing/new, archive, inheritance,
+  resolve-working-dir 3 уровня + absence/400/409, summary, list-filter) + HTTP
+  (`project_handlers_test.go`: CRUD, RBAC viewer/operator, filter-by-project).
+- **Решения** (см. `api-decisions.md` §P1.0): path immutable (409); DELETE=archive
+  (идемпотентно); backward-compat (без project_id — как раньше, absence без 400);
+  ре-ассайнмент команды не поддерживается (create-only).
 
 ## 4. Как проверить
 ```

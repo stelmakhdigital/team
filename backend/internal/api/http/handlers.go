@@ -27,6 +27,8 @@ type handlers struct {
 	cvc *service.ConfigService
 	// P0.1 — Attention view
 	attention *service.AttentionService
+	// P1.0 — Projects
+	projects *service.ProjectService
 }
 
 func limitOffset(q url.Values) (int, int) {
@@ -70,6 +72,7 @@ func (h *handlers) ListTeams(w http.ResponseWriter, r *http.Request) {
 		Name          string `json:"name"`
 		Description   string `json:"description,omitempty"`
 		State         string `json:"state"`
+		ProjectID     *int64 `json:"project_id,omitempty"` // P1.0
 		SegmentsCount int    `json:"segments_count"`
 		RolesCount    int    `json:"roles_count"`
 		CreatedAt     string `json:"created_at"`
@@ -78,7 +81,7 @@ func (h *handlers) ListTeams(w http.ResponseWriter, r *http.Request) {
 	out := make([]teamView, 0, len(teams))
 	for _, t := range teams {
 		out = append(out, teamView{
-			ID: t.ID, Name: t.Name, Description: t.Description, State: string(t.State),
+			ID: t.ID, Name: t.Name, Description: t.Description, State: string(t.State), ProjectID: t.ProjectID,
 			SegmentsCount: t.SegmentsCount, RolesCount: t.RolesCount,
 			CreatedAt: t.CreatedAt.Format(rfc3339), UpdatedAt: t.UpdatedAt.Format(rfc3339),
 		})
@@ -89,6 +92,7 @@ func (h *handlers) ListTeams(w http.ResponseWriter, r *http.Request) {
 type createTeamBody struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
+	ProjectID   *int64    `json:"project_id"` // P1.0: привязка к проекту (опционально)
 	Spec        *specJSON `json:"spec"`
 }
 
@@ -128,7 +132,7 @@ func (h *handlers) CreateTeam(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	req := service.CreateTeamRequest{Name: body.Name, Description: body.Description}
+	req := service.CreateTeamRequest{Name: body.Name, Description: body.Description, ProjectID: body.ProjectID}
 	if body.Spec != nil {
 		spec := &service.TeamSpec{}
 		for _, s := range body.Spec.Segments {

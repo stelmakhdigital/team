@@ -695,3 +695,88 @@ kind, ref, continuation, fired, fired_at, remaining_secs (timer only = fire_at -
 `TestWakeTaskTriggerOnClose`, `TestWakeIdempotency`, `TestResolveTask` 200/409/400 +
 wake закрыт, `TestBlockWakeValidation`) + HTTP (`TestResolveTaskEndpoint`
 401/400/200/409/403-viewer; `TestBlockWithWakeEndpoint` timer/task/400/без-wake).
+
+## P1.0 — Projects / мультипроектность (backend, 2026-10-09)
+
+Сущность «проект» (OpenRIG work tree): реестр рабочих директорий, привязка к
+командам/задачам/сессиям, автозаполнение `working_dir` при запуске сессии,
+фильтры. «Где работать» — **свойство работы**, а не только параметр запуска.
+
+### Хранилище (миграция 0011)
+- Таблица `projects(id, name UNIQUE, path UNIQUE, kind CHECK('existing','new'),
+  git, description, archived, created_at, updated_at)`. Timestamp — TEXT
+  (RFC3339Nano), bool — INTEGER (0/1) — конвенции.
+- Nullable-привязки (миграционная совместимость: команды/задачи/сессии без
+  `project_id` работают как раньше):
+  - `teams.project_id` — привязка команды к проекту;
+  - `queue_tasks.project_id` — **свойство работы** задачи;
+  - `sessions.project_id` — результат разрешения `working_dir`.
+- SQLite: FK в `ALTER TABLE ADD COLUMN` не поддерживается → колонки без inline-FK
+  (связь логическая, на уровне сервиса); postgres — с `REFERENCES ... ON DELETE SET NULL`.
+
+### RBAC
+- `projects.read` — viewer (GET); `projects.create` / `projects.update` — operator+
+  (POST + DELETE=archive + PATCH). Route→perm через общий механизм `<res>.<verb>`.
+
+### Создание проекта (service.CreateProject)
+- `kind=existing`: `path` обязан существовать, быть каталогом и **writable**
+  (иначе 400 с detail); `git` определяется (`.git` есть).
+- `kind=new`: `parent_path` обязан существовать (иначе 400); target = `parent/name`;
+  если target существует → 409; `git init` (если git доступен, иначе `git=false` +
+  `warning` в ответе); README-заготовка (если каталог пуст).
+- Дубликаты `name`/`path` → 409.
+
+### Привязки + наследование
+- `POST /teams` + `project_id` (опционально): проект обязан существовать (404) и
+  быть не архивным (409). **Ре-ассайнмент команды** не поддерживается (PATCH команды
+  — только name/description через rename) — осознанно: команда без проекта работает
+  как раньше, смена проекта = новая команда (задокументировано в TЗ).
+- `POST /tasks` + `project_id` (override): иначе наследуется от `team.project_id`
+  (наличие проекта проверяется, отсутствующий → nil, т.е. без привязки).
+- **Handoff**: новая задача наследует `project_id` от исходной.
+
+### Разрешение working_dir (layered)
+`session.working_dir` (явный) > `task.project` (через `queue_task_id`) >
+`team.project` > (explicit/empty).
+
+- Если проект нигде не задан (нет explicit, нет у task, нет у team) →
+  `working_dir` = явный (или пустой) — **backward compatibility, без 400**
+  (правило «сессии/команды/задачи без project_id работают как раньше»).
+- **400** — референсированный проект (explicit `project_id`) не существует.
+- **409** — проект archived (через explicit/task/team).
+- `POST /sessions` + `project_id` (явный проект, опционально). Ответ/модель сессии
+  получает `project_id`.
+- Реализация — общая функция `resolveWorkingDir` (используется и ProjectService, и
+  SessionService); вызывается в `CreateSession` **до** tx.
+
+> **Примечание (reconciliation TЗ).** TЗ одновременно требует «400, если нигде не
+> задан» и «команды/задачи/сессии без project_id работают как раньше». Чистый
+> «absence → 400» сломал бы существующие сессии (команды без проектов + без
+> working_dir). Поэтому 400 применён только к **референсированному, но отсутствующему**
+> проекту; чистое отсутствие проекта сохраняет старое поведение (пустой working_dir).
+> Это задокументировано как осознанное решение.
+
+### Ограничения
+- **`path` immutable**: `PATCH /projects/{id}` принимает только `name`/`description`;
+  наличие `path` в body → 409 с обоснованием (смена пути = новые связи, требует
+  миграции — не делаем).
+- **DELETE = archive** (не удалить): идемпотентно (`archived=true`). Архивный проект:
+  нельзя использовать для новых команд (409) / сессий (409); существующие связи
+  сохраняются (nullable FK `ON DELETE SET NULL` в postgres).
+
+### Сводка
+- `GET /projects/{id}` — project + `counts{teams, tasks, active_sessions}`.
+- `GET /projects?archived=true|include_archived=true|name=`.
+- Фильтры: `GET /tasks?project_id=`, `GET /sessions?project_id=`.
+
+### Тесты
+- service (`project_service_test.go`): `TestProjectCreateExisting` (success/git/400
+  no-path/400 file/409 dup-path/409 dup-name), `TestProjectCreateNew` (success/README/
+  git/400 no-parent/409 exists/git-unavailable warning), `TestProjectArchive`
+  (archive/idempotent/409 update/409 team-in-archived), `TestTaskProjectInheritance`
+  (наследование/override/handoff), `TestResolveWorkingDir` (3 уровня + absence без 400
+  + 400 missing), `TestResolveWorkingDirArchived` (409), `TestProjectSummaryCounts`,
+  `TestProjectListFilter`.
+- HTTP (`project_handlers_test.go`): `TestProjectsCRUDEndpoint` (401/201/400/200/404/
+  patch 200/409/DELETE+идемпотентность), `TestProjectsRBAC` (viewer read-OK + create-403,
+  operator create-201), `TestTaskFilterByProject` (наследование + фильтр).

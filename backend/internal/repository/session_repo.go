@@ -16,15 +16,16 @@ import (
 type SessionRepo struct{ db *sql.DB }
 
 type SessionFilter struct {
-	TeamID *int64
-	RoleID *int64
-	State  *models.SessionState
-	Active bool // starting|running|idle|stopping
-	Limit  int
-	Offset int
+	TeamID    *int64
+	RoleID    *int64
+	ProjectID *int64 // P1.0: фильтр по проекту
+	State     *models.SessionState
+	Active    bool // starting|running|idle|stopping
+	Limit     int
+	Offset    int
 }
 
-const sessionColumns = `id, team_id, role_id, queue_task_id, runtime_type, runtime_ref,
+const sessionColumns = `id, team_id, project_id, role_id, queue_task_id, runtime_type, runtime_ref,
 	state, working_dir, target_dir, command, config, exit_code,
 	started_at, stopped_at, created_at, updated_at`
 
@@ -42,11 +43,11 @@ func (r *SessionRepo) Create(ctx context.Context, tx DBTX, s *models.Session) er
 		return err
 	}
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO sessions (team_id, role_id, queue_task_id, runtime_type, runtime_ref,
+		INSERT INTO sessions (team_id, project_id, role_id, queue_task_id, runtime_type, runtime_ref,
 			state, working_dir, target_dir, command, config, exit_code,
 			started_at, stopped_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.TeamID, s.RoleID, s.QueueTaskID, s.RuntimeType, s.RuntimeRef,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.TeamID, nullableInt64(s.ProjectID), s.RoleID, s.QueueTaskID, s.RuntimeType, s.RuntimeRef,
 		s.State, s.WorkingDir, s.TargetDir, s.Command, cfg, s.ExitCode,
 		s.StartedAt, s.StoppedAt,
 		now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
@@ -75,6 +76,10 @@ func (r *SessionRepo) List(ctx context.Context, tx DBTX, f SessionFilter) ([]*mo
 	if f.RoleID != nil {
 		conds = append(conds, "role_id = ?")
 		args = append(args, *f.RoleID)
+	}
+	if f.ProjectID != nil {
+		conds = append(conds, "project_id = ?")
+		args = append(args, *f.ProjectID)
 	}
 	if f.State != nil {
 		conds = append(conds, "state = ?")
@@ -169,6 +174,7 @@ func scanSession(s sessionScanner) (*models.Session, error) {
 	var (
 		x         models.Session
 		taskID    sql.NullInt64
+		projectID sql.NullInt64
 		ref       sql.NullString
 		wd, td, c sql.NullString
 		cfgStr    string
@@ -177,7 +183,7 @@ func scanSession(s sessionScanner) (*models.Session, error) {
 		stopped   sql.NullString
 		ca, ua    string
 	)
-	err := s.Scan(&x.ID, &x.TeamID, &x.RoleID, &taskID, &x.RuntimeType, &ref,
+	err := s.Scan(&x.ID, &x.TeamID, &projectID, &x.RoleID, &taskID, &x.RuntimeType, &ref,
 		&x.State, &wd, &td, &c, &cfgStr, &exit, &started, &stopped, &ca, &ua)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -187,6 +193,9 @@ func scanSession(s sessionScanner) (*models.Session, error) {
 	}
 	if taskID.Valid {
 		x.QueueTaskID = &taskID.Int64
+	}
+	if projectID.Valid {
+		x.ProjectID = &projectID.Int64
 	}
 	if ref.Valid {
 		x.RuntimeRef = ref.String

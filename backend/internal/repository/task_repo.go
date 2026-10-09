@@ -23,11 +23,12 @@ type TaskFilter struct {
 	States                 []models.TaskState
 	ClosureReason          *string // filter by queue_tasks.closure_reason (P0.1 attention: escalated)
 	ClosureRequiredNotNull bool    // P0.2: closure_required_at IS NOT NULL (кандидаты overdue)
+	ProjectID              *int64  // P1.0: фильтр по проекту
 	Limit                  int
 	Offset                 int
 }
 
-const taskColumns = `id, team_id, parent_task_id, destination_role_id, source_role_id,
+const taskColumns = `id, team_id, project_id, parent_task_id, destination_role_id, source_role_id,
 	title, body, body_context, state, closure_reason, closure_target_id,
 	blocked_since, park_timeout_secs, priority, estimated_secs, actual_secs,
 	created_at, updated_at, started_at, completed_at, closure_required_at`
@@ -46,12 +47,12 @@ func (r *TaskRepo) Create(ctx context.Context, tx DBTX, t *models.Task) error {
 		return err
 	}
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO queue_tasks (team_id, parent_task_id, destination_role_id, source_role_id,
+		INSERT INTO queue_tasks (team_id, project_id, parent_task_id, destination_role_id, source_role_id,
 			title, body, body_context, state, closure_reason, closure_target_id,
 			blocked_since, park_timeout_secs, priority, estimated_secs, actual_secs,
 			created_at, updated_at, started_at, completed_at, closure_required_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.TeamID, t.ParentTaskID, t.DestinationRoleID, t.SourceRoleID,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.TeamID, nullableInt64(t.ProjectID), t.ParentTaskID, t.DestinationRoleID, t.SourceRoleID,
 		t.Title, t.Body, bc, t.State, t.ClosureReason, t.ClosureTargetID,
 		t.BlockedSince, t.ParkTimeoutSecs, t.Priority, t.EstimatedSecs, t.ActualSecs,
 		tsStr, tsStr, t.StartedAt, t.CompletedAt, closureRequiredStr(t.ClosureRequiredAt))
@@ -104,6 +105,9 @@ func (r *TaskRepo) List(ctx context.Context, tx DBTX, f TaskFilter) ([]*models.T
 	}
 	if f.ClosureRequiredNotNull {
 		addCond("closure_required_at IS NOT NULL")
+	}
+	if f.ProjectID != nil {
+		addCond("project_id = ?", *f.ProjectID)
 	}
 
 	where := ""
@@ -299,6 +303,7 @@ func scanTask(s taskScanner) (*models.Task, error) {
 	var (
 		t          models.Task
 		parentID   sql.NullInt64
+		projectID  sql.NullInt64
 		sourceRole sql.NullInt64
 		closure    sql.NullString
 		targetID   sql.NullInt64
@@ -312,7 +317,7 @@ func scanTask(s taskScanner) (*models.Task, error) {
 		closureReq sql.NullString
 		ca, ua     string
 	)
-	err := s.Scan(&t.ID, &t.TeamID, &parentID, &t.DestinationRoleID, &sourceRole,
+	err := s.Scan(&t.ID, &t.TeamID, &projectID, &parentID, &t.DestinationRoleID, &sourceRole,
 		&t.Title, &t.Body, &bodyCtx, &t.State, &closure, &targetID,
 		&blockedAt, &parkTO, &t.Priority, &estSecs, &actSecs, &ca, &ua, &startedAt, &completed, &closureReq)
 	if err != nil {
@@ -323,6 +328,9 @@ func scanTask(s taskScanner) (*models.Task, error) {
 	}
 	if parentID.Valid {
 		t.ParentTaskID = &parentID.Int64
+	}
+	if projectID.Valid {
+		t.ProjectID = &projectID.Int64
 	}
 	if sourceRole.Valid {
 		t.SourceRoleID = &sourceRole.Int64

@@ -17,9 +17,9 @@ func (r *TeamRepo) Create(ctx context.Context, tx DBTX, t *models.Team) error {
 		t.State = models.TeamActive
 	}
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO teams (name, spec_path, description, state, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		t.Name, t.SpecPath, t.Description, t.State, tsStr, tsStr)
+		INSERT INTO teams (name, spec_path, description, state, project_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		t.Name, t.SpecPath, t.Description, t.State, nullableInt64(t.ProjectID), tsStr, tsStr)
 	if err != nil {
 		return err
 	}
@@ -33,13 +33,13 @@ func (r *TeamRepo) Create(ctx context.Context, tx DBTX, t *models.Team) error {
 
 func (r *TeamRepo) GetByID(ctx context.Context, tx DBTX, id int64) (*models.Team, error) {
 	return scanTeam(tx.QueryRowContext(ctx, `
-		SELECT id, name, spec_path, description, state, created_at, updated_at
+		SELECT id, name, spec_path, description, state, project_id, created_at, updated_at
 		FROM teams WHERE id = ?`, id))
 }
 
 func (r *TeamRepo) GetByName(ctx context.Context, tx DBTX, name string) (*models.Team, error) {
 	return scanTeam(tx.QueryRowContext(ctx, `
-		SELECT id, name, spec_path, description, state, created_at, updated_at
+		SELECT id, name, spec_path, description, state, project_id, created_at, updated_at
 		FROM teams WHERE name = ?`, name))
 }
 
@@ -49,7 +49,7 @@ func (r *TeamRepo) List(ctx context.Context, tx DBTX, limit, offset int) ([]*mod
 		return nil, 0, err
 	}
 	rows, err := tx.QueryContext(ctx, `
-		SELECT id, name, spec_path, description, state, created_at, updated_at
+		SELECT id, name, spec_path, description, state, project_id, created_at, updated_at
 		FROM teams
 		ORDER BY id
 		LIMIT ? OFFSET ?`, limit, offset)
@@ -107,12 +107,17 @@ func scanTeam(s teamScanner) (*models.Team, error) {
 	var (
 		t      models.Team
 		ca, ua string
+		pid    sql.NullInt64
 	)
-	if err := s.Scan(&t.ID, &t.Name, &t.SpecPath, &t.Description, &t.State, &ca, &ua); err != nil {
+	if err := s.Scan(&t.ID, &t.Name, &t.SpecPath, &t.Description, &t.State, &pid, &ca, &ua); err != nil {
 		if errorsIs(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+	if pid.Valid {
+		v := pid.Int64
+		t.ProjectID = &v
 	}
 	var err error
 	if t.CreatedAt, err = parseTime(ca); err != nil {
