@@ -707,12 +707,16 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .cfg-section-workspace { border-color: var(--accent); }
 .cfg-section-workspace h2 { color: var(--accent); }
 
-.settings-sections-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; align-items: start; }
+.settings-sections-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 16px; align-items: start; }
 .settings-sections-grid .card { margin-bottom: 0; }
 
 .cfg-table { width: 100%; }
 .cfg-table td { vertical-align: top; }
 .cfg-table code { word-break: break-word; }
+/* M3: key names must not wrap mid-word — break only at underscores (wbr) / spaces */
+.cfg-key { word-break: normal; overflow-wrap: normal; }
+/* M2: default value line under the current value */
+.cfg-default { margin-top: 2px; }
 .cfg-table th:last-child, .cfg-table td.cfg-actions { text-align: right; white-space: nowrap; }
 .cfg-table th.cfg-center, .cfg-table td.cfg-center { text-align: center; width: 56px; }
 

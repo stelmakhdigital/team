@@ -81,4 +81,21 @@ describe('U4: Settings page', () => {
     const sec = screen.getByRole('heading', { name: 'security' }).closest<HTMLElement>('.cfg-section')!;
     expect(within(sec).getAllByText('🔒').length).toBeGreaterThan(0);
   }, 20_000);
+
+  it('M2: renders the default value per key (host-derived marked as derived)', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Settings' }, { timeout: 10_000 })).toBeInTheDocument();
+    // each key shows a "default:" line
+    const defaults = await screen.findAllByText(/default:/, {}, { timeout: 10_000 });
+    expect(defaults.length).toBeGreaterThanOrEqual(20);
+    // server.listen_addr default = :8080
+    expect(screen.getAllByText(/default: :8080/).length).toBeGreaterThan(0);
+    // workspace.* keys are host-derived → their default lines carry a (derived) marker
+    const ws = screen.getByRole('heading', { name: /^workspace$/i }).closest<HTMLElement>('.cfg-section')!;
+    expect(within(ws).getAllByText(/\(derived\)/).length).toBeGreaterThan(0);
+  }, 20_000);
 });

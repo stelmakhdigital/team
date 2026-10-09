@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { useMutation } from '../hooks/useMutation';
@@ -63,7 +63,11 @@ function ConfigKeyRow({ kv, onChanged }: { kv: ConfigKeyView; onChanged: () => v
   return (
     <tr className={kv.source === 'override' ? 'cfg-row-override' : undefined}>
       <td>
-        <code>{kv.key.split('.').slice(1).join(' ')}</code>
+        <code className="cfg-key">
+          {kv.key.split('.').slice(1).join(' ').split('_').map((p, i, arr) => (
+            <Fragment key={i}>{p}{i < arr.length - 1 ? <>{'_'}<wbr /></> : null}</Fragment>
+          ))}
+        </code>
         <div className="muted small">
           {kv.description}
           {kv.default_is_derived && <span className="derived-tag"> derived</span>}
@@ -89,6 +93,10 @@ function ConfigKeyRow({ kv, onChanged }: { kv: ConfigKeyView; onChanged: () => v
         ) : (
           <span className="cfg-value">{fmtValue(kv.current_value)}</span>
         )}
+        <div className="muted small cfg-default">
+          default: {fmtValue(kv.default_value)}
+          {kv.default_is_derived && <span className="derived-tag" title="host-derived default (from cwd / workspace root, not a universal constant)"> (derived)</span>}
+        </div>
       </td>
       <td>
         <span className={`cfg-source cfg-source-${kv.source}`}>{kv.source}</span>
