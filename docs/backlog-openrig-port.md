@@ -4,13 +4,48 @@
 карточка с scope и критериями; исполнитель — pipeline (worker→planner→judge).
 Статусы: `new` → `in_progress` → `done` (ссылка на T-id).
 
-Порядок выполнения: P0.1 → P0.2 → P0.3 → P1.4 → P1.5 → P1.6 → P2.* → P3.*.
+Порядок выполнения: P0.1 → P0.2 → P0.3 → **P1.0 Projects** → P1.4 → P1.5 → P1.6 → P2.* → P3.*.
+
+---
+
+## P0.5 → P1.0 Projects: сущность «проект» (мультипроектность, по запрос пользователя)
+
+### P1.0 Projects entity + привязка к командам/сессиям — `new`
+- **Контекст**: сейчас `working_dir` задаётся вручную на каждой сессии; сущности
+  Project нет (команда не привязана к директории; фильтр «по проекту» невозможен).
+  Ориентир — OpenRIG work tree: workspace → project → mission → slice; seat работает
+  в worktree slice'а, «где работать» — свойство работы, а не параметр запуска.
+- **Scope (минимальный, без mission/slice-иерархии)**:
+  - Сущность `project`: `{id, name, path (abs), kind: existing|new, git: bool,
+    description}`; UI-страница **Projects**: зарегистрировать существующую
+    директорию / создать новую (scaffold: mkdir + git init + README/шаблон);
+    проверка при создании (существует? writable? git?); архивация.
+  - Привязка **team → project** (nullable; команда может быть «универсальной»);
+    при запуске сессии `working_dir` по умолчанию = путь проекта команды
+    (override на сессии сохраняется); в UI запуске сессии — селект проекта/пути
+    с автозаполнением.
+  - Фильтр «по проекту»: tasks/sessions/dashboard (team.project_id → фильтр);
+    Attention/History учитывают проект в detail.
+  - Артефакты: скриншоты/логи сессий привязываются к проекту (путь в
+    workspace-секции конфига + project_id).
+  - API: `GET/POST /projects`, `GET/DELETE /projects/{id}` (archive),
+    `PATCH /projects/{id}`; team create/update — `project_id`; sessions —
+    автозаполнение working_dir + `project_id` в модели сессии.
+- **Критерии**: миграция; service + HTTP-тесты (создание existing/new, проверка
+  директории, привязка, автозаполнение working_dir, фильтры); UI: Projects page
+  + селект в team/session-формах + фильтры; OpenAPI (новые маршруты в спеке,
+  check_openapi зелёный); USAGE.md §5.2 обновить (мультипроектная история);
+  backend.md/frontend.md актуализированы; скриншоты Projects @2560.
+- **Миграционная совместимость**: команды/сессии без project_id работают как
+  раньше (path из working_dir); новые команды — с проектом.
+- **Не в scope (позже, если пойдёт)**: mission/slice-иерархия, per-slice git
+  worktrees, proof/evidence (P3.13), workspace doctor-диагностика.
 
 ---
 
 ## P0 — операторский срез (малый объём, высокая ценность)
 
-### P0.1 Attention view «Что требует меня» — `new`
+### P0.1 Attention view «Что требует меня» — `in_progress`
 - **Scope**: единая страница/панель (или режим Dashboard) со всем, что требует
   человека: задачи `blocked` (особенно blocked_on-human/escalation),
   escalation-переходы, overdue (см. P0.2), waiting/stuck/failed инстансы
