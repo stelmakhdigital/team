@@ -10,6 +10,7 @@ import type {
   LibraryItem,
   Message,
   PluginSpec,
+  Project,
   Relative,
   Role,
   Session,
@@ -38,6 +39,7 @@ interface DB {
   segments: Segment[];
   roles: Role[];
   relatives: Relative[];
+  projects: Project[]; // P1.0
   layouts: TopologyLayout | undefined;
   workflows: Workflow[];
   blocks: WorkflowBlock[];
@@ -105,6 +107,7 @@ function seed(): DB {
     segments: [],
     roles: [],
     relatives: [],
+    projects: [],
     layouts: undefined,
     workflows: [],
     blocks: [],
@@ -122,6 +125,15 @@ function seed(): DB {
     configOverrides: {},
     seq: 1000,
   };
+
+  // P1.0: projects (реестр рабочих директорий)
+  t.projects = [
+    { id: 1, name: 'team-console', path: '/home/arkalaust/CODE/PROJECTS/team', kind: 'existing', git: true, description: 'The daemon repo itself', archived: false, created_at: iso(60 * 24 * 10), updated_at: iso(60 * 5) },
+    { id: 2, name: 'data-pipeline', path: '/home/arkalaust/CODE/data-pipeline', kind: 'existing', git: true, description: 'ETL + analytics', archived: false, created_at: iso(60 * 24 * 8), updated_at: iso(60 * 24 * 2) },
+    { id: 3, name: 'scratch-experiment', path: '/home/arkalaust/tmp/scratch-experiment', kind: 'new', git: true, description: 'Fresh sandbox (git init)', archived: true, created_at: iso(60 * 24 * 2), updated_at: iso(60 * 24) },
+  ];
+  // Привязка: Dev Team → project 1 (свойство работы) — после заполнения t.teams
+  // (см. ниже, после t.teams = [...]).
 
   t.teams = [
     {
@@ -145,6 +157,8 @@ function seed(): DB {
       updated_at: iso(60 * 48),
     },
   ];
+  // P1.0: Dev Team → project 1 (свойство работы)
+  t.teams.forEach((tm) => { if (tm.id === 1) tm.project_id = 1; });
 
   t.segments = [
     {
@@ -329,6 +343,8 @@ function seed(): DB {
       fired: false, created_at: iso(60 * 3),
     },
   ];
+  // P1.0: задачи Dev Team (team_id 1) наследуют project_id от team.project
+  t.tasks.forEach((tk) => { if (tk.team_id === 1) tk.project_id = 1; });
 
   t.sessions = [
     {

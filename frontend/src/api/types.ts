@@ -85,6 +85,14 @@ import type {
   ListConfigResponse,
   SetConfigResponse,
   ResetConfigResponse,
+  // P1.0: Projects
+  ProjectResponse,
+  ListProjectsResponse,
+  ListProjectsParams,
+  CreateProjectRequest,
+  CreateProjectResponse,
+  GetProjectResponse,
+  UpdateProjectRequest,
 } from '../types/api';
 
 export interface DeleteRelativeResponse {
@@ -175,5 +183,13 @@ export interface Api {
     getConfig(): Promise<ListConfigResponse>;
     setConfig(key: string, value: unknown): Promise<SetConfigResponse>;
     resetConfig(key: string): Promise<ResetConfigResponse>;
+  };
+  // P1.0: Projects (мультипроектность)
+  projects: {
+    list(params?: ListProjectsParams): Promise<ListProjectsResponse>;
+    create(req: CreateProjectRequest): Promise<CreateProjectResponse>;
+    get(id: number): Promise<GetProjectResponse>;
+    update(id: number, req: UpdateProjectRequest): Promise<ProjectResponse>;
+    archive(id: number): Promise<ProjectResponse>;
   };
 }

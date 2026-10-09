@@ -9,6 +9,8 @@ import type {
   CreateTeamRequest,
   Message,
   Profile,
+  Project,
+  ProjectKind,
   RenameRequest,
   Segment,
   Session,
@@ -1516,8 +1518,7 @@ export function createMockAdapter(): Api {
         await latency();
         const db = getDb();
         return resolveConfig(db.configOverrides);
-      },
-      async setConfig(key, value) {
+      },      async setConfig(key, value) {
         maybeFail();
         await latency();
         const db = getDb();
@@ -1540,6 +1541,84 @@ export function createMockAdapter(): Api {
         const after = resolveConfig(db.configOverrides);
         const kv = after.sections.find((s) => s.name === k.section)!.keys.find((x) => x.key === key)!;
         return { key, source: kv.source, value: kv.current_value };
+      },
+    },
+    // P1.0: Projects (mirror of backend ProjectService)
+    projects: {
+      async list(params) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        let items = db.projects.slice();
+        if (params?.archived) items = items.filter((p) => p.archived);
+        else if (!params?.include_archived) items = items.filter((p) => !p.archived);
+        if (params?.name) items = items.filter((p) => p.name.toLowerCase().includes(params!.name!.toLowerCase()));
+        const total = items.length;
+        const offset = params?.offset ?? 0;
+        const limit = params?.limit ?? 50;
+        items = items.slice(offset, offset + limit);
+        return { projects: items, total };
+      },
+      async create(req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        if (!req.name) throw new ApiClientError(400, 'validation_failed', 'name is required');
+        if (req.kind !== 'existing' && req.kind !== 'new') throw new ApiClientError(400, 'validation_failed', "kind must be 'existing' or 'new'");
+        const path = req.kind === 'existing' ? req.path : (req.parent_path ? `${req.parent_path}/${req.name}` : req.name);
+        if (!path) throw new ApiClientError(400, 'validation_failed', req.kind === 'existing' ? 'path required for existing' : 'parent_path required for new');
+        if (db.projects.some((p) => p.path === path)) throw new ApiClientError(409, 'conflict', `project path already exists: ${path}`);
+        if (db.projects.some((p) => p.name === req.name)) throw new ApiClientError(409, 'conflict', `project name already exists: ${req.name}`);
+        const git = true; // mock: git доступен (README + git init для new)
+        const warning: string | undefined = undefined;
+        const project: Project = {
+          id: nextId(), name: req.name, path, kind: req.kind as ProjectKind, git,
+          description: req.description, archived: false,
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        };
+        db.projects.push(project);
+        return { project, warning };
+      },
+      async get(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const p = db.projects.find((x) => x.id === id);
+        if (!p) throw new ApiClientError(404, 'not_found', `project ${id} not found`);
+        const activeSessionStates = ['starting', 'running', 'idle', 'stopping'];
+        const counts = {
+          teams: db.teams.filter((t) => t.project_id === id).length,
+          tasks: db.tasks.filter((t) => t.project_id === id).length,
+          active_sessions: db.sessions.filter((s) => s.project_id === id && activeSessionStates.includes(s.state)).length,
+        };
+        return { project: p, counts };
+      },
+      async update(id, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const p = db.projects.find((x) => x.id === id);
+        if (!p) throw new ApiClientError(404, 'not_found', `project ${id} not found`);
+        if (p.archived) throw new ApiClientError(409, 'conflict', 'project is archived');
+        if (req.path !== undefined) throw new ApiClientError(409, 'conflict', 'project path is immutable after creation');
+        if (req.name !== undefined) {
+          if (!req.name) throw new ApiClientError(400, 'validation_failed', 'name must not be empty');
+          if (db.projects.some((x) => x.id !== id && x.name === req.name)) throw new ApiClientError(409, 'conflict', 'project name already exists');
+          p.name = req.name;
+        }
+        if (req.description !== undefined) p.description = req.description;
+        p.updated_at = new Date().toISOString();
+        return { project: p };
+      },
+      async archive(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const p = db.projects.find((x) => x.id === id);
+        if (!p) throw new ApiClientError(404, 'not_found', `project ${id} not found`);
+        p.archived = true; // idempotent
+        p.updated_at = new Date().toISOString();
+        return { project: p };
       },
     },
   };

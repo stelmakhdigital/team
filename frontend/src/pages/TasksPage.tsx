@@ -24,6 +24,7 @@ export default function TasksPage() {
   const { toast } = useToast();
   const [teamFilter, setTeamFilter] = useState<number | 'all'>('all');
   const [stateFilter, setStateFilter] = useState<TaskState | 'all'>('all');
+  const [projectFilter, setProjectFilter] = useState<number | 'all'>('all'); // P1.0
   const [view, setView] = useState<'all' | 'overdue'>('all');
   const [creating, setCreating] = useState(false);
   const [closedId, setClosedId] = useState<number | null>(null);
@@ -32,14 +33,16 @@ export default function TasksPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const teams = useQuery('tasks.teams', () => api.teams.getTeams());
+  const projects = useQuery('tasks.projects', () => api.projects.list({ include_archived: true }), []);
   const list = useQuery(
-    `tasks.list.${teamFilter}.${stateFilter}`,
+    `tasks.list.${teamFilter}.${stateFilter}.${projectFilter}`,
     () =>
       api.tasks.list({
         team_id: teamFilter === 'all' ? undefined : teamFilter,
         state: stateFilter === 'all' ? undefined : stateFilter,
+        project_id: projectFilter === 'all' ? undefined : projectFilter,
       }),
-    [teamFilter, stateFilter],
+    [teamFilter, stateFilter, projectFilter],
   );
   // P0.2: bounded list of overdue tasks (dedicated GET /tasks/overdue)
   const overdue = useQuery('tasks.overdue', () => api.tasks.overdue({ limit: 200 }), []);
@@ -121,6 +124,20 @@ export default function TasksPage() {
               {STATE_FILTERS.map((s) => (
                 <option key={s} value={s}>
                   {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Project
+            <select
+              value={String(projectFilter)}
+              onChange={(e) => setProjectFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            >
+              <option value="all">All projects</option>
+              {projects.data?.projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
                 </option>
               ))}
             </select>

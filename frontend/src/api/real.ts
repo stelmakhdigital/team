@@ -120,5 +120,17 @@ export function createRealAdapter(): Api {
       setConfig: (key, value) => http(`${B}/config/${encodeURIComponent(key)}`, { method: 'PUT', body: { value } }),
       resetConfig: (key) => http(`${B}/config/${encodeURIComponent(key)}`, { method: 'DELETE' }),
     },
+    // P1.0: Projects
+    projects: {
+      list: (params) => http(`${B}/projects${toQuery({
+        limit: params?.limit, offset: params?.offset, name: params?.name,
+        archived: params?.archived ? 'true' : undefined,
+        include_archived: params?.include_archived ? 'true' : undefined,
+      })}`),
+      create: (req) => http(`${B}/projects`, { method: 'POST', body: req }),
+      get: (id) => http(`${B}/projects/${id}`),
+      update: (id, req) => http(`${B}/projects/${id}`, { method: 'PATCH', body: req }),
+      archive: (id) => http(`${B}/projects/${id}`, { method: 'DELETE' }),
+    },
   };
 }

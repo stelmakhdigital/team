@@ -6,6 +6,7 @@ export interface Team {
   name: string;
   description?: string;
   state: 'active' | 'archived' | 'stopped';
+  project_id?: number; // P1.0
   segments_count: number;
   roles_count: number;
   created_at: string;
@@ -48,6 +49,7 @@ export interface GetTeamsResponse {
 export interface CreateTeamRequest {
   name: string;
   description?: string;
+  project_id?: number; // P1.0: привязка к проекту (опционально)
   spec?: TeamSpec;
 }
 
@@ -518,6 +520,7 @@ export type ClosureReason = 'handed_off_to' | 'blocked_on' | 'denied' | 'cancele
 export interface Task {
   id: number;
   team_id: number;
+  project_id?: number; // P1.0: свойство работы
   team_name: string;
   parent_task_id?: number;
   title: string;
@@ -569,6 +572,7 @@ export interface ListTasksParams {
   team_id?: number;
   state?: TaskState;
   destination_role_id?: number;
+  project_id?: number; // P1.0: фильтр по проекту
   limit?: number;
   offset?: number;
 }
@@ -579,6 +583,7 @@ export interface GetOverdueParams {
 
 export interface CreateTaskRequest {
   team_id: number;
+  project_id?: number; // P1.0: override; иначе наследуется от team.project
   parent_task_id?: number;
   destination_role_id: number;
   source_role_id?: number;
@@ -633,6 +638,7 @@ export type RuntimeType = 'container' | 'process' | 'tmux' | 'pi';
 export interface Session {
   id: number;
   team_id: number;
+  project_id?: number; // P1.0
   team_name: string;
   role_id: number;
   role_name: string;
@@ -746,6 +752,7 @@ export interface GetMetricsParams {
 export interface CreateSessionRequest {
   role_id: number;
   queue_task_id?: number;
+  project_id?: number; // P1.0: явный проект (опционально)
   runtime_type?: RuntimeType;
   command?: string;
   args?: string[];
@@ -762,6 +769,7 @@ export interface CreateSessionResponse {
 export interface SessionDetail {
   id: number;
   team_id: number;
+  project_id?: number; // P1.0
   team_name: string;
   role_id: number;
   role_name: string;
@@ -783,6 +791,7 @@ export interface SessionDetail {
 export interface ListSessionsParams {
   team_id?: number;
   role_id?: number;
+  project_id?: number; // P1.0: фильтр по проекту
   state?: SessionState;
 }
 
@@ -1217,4 +1226,67 @@ export interface ResetConfigResponse {
   key: string;
   source: string;
   value: unknown;
+}
+
+// ---- P1.0: Projects (мультипроектность) ----
+
+export type ProjectKind = 'existing' | 'new';
+
+export interface Project {
+  id: number;
+  name: string;
+  path: string;
+  kind: ProjectKind;
+  git: boolean;
+  description?: string;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectResponse {
+  project: Project;
+}
+
+export interface ListProjectsResponse {
+  projects: Project[];
+  total: number;
+}
+
+export interface ListProjectsParams {
+  limit?: number;
+  offset?: number;
+  name?: string;
+  archived?: boolean;
+  include_archived?: boolean;
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  kind: ProjectKind;
+  path?: string;        // kind=existing
+  parent_path?: string; // kind=new
+  description?: string;
+}
+
+export interface CreateProjectResponse {
+  project: Project;
+  warning?: string;
+}
+
+export interface ProjectCounts {
+  teams: number;
+  tasks: number;
+  active_sessions: number;
+}
+
+export interface GetProjectResponse {
+  project: Project;
+  counts: ProjectCounts;
+}
+
+export interface UpdateProjectRequest {
+  name?: string;
+  description?: string;
+  path?: string; // если задан → 409 (immutable)
 }

@@ -391,6 +391,53 @@ resolve-flow (blocked→pending + история), M2 due-left; мок-сема�
 | `answer_backend.md` / `answer_frontend.md` | почта с backend-агентом |
 | `_workspace/ui-redesign-plan.md` | план R1–R6 (статусы + коммиты) |
 
+### 3h. Projects / мультипроектность (P1.0, 2026-10-09, T-20261009200032)
+
+Проект = «рабочее дерево» (репозиторий/директория), к которому привязываются
+команды/задачи/сессии; `working_dir` сессии автозаполняется из проекта. Подробности —
+`docs/contracts/api-decisions.md` §P1.0 (backend) + `docs/USAGE.md` §5.0.
+
+**API-клиент:**
+- Группа `api.projects` (list/create/get/update/archive) в `api/types.ts` + `real.ts`
+  (boolean→`'true'` в query) + мок (list с фильтрами, create с валидацией, get со
+  счётчиками, update: `path`→409, archive — идемпотентный).
+- Типы: `Project`/`ProjectResponse`/`ListProjectsResponse`/`ProjectCounts` +
+  create/update; `project_id?` в Team/Task/Session + create-запросах + `ListTasks/SessionsParams`.
+- Мок: `db.projects` (seed: team-console, data-pipeline, scratch-experiment[archived]);
+  привязка Dev Team→project 1 + его задач; счётчики.
+
+**UI:**
+- **Projects page** (`/projects`): список (name/path/kind/git/state/updated), «show
+  archived», «+ New project» (модалка: kind existing|new, name, path/parent_path,
+  description), «Archive» (идемпотентно), пустое состояние.
+- **Project Detail** (`/projects/:projectId`): свойства + счётчики (N teams · N tasks ·
+  N active sessions) + связанные команды/задачи (EntityLink, фильтр `project_id`) +
+  Edit (name/description) + Archive.
+- **Teams**: селект «Project (optional)» в форме создания команды.
+- **Tasks**: фильтр «Project» (dropdown) → `GET /tasks?project_id=`.
+- Навигация: пункт **Projects** в AppShell.
+- Автозаполнение `working_dir`: на уровне API/бэкенда (формы создания сессии в UI
+  нет — сессии запускаются сервером); `CreateSessionRequest` поддерживает
+  `project_id` + `working_dir` (override).
+
+**Тесты:** `tests/projects.test.tsx` (8: список (archived скрыт по умолчанию),
+show-archived, create existing, create new, archive; деталка со счётчиками + related
+team; селект проекта в team-форме; фильтр проектов в Tasks). Контраст: `contrast-check.mjs`
+exit 0. Итого `vitest` **138 passed / 21 skipped**.
+
+**Скриншоты** (`_workspace/ui-screenshots/`): `projects-list-2560x1440.png` (список с
+данными), `projects-empty-2560x1440.png` (пустое состояние), `project-detail-2560x1440.png`
+(счётчики + связанные команды/задачи).
+| Файл | Назначение |
+|---|---|
+| `frontend/src/pages/ProjectsPage.tsx` | список + create (existing/new) + archive + show-archived |
+| `frontend/src/pages/ProjectDetailPage.tsx` | деталка: свойства + счётчики + связанные + edit/archive |
+| `frontend/src/pages/{TeamsPage,TasksPage}.tsx` | селект проекта (team) + фильтр по проекту (tasks) |
+| `frontend/src/api/{types,real}.ts` + `api/mock/{adapter,data}.ts` | группа projects + mock |
+| `frontend/src/types/api.ts` | Project-типы + `project_id?` в Team/Task/Session |
+| `frontend/src/{App.tsx}` + `components/layout/AppShell.tsx` | маршруты + пункт навигации |
+| `frontend/tests/projects.test.tsx` | P1.0 (8 тестов) |
+
 ## 5. Команды
 ```bash
 cd frontend

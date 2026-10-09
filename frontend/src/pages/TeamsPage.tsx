@@ -29,14 +29,16 @@ function TeamRow({ team }: { team: Team }) {
 
 export default function TeamsPage() {
   const { data, loading, error, refetch } = useQuery('teams.list', () => api.teams.getTeams());
+  const projectsQ = useQuery('teams.create.projects', () => api.projects.list({}), []);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [projectId, setProjectId] = useState<number | ''>('');
   const [formError, setFormError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const create = useMutation(async (payload: { name: string; description?: string }) => {
+  const create = useMutation(async (payload: { name: string; description?: string; project_id?: number }) => {
     const res = await api.teams.createTeam(payload);
     return res;
   });
@@ -50,7 +52,11 @@ export default function TeamsPage() {
     }
     setFormError(null);
     try {
-      const res = await create.mutate({ name: trimmed, description: description.trim() || undefined });
+      const res = await create.mutate({
+        name: trimmed,
+        description: description.trim() || undefined,
+        project_id: projectId === '' ? undefined : projectId,
+      });
       toast('success', `Team '${trimmed}' created`);
       setCreating(false);
       navigate(`/teams/${res.id}`);
@@ -106,6 +112,17 @@ export default function TeamsPage() {
               <label>
                 Description
                 <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
+              </label>
+              <label>
+                Project (optional)
+                <select value={projectId} onChange={(e) => setProjectId(e.target.value === '' ? '' : Number(e.target.value))}>
+                  <option value="">— none —</option>
+                  {(projectsQ.data?.projects ?? []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.path})
+                    </option>
+                  ))}
+                </select>
               </label>
               {formError && <div className="form-error">{formError}</div>}
               <div className="modal-actions">
