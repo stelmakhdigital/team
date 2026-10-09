@@ -743,6 +743,15 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
    (must come AFTER the base rule above to win at equal specificity). */
 @media (max-width: 640px) { .settings-sections-grid { grid-template-columns: minmax(0, 1fr); } }
 
+/* very narrow (≤480px): fit content the base rules still let overflow
+   (SummaryCards metrics, Library save row). Workflow Editor canvas, Settings
+   grid and Team Builder topology are already clean here (audit @320/360). */
+@media (max-width: 480px) {
+  .metrics-grid { grid-template-columns: 1fr; gap: 10px; }
+  .library-save-row { flex-wrap: wrap; }
+  .library-save-row .input { min-width: 0; flex: 1; }
+}
+
 .cfg-table { width: 100%; }
 .cfg-table td { vertical-align: top; }
 .cfg-table code { word-break: break-word; }
