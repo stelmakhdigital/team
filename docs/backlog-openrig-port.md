@@ -54,7 +54,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ## P0 — операторский срез (малый объём, высокая ценность)
 
-### P0.1 Attention view «Что требует меня» — `in_progress`
+### P0.1 Attention view «Что требует меня» — `done` (T-20261009135335, 1 раунд; GET /attention, UI + nav-бейдж, 64 ops, 2026-10-09)
 - **Scope**: единая страница/панель (или режим Dashboard) со всем, что требует
   человека: задачи `blocked` (особенно blocked_on-human/escalation),
   escalation-переходы, overdue (см. P0.2), waiting/stuck/failed инстансы
@@ -67,7 +67,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   (или составление на клиенте — решить по архитектуре; если новый эндпоинт —
   OpenAPI + check_openapi).
 
-### P0.2 Overdue / дедлайны задач — `new`
+### P0.2 Overdue / дедлайны задач — `in_progress`
 - **Scope**: `closure_required_at` — вычисляется при переходе в `in_progress`
   (claim); базовое время из конфига (новый config-key, напр.
   `tasks.closure_required_secs`, layered resolution как у других); `GET /tasks`
