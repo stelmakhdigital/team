@@ -11,7 +11,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ## P0.5 → P1.0 Projects: сущность «проект» (мультипроектность, по запрос пользователя)
 
-### P1.0 Projects entity + привязка к командам/сессиям — `new`
+### P1.0 Projects entity + привязка к командам/сессиям — `in_progress`
 - **Контекст**: сейчас `working_dir` задаётся вручную на каждой сессии; сущности
   Project нет (команда не привязана к директории; фильтр «по проекту» невозможен).
   Ориентир — OpenRIG work tree: workspace → project → mission → slice; seat работает
@@ -77,7 +77,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Критерии**: миграция (nullable timestamp), service-тесты вычисления и
   истечения, HTTP-тесты, UI-фильтр + скриншот, OpenAPI, конфиг-key в Settings.
 
-### P0.3 Block with wake — `in_progress`
+### P0.3 Block with wake — `done` (T-20261009181739, 1 раунд; task_wakes timer|task, resolve, M1/M2 закрыты)
 - **Scope**: при переходе задачи в `blocked` — обязательное `wake`-поле:
   `timer` (durations) | `watchdog` (id джоба, если P1.6 готов, иначе позже) |
   `task:<id>` (живая задача) + `continuation` (текст «как продолжить»).
