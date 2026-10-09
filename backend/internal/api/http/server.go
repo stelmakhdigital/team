@@ -31,6 +31,8 @@ type Options struct {
 	Attention *service.AttentionService
 	// P1.0 — Projects (мультипроектность)
 	Projects *service.ProjectService
+	// P1.4 — Workflow engine (исполняемые воркфлоу)
+	Engine *service.WorkflowEngine
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -42,7 +44,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	h := &handlers{svc: svc, tsvc: tsvc, ssvc: opts.Sessions, msvc: opts.Messages,
 		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
 		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention,
-		projects: opts.Projects}
+		projects: opts.Projects, engine: opts.Engine}
 
 	mux := http.NewServeMux()
 
@@ -118,10 +120,19 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("POST /api/v1/workflows/{id}/blocks", h.CreateWorkflowBlock)
 	mux.HandleFunc("POST /api/v1/workflows/{id}/connections", h.CreateWorkflowConnection)
 	mux.HandleFunc("PATCH /api/v1/workflows/{id}/blocks/{blockId}", h.UpdateWorkflowBlock)
-	mux.HandleFunc("PATCH /api/v1/workflows/{id}", h.UpdateWorkflow) // U3-rename
+	mux.HandleFunc("PATCH /api/v1/workflows/{id}", h.UpdateWorkflow) // U3-rename + P1.4 engine toggle
 	mux.HandleFunc("DELETE /api/v1/workflows/{id}", h.DeleteWorkflow)
 	mux.HandleFunc("DELETE /api/v1/workflows/{id}/blocks/{blockId}", h.DeleteWorkflowBlock)
 	mux.HandleFunc("DELETE /api/v1/workflows/{id}/connections/{connectionId}", h.DeleteWorkflowConnection)
+
+	// P1.4 — Workflow engine (исполняемые воркфлоу)
+	mux.HandleFunc("POST /api/v1/workflows/{id}/run", h.RunWorkflow)
+	mux.HandleFunc("GET /api/v1/workflows/{id}/instances", h.ListWorkflowInstances)
+	mux.HandleFunc("GET /api/v1/workflow-instances/{iid}", h.GetWorkflowInstance)
+	mux.HandleFunc("GET /api/v1/workflow-instances/{iid}/trace", h.GetWorkflowInstanceTrace)
+	mux.HandleFunc("POST /api/v1/workflow-instances/{iid}/resume", h.ResumeWorkflowInstance)
+	mux.HandleFunc("POST /api/v1/workflow-instances/{iid}/route", h.RouteWorkflowInstance)
+	mux.HandleFunc("POST /api/v1/workflow-instances/{iid}/abort", h.AbortWorkflowInstance)
 
 	// Slice 5 — WebSocket (real-time события)
 	mux.HandleFunc("GET /ws", h.HandleWS)

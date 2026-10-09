@@ -169,6 +169,22 @@ func (r *TaskRepo) UpdateState(ctx context.Context, tx DBTX, id int64, t *models
 	return nil
 }
 
+// UpdateDestinationRole — P1.4: переназначает задачу на новую роль (workflow route).
+// ErrNotFound, если id не существует.
+func (r *TaskRepo) UpdateDestinationRole(ctx context.Context, tx DBTX, id, roleID int64) error {
+	res, err := tx.ExecContext(ctx,
+		`UPDATE queue_tasks SET destination_role_id = ?, updated_at = ? WHERE id = ?`,
+		roleID, nowStr(), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *TaskRepo) CountOpenByParent(ctx context.Context, tx DBTX, parentID int64) (int, error) {
 	var n int
 	err := tx.QueryRowContext(ctx,

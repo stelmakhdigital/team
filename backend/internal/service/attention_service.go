@@ -74,15 +74,18 @@ type attentionTeamStore interface {
 
 // AttentionService — агрегация источников внимания.
 type AttentionService struct {
-	db     *sql.DB
-	teams  attentionTeamStore
-	tasks  attentionTaskStore
-	alerts attentionAlertStore
-	now    func() time.Time
+	db        *sql.DB
+	teams     attentionTeamStore
+	tasks     attentionTaskStore
+	alerts    attentionAlertStore
+	instances *repository.WorkflowInstanceRepo // P1.4: workflow_attention
+	wf        *repository.WorkflowRepo         // P1.4: workflow name
+	now       func() time.Time
 }
 
 func NewAttentionService(db *sql.DB, s *repository.Stores) *AttentionService {
-	return &AttentionService{db: db, teams: s.Teams, tasks: s.Tasks, alerts: s.Watchdog, now: time.Now}
+	return &AttentionService{db: db, teams: s.Teams, tasks: s.Tasks, alerts: s.Watchdog,
+		instances: s.WorkflowInstances, wf: s.Workflows, now: time.Now}
 }
 
 // attentionFetchCap — защита от неограниченной выборки (attention-срез мал по
@@ -169,6 +172,17 @@ func (s *AttentionService) List(ctx context.Context, limit, offset int) (*Attent
 	for _, a := range alerts {
 		sev, action := alertSeverityAndAction(a.EventType)
 		entries = append(entries, entry{item: s.alertItem(ctx, a, sev, action), since: a.CreatedAt})
+	}
+
+	// 5) workflow_attention (P1.4) — failed (critical) + waiting (high) instances.
+	if s.instances != nil {
+		insts, err := s.instances.ListByStates(ctx, s.db, models.WfInstanceFailed, models.WfInstanceWaiting)
+		if err != nil {
+			return nil, fmt.Errorf("attention: list workflow instances: %w", err)
+		}
+		for _, inst := range insts {
+			entries = append(entries, entry{item: s.workflowItem(ctx, inst), since: inst.UpdatedAt})
+		}
 	}
 
 	// Сортировка: severity desc (critical>high>normal) → created_at asc (старое дольше ждёт).
@@ -262,6 +276,42 @@ func (s *AttentionService) teamName(ctx context.Context, teamID int64) string {
 		return "#" + strconv.FormatInt(teamID, 10)
 	}
 	return team.Name
+}
+
+// workflowItem — P1.4: workflow_attention (failed → critical; waiting → high).
+func (s *AttentionService) workflowItem(ctx context.Context, inst *models.WorkflowInstance) AttentionItem {
+	wfName := s.workflowName(ctx, inst.WorkflowID)
+	title := "Workflow: " + wfName
+	severity := "high"
+	action := "Разобрать ожидание"
+	detail := "ждёт (кто/на чём)"
+	if inst.State == models.WfInstanceFailed {
+		severity = "critical"
+		action = "Resume / abort"
+		detail = "инстанс упал — resume или abort"
+	}
+	path := fmt.Sprintf("/workflows/%d/instances/%d", inst.WorkflowID, inst.ID)
+	return AttentionItem{
+		Kind:            AttentionKindWorkflowAttention,
+		ID:              "wf-" + strconv.FormatInt(inst.ID, 10),
+		Severity:        severity,
+		Title:           title,
+		Detail:          detail,
+		CreatedAt:       inst.UpdatedAt.Format(rfc3339),
+		SuggestedAction: action,
+		Link:            AttentionLink{Path: path, Label: title},
+	}
+}
+
+func (s *AttentionService) workflowName(ctx context.Context, workflowID int64) string {
+	if s.wf == nil {
+		return "#" + strconv.FormatInt(workflowID, 10)
+	}
+	wf, err := s.wf.GetByID(ctx, s.db, workflowID)
+	if err != nil || wf == nil {
+		return "#" + strconv.FormatInt(workflowID, 10)
+	}
+	return wf.Name
 }
 
 // alertSeverityAndAction — severity/сuggested action по типу алерта.

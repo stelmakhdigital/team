@@ -66,6 +66,10 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 	attention := service.NewAttentionService(db, repository.NewStores(db))
 	bus := service.NewEventBus()
 	tsvc.Bus = bus
+	// P1.4: workflow engine + projection hook
+	engine := service.NewWorkflowEngine(db, repository.NewStores(db))
+	engine.Bus = bus
+	tsvc.ProjectionHook = engine.ProjectStepClose
 	ssvc.Bus = bus
 	msvc.Bus = bus
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
@@ -82,6 +86,7 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 		Auth:      authSvc,
 		Config:    cvc,
 		Attention: attention,
+		Engine:    engine,
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)

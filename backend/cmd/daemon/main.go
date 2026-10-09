@@ -124,6 +124,11 @@ func run() error {
 	// Slice 5 — Workflows + WebSocket
 	wsvc := service.NewWorkflowService(db, stores)
 
+	// P1.4 — Workflow engine (исполняемые воркфлоу) + projection hook в TaskService.
+	engine := service.NewWorkflowEngine(db, stores)
+	engine.Bus = bus
+	tsvc.ProjectionHook = engine.ProjectStepClose
+
 	// Slice 5b — Library + Audit + Metrics
 	lservice := service.NewLibraryService(db, stores, svc)
 	aservice := service.NewAuditService(db, stores)
@@ -146,7 +151,7 @@ func run() error {
 		Sessions: ssvc, Alerts: alerts, Messages: msvc,
 		Workflows: wsvc, Events: bus,
 		Library: lservice, Audit: aservice, Metrics: msvcMetrics,
-		Auth: authSvc, Config: cvc, Attention: attention, Projects: projSvc,
+		Auth: authSvc, Config: cvc, Attention: attention, Projects: projSvc, Engine: engine,
 	})
 
 	server := &http.Server{

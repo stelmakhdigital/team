@@ -14,7 +14,7 @@ import (
 type WorkflowRepo struct{ db *sql.DB }
 
 const workflowSelect = `
-	SELECT id, team_id, name, description, state, config, created_at, updated_at
+	SELECT id, team_id, name, description, state, config, engine_enabled, created_at, updated_at
 	FROM workflows`
 
 func (r *WorkflowRepo) Create(ctx context.Context, tx DBTX, w *models.Workflow) error {
@@ -30,10 +30,14 @@ func (r *WorkflowRepo) Create(ctx context.Context, tx DBTX, w *models.Workflow) 
 	}
 	ts, tsStr := nowTime(), nowStr()
 	w.CreatedAt, w.UpdatedAt = ts, ts
+	engine := 0
+	if w.EngineEnabled {
+		engine = 1
+	}
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO workflows (team_id, name, description, state, config, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		w.TeamID, w.Name, w.Description, string(w.State), cfg, tsStr, tsStr)
+		INSERT INTO workflows (team_id, name, description, state, config, engine_enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		w.TeamID, w.Name, w.Description, string(w.State), cfg, engine, tsStr, tsStr)
 	if err != nil {
 		return err
 	}
@@ -122,6 +126,26 @@ func (r *WorkflowRepo) UpdateName(ctx context.Context, tx DBTX, id int64, name s
 	return nil
 }
 
+// SetEngineEnabled — P1.4: переключает исполняемость воркфлоу (PATCH /workflows/{id}).
+// ErrNotFound, если id не существует.
+func (r *WorkflowRepo) SetEngineEnabled(ctx context.Context, tx DBTX, id int64, enabled bool) error {
+	v := 0
+	if enabled {
+		v = 1
+	}
+	res, err := tx.ExecContext(ctx,
+		`UPDATE workflows SET engine_enabled = ?, updated_at = ? WHERE id = ?`,
+		v, nowStr(), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // Delete — удаляет workflow (контракт 20 §2.8). Блоки/связи удаляет вызывающий
 // (см. WorkflowService.DeleteWorkflow — явный порядок, не полагаемся на FK cascade,
 // т.к. в :memory: sqlite FK выключен). ErrNotFound, если id не существует.
@@ -142,9 +166,10 @@ func scanWorkflow(s teamScanner) (*models.Workflow, error) {
 		w      models.Workflow
 		desc   sql.NullString
 		cfg    string
+		engine int
 		ca, ua string
 	)
-	err := s.Scan(&w.ID, &w.TeamID, &w.Name, &desc, &w.State, &cfg, &ca, &ua)
+	err := s.Scan(&w.ID, &w.TeamID, &w.Name, &desc, &w.State, &cfg, &engine, &ca, &ua)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -154,6 +179,7 @@ func scanWorkflow(s teamScanner) (*models.Workflow, error) {
 	if desc.Valid {
 		w.Description = &desc.String
 	}
+	w.EngineEnabled = engine != 0
 	w.Config = unmarshalConfig(cfg)
 	if w.CreatedAt, err = parseTime(ca); err != nil {
 		return nil, fmt.Errorf("parse workflow created_at: %w", err)

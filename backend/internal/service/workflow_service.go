@@ -29,19 +29,20 @@ func NewWorkflowService(db *sql.DB, s *repository.Stores) *WorkflowService {
 
 // WorkflowView — workflow (контракт: Workflow).
 type WorkflowView struct {
-	ID          int64   `json:"id"`
-	TeamID      int64   `json:"team_id"`
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
-	State       string  `json:"state"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	ID            int64   `json:"id"`
+	TeamID        int64   `json:"team_id"`
+	Name          string  `json:"name"`
+	Description   *string `json:"description,omitempty"`
+	State         string  `json:"state"`
+	EngineEnabled bool    `json:"engine_enabled"` // P1.4: исполняемый воркфлоу
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
 }
 
 func workflowView(w *models.Workflow) *WorkflowView {
 	return &WorkflowView{
 		ID: w.ID, TeamID: w.TeamID, Name: w.Name, Description: w.Description,
-		State:     string(w.State),
+		State: string(w.State), EngineEnabled: w.EngineEnabled,
 		CreatedAt: w.CreatedAt.Format(rfc3339), UpdatedAt: w.UpdatedAt.Format(rfc3339),
 	}
 }
@@ -232,15 +233,16 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, req CreateWorkflow
 	return w, nil
 }
 
-// UpdateWorkflowRequest — PATCH /api/v1/workflows/{id} (U3-rename: name/description).
+// UpdateWorkflowRequest — PATCH /api/v1/workflows/{id} (U3-rename: name/description;
+// P1.4: engine_enabled — переключатель исполняемости).
 type UpdateWorkflowRequest struct {
-	ID          int64   `json:"-"`
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
+	ID            int64   `json:"-"`
+	Name          string  `json:"name"`
+	Description   *string `json:"description"`
+	EngineEnabled *bool   `json:"engine_enabled,omitempty"` // P1.4: toggle (nil = не менять)
 }
 
-// UpdateWorkflow — переименование workflow (name) + опц. description. Возвращает обновлённый view.
-// not_found на неизвестный id, conflict при дубликате имени в команде.
+// UpdateWorkflow — переименование workflow (name) + опц. description + toggle engine.
 func (s *WorkflowService) UpdateWorkflow(ctx context.Context, req UpdateWorkflowRequest) (*WorkflowView, error) {
 	if strings.TrimSpace(req.Name) == "" {
 		return nil, NewValidation("invalid request", []FieldError{{Field: "name", Reason: "name is required"}})
@@ -264,6 +266,16 @@ func (s *WorkflowService) UpdateWorkflow(ctx context.Context, req UpdateWorkflow
 	}
 	w.Name = req.Name
 	w.Description = desc
+	// P1.4: toggle исполняемости (nil = не менять).
+	if req.EngineEnabled != nil {
+		if err := s.wf.SetEngineEnabled(ctx, s.db, w.ID, *req.EngineEnabled); err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				return nil, NewNotFound("workflow")
+			}
+			return nil, err
+		}
+		w.EngineEnabled = *req.EngineEnabled
+	}
 	return workflowView(w), nil
 }
 

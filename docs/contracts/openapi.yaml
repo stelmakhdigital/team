@@ -1031,6 +1031,165 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflows/{id}/run:
+    post:
+      operationId: runWorkflow
+      summary: "Запустить исполняемый workflow (P1.4): создаёт instance + первый шаг"
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RunWorkflowRequest' }
+      responses:
+        '201':
+          description: Instance создан (running)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instance: { $ref: '#/components/schemas/WorkflowInstance' }
+        '400': { $ref: '#/components/responses/BadRequest' }   # no/multiple entry blocks
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }    # engine не включён / team не active
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflows/{id}/instances:
+    get:
+      operationId: listWorkflowInstances
+      summary: Список инстансов workflow (P1.4)
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Инстансы workflow (новые сверху)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instances:
+                    type: array
+                    items: { $ref: '#/components/schemas/WorkflowInstance' }
+                  total: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflow-instances/{iid}:
+    get:
+      operationId: getWorkflowInstance
+      summary: Инстанс + шаги (trail) + активные шаги (P1.4)
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Iid' }
+      responses:
+        '200':
+          description: Инстанс с деталями
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkflowInstanceDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflow-instances/{iid}/trace:
+    get:
+      operationId: getWorkflowInstanceTrace
+      summary: Append-only trail шагов инстанса, ASC (P1.4)
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Iid' }
+      responses:
+        '200':
+          description: Trail шагов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  steps:
+                    type: array
+                    items: { $ref: '#/components/schemas/WorkflowStep' }
+                  total: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflow-instances/{iid}/resume:
+    post:
+      operationId: resumeWorkflowInstance
+      summary: "Resume failed-инстанса: re-arm failed-шага (P1.4)"
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Iid' }
+      responses:
+        '200':
+          description: Инстанс запущен (running)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instance: { $ref: '#/components/schemas/WorkflowInstance' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }   # не failed / нет failed-шага
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflow-instances/{iid}/route:
+    post:
+      operationId: routeWorkflowInstance
+      summary: Route active-шага на новую роль (P1.4)
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Iid' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RouteInstanceRequest' }
+      responses:
+        '200':
+          description: Активный шаг переназначен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instance: { $ref: '#/components/schemas/WorkflowInstance' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }   # не running / нет active-шага с задачей
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/workflow-instances/{iid}/abort:
+    post:
+      operationId: abortWorkflowInstance
+      summary: "Abort инстанса: все active задачи → canceled (P1.4)"
+      tags: [workflows]
+      parameters:
+        - { $ref: '#/components/parameters/Iid' }
+      responses:
+        '200':
+          description: Инстанс отменён (aborted)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instance: { $ref: '#/components/schemas/WorkflowInstance' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }   # уже завершён
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/workflows/{id}/blocks/{blockId}:
     patch:
       operationId: updateWorkflowBlock
@@ -1456,6 +1615,12 @@ components:
       name: connectionId
       in: path
       required: true
+      schema: { type: integer, format: int64 }
+    Iid:
+      name: iid
+      in: path
+      required: true
+      description: Идентификатор workflow instance (P1.4)
       schema: { type: integer, format: int64 }
     Key:
       name: key
@@ -2272,6 +2437,7 @@ components:
         name: { type: string }
         description: { type: string }
         state: { type: string, enum: [draft, active, archived] }
+        engine_enabled: { type: boolean, description: 'P1.4: исполняемый воркфлоу' }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     WorkflowPosition:
@@ -2319,6 +2485,55 @@ components:
         connections:
           type: array
           items: { $ref: '#/components/schemas/WorkflowConnection' }
+    WorkflowInstance:
+      type: object
+      required: [id, workflow_id, state, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        workflow_id: { type: integer, format: int64 }
+        state: { type: string, enum: [running, waiting, completed, failed, aborted] }
+        root_objective: { type: string }
+        current_block_id: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time }
+    WorkflowStep:
+      type: object
+      required: [id, block_id, state]
+      properties:
+        id: { type: integer, format: int64 }
+        block_id: { type: integer, format: int64 }
+        block_type: { type: string, enum: [task, decision, parallel, loop, agent, manual] }
+        block_label: { type: string }
+        task_id: { type: integer, format: int64 }
+        task_title: { type: string }
+        state: { type: string, enum: [pending, active, done, failed, skipped, routed] }
+        exit_kind: { type: string, enum: [handoff, waiting, done, failed] }
+        actor: { type: integer, format: int64 }
+        actor_name: { type: string }
+        result_note: { type: string }
+        entered_at: { type: string, format: date-time }
+        exited_at: { type: string, format: date-time }
+    WorkflowInstanceDetail:
+      type: object
+      required: [instance, steps]
+      properties:
+        instance: { $ref: '#/components/schemas/WorkflowInstance' }
+        steps:
+          type: array
+          items: { $ref: '#/components/schemas/WorkflowStep' }
+        active_step_ids:
+          type: array
+          items: { type: integer, format: int64 }
+    RunWorkflowRequest:
+      type: object
+      properties:
+        root_objective: { type: string }
+    RouteInstanceRequest:
+      type: object
+      required: [to_role_id]
+      properties:
+        to_role_id: { type: integer, format: int64 }
     WorkflowBlockInput:
       type: object
       required: [type]

@@ -36,6 +36,9 @@ type Stores struct {
 	Workflows           *WorkflowRepo
 	WorkflowBlocks      *WorkflowBlockRepo
 	WorkflowConnections *WorkflowConnectionRepo
+	// P1.4 — Workflow engine (исполняемые воркфлоу)
+	WorkflowInstances *WorkflowInstanceRepo
+	WorkflowSteps     *WorkflowStepRepo
 	// Slice 5b — Library + Audit
 	Library         *LibraryRepo
 	LibraryVersions *LibraryVersionRepo
@@ -64,6 +67,8 @@ func NewStores(db *sql.DB) *Stores {
 		Workflows:           &WorkflowRepo{db: db},
 		WorkflowBlocks:      &WorkflowBlockRepo{db: db},
 		WorkflowConnections: &WorkflowConnectionRepo{db: db},
+		WorkflowInstances:   &WorkflowInstanceRepo{db: db},
+		WorkflowSteps:       &WorkflowStepRepo{db: db},
 		Library:             &LibraryRepo{db: db},
 		LibraryVersions:     &LibraryVersionRepo{db: db},
 		Audit:               &AuditRepo{db: db},

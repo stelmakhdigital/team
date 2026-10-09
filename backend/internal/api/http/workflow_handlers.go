@@ -223,3 +223,129 @@ func (h *handlers) DeleteWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "status": "deleted"})
 }
+
+// ---------- P1.4: Workflow engine ----------
+
+type runWorkflowRequest struct {
+	RootObjective string `json:"root_objective"`
+}
+
+// RunWorkflow — POST /api/v1/workflows/{id}/run (P1.4): создаёт instance + первый шаг.
+func (h *handlers) RunWorkflow(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body runWorkflowRequest
+	_ = decodeJSON(r, &body) // body опционален (root_objective пустой допустим)
+	inst, err := h.engine.Run(r.Context(), id, body.RootObjective)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"instance": inst})
+}
+
+// ListWorkflowInstances — GET /api/v1/workflows/{id}/instances (P1.4).
+func (h *handlers) ListWorkflowInstances(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	insts, err := h.engine.ListInstances(r.Context(), id)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"instances": insts, "total": len(insts)})
+}
+
+// GetWorkflowInstance — GET /api/v1/workflow-instances/{iid} (P1.4: instance + steps).
+func (h *handlers) GetWorkflowInstance(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("iid"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	detail, err := h.engine.GetInstance(r.Context(), id)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
+}
+
+// GetWorkflowInstanceTrace — GET /api/v1/workflow-instances/{iid}/trace (P1.4, ASC).
+func (h *handlers) GetWorkflowInstanceTrace(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("iid"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	steps, err := h.engine.GetTrace(r.Context(), id)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"steps": steps, "total": len(steps)})
+}
+
+type routeInstanceRequest struct {
+	ToRoleID int64 `json:"to_role_id"`
+}
+
+// ResumeWorkflowInstance — POST /api/v1/workflow-instances/{iid}/resume (P1.4).
+func (h *handlers) ResumeWorkflowInstance(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("iid"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	inst, err := h.engine.Resume(r.Context(), id)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"instance": inst})
+}
+
+// RouteWorkflowInstance — POST /api/v1/workflow-instances/{iid}/route (P1.4).
+func (h *handlers) RouteWorkflowInstance(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("iid"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body routeInstanceRequest
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	if body.ToRoleID == 0 {
+		writeError(w, r, service.NewValidation("to_role_id is required", []service.FieldError{{Field: "to_role_id", Reason: "required"}}))
+		return
+	}
+	inst, err := h.engine.Route(r.Context(), id, body.ToRoleID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"instance": inst})
+}
+
+// AbortWorkflowInstance — POST /api/v1/workflow-instances/{iid}/abort (P1.4).
+func (h *handlers) AbortWorkflowInstance(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("iid"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	inst, err := h.engine.Abort(r.Context(), id)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"instance": inst})
+}

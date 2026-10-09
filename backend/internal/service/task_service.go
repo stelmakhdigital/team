@@ -23,6 +23,7 @@ type taskStore interface {
 	GetByID(ctx context.Context, tx repository.DBTX, id int64) (*models.Task, error)
 	List(ctx context.Context, tx repository.DBTX, f repository.TaskFilter) ([]*models.Task, int, error)
 	UpdateState(ctx context.Context, tx repository.DBTX, id int64, t *models.Task) error
+	UpdateDestinationRole(ctx context.Context, tx repository.DBTX, id, roleID int64) error // P1.4: workflow route
 	CountOpenByParent(ctx context.Context, tx repository.DBTX, parentID int64) (int, error)
 	CountByStates(ctx context.Context, tx repository.DBTX, teamID *int64, states ...models.TaskState) (int, error)
 	CountDoneSince(ctx context.Context, tx repository.DBTX, since time.Time) (int, error)
@@ -58,6 +59,9 @@ type TaskService struct {
 	// P0.2: tasks.closure_required_secs на момент перехода в in_progress (layered config).
 	// nil = дефолт 2h (7200s).
 	ClosureRequiredFunc func(ctx context.Context) (time.Duration, error)
+	// P1.4: workflow engine projection (вызывается в tx смены состояния задачи;
+	// возвращает события для публикации после commit). nil = без проекции.
+	ProjectionHook func(ctx context.Context, tx repository.DBTX, task *models.Task, from, to models.TaskState, note string) ([]WSEvent, error)
 }
 
 func NewTaskService(db *sql.DB, s *repository.Stores) *TaskService {
@@ -309,6 +313,16 @@ func (s *TaskService) UpdateTaskState(ctx context.Context, req UpdateTaskStateRe
 		}
 	}
 
+	// P1.4: workflow engine projection (в той же tx; события — после commit).
+	var wfEvents []WSEvent
+	if s.ProjectionHook != nil {
+		if ev, err := s.ProjectionHook(ctx, tx, &updated, current.State, req.State, req.Comment); err != nil {
+			return nil, err
+		} else {
+			wfEvents = ev
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -323,6 +337,10 @@ func (s *TaskService) UpdateTaskState(ctx context.Context, req UpdateTaskStateRe
 			"task_id": ft.ID, "from_state": "blocked", "to_state": string(ft.State),
 			"updated_at": now.Format(rfc3339), "wake_fired": true,
 		}, fmt.Sprintf("team:%d", ft.TeamID), fmt.Sprintf("task:%d", ft.ID)))
+	}
+	// P1.4: publish workflow-событий после commit.
+	for _, ev := range wfEvents {
+		s.Bus.Publish(ev)
 	}
 	return &updated, nil
 }
@@ -442,6 +460,15 @@ func (s *TaskService) HandoffTask(ctx context.Context, req HandoffTaskRequest) (
 	if err != nil {
 		return nil, err
 	}
+	// P1.4: workflow engine projection (в той же tx; события — после commit).
+	var wfEvents []WSEvent
+	if s.ProjectionHook != nil {
+		if ev, err := s.ProjectionHook(ctx, tx, &updated, current.State, models.TaskDone, hc); err != nil {
+			return nil, err
+		} else {
+			wfEvents = ev
+		}
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
@@ -452,6 +479,9 @@ func (s *TaskService) HandoffTask(ctx context.Context, req HandoffTaskRequest) (
 			"task_id": ft.ID, "from_state": "blocked", "to_state": string(ft.State),
 			"updated_at": handoffNow.Format(rfc3339), "wake_fired": true,
 		}, fmt.Sprintf("team:%d", ft.TeamID), fmt.Sprintf("task:%d", ft.ID)))
+	}
+	for _, ev := range wfEvents {
+		s.Bus.Publish(ev)
 	}
 	return &HandoffTaskResult{ClosedTask: &updated, NewTask: newTask}, nil
 }
@@ -537,8 +567,22 @@ func (s *TaskService) fireWake(ctx context.Context, w *models.TaskWake, reason s
 	if err != nil {
 		return err
 	}
+	// P1.4: workflow engine projection (timer-wake unblock → instance running; в той же tx).
+	var wfEvents []WSEvent
+	if fired && s.ProjectionHook != nil {
+		if task, err := s.tasks.GetByID(ctx, tx, w.TaskID); err == nil {
+			if ev, err := s.ProjectionHook(ctx, tx, task, models.TaskBlocked, models.TaskPending, reason); err != nil {
+				return err
+			} else {
+				wfEvents = ev
+			}
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return err
+	}
+	for _, ev := range wfEvents {
+		s.Bus.Publish(ev)
 	}
 	if fired {
 		if task, err := s.tasks.GetByID(ctx, s.db, w.TaskID); err == nil {
@@ -646,6 +690,15 @@ func (s *TaskService) ResolveTask(ctx context.Context, req ResolveTaskRequest) (
 	}); err != nil {
 		return nil, err
 	}
+	// P1.4: workflow engine projection (unblock → instance running; в той же tx).
+	var wfEvents []WSEvent
+	if s.ProjectionHook != nil {
+		if ev, err := s.ProjectionHook(ctx, tx, &updated, current.State, models.TaskPending, req.Decision); err != nil {
+			return nil, err
+		} else {
+			wfEvents = ev
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -654,6 +707,9 @@ func (s *TaskService) ResolveTask(ctx context.Context, req ResolveTaskRequest) (
 		"task_id": updated.ID, "from_state": from, "to_state": string(updated.State),
 		"updated_at": now.Format(rfc3339), "resolved": true,
 	}, fmt.Sprintf("team:%d", updated.TeamID), fmt.Sprintf("task:%d", updated.ID)))
+	for _, ev := range wfEvents {
+		s.Bus.Publish(ev)
+	}
 	return &updated, nil
 }
 

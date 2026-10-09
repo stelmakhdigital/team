@@ -29,6 +29,8 @@ type handlers struct {
 	attention *service.AttentionService
 	// P1.0 — Projects
 	projects *service.ProjectService
+	// P1.4 — Workflow engine (исполняемые воркфлоу)
+	engine *service.WorkflowEngine
 }
 
 func limitOffset(q url.Values) (int, int) {

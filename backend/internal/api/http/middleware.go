@@ -154,6 +154,8 @@ func requiredPermission(method, path string) string {
 			return "config.read"
 		case "segments", "roles", "relatives":
 			return "teams.read" // Team Builder: сегменты/роли/связи
+		case "workflow-instances": // P1.4: instance/trace — read = workflows.read
+			return "workflows.read"
 		default:
 			return res + ".read"
 		}
@@ -161,8 +163,10 @@ func requiredPermission(method, path string) string {
 		switch {
 		case res == "chatrooms" && sub == "messages":
 			return "chatrooms.create"
-		case res == "workflows" && id != "" && (sub == "blocks" || sub == "connections"):
+		case res == "workflows" && id != "" && (sub == "blocks" || sub == "connections" || sub == "run"):
 			return "workflows.update"
+		case res == "workflow-instances" && id != "" && (sub == "resume" || sub == "route" || sub == "abort"):
+			return "workflows.update" // P1.4: actions = workflows.update
 		case res == "library" && id != "" && sub == "apply":
 			return "library.apply"
 		case res == "watchdog":
