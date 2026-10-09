@@ -67,7 +67,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   (или составление на клиенте — решить по архитектуре; если новый эндпоинт —
   OpenAPI + check_openapi).
 
-### P0.2 Overdue / дедлайны задач — `in_progress`
+### P0.2 Overdue / дедлайны задач — `done` (T-20261009161158, 1 раунд; closure_required_at, GET /tasks/overdue, task_overdue в Attention; миноры M1/M2 → P0.3)
 - **Scope**: `closure_required_at` — вычисляется при переходе в `in_progress`
   (claim); базовое время из конфига (новый config-key, напр.
   `tasks.closure_required_secs`, layered resolution как у других); `GET /tasks`
@@ -77,7 +77,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Критерии**: миграция (nullable timestamp), service-тесты вычисления и
   истечения, HTTP-тесты, UI-фильтр + скриншот, OpenAPI, конфиг-key в Settings.
 
-### P0.3 Block with wake — `new`
+### P0.3 Block with wake — `in_progress`
 - **Scope**: при переходе задачи в `blocked` — обязательное `wake`-поле:
   `timer` (durations) | `watchdog` (id джоба, если P1.6 готов, иначе позже) |
   `task:<id>` (живая задача) + `continuation` (текст «как продолжить»).
