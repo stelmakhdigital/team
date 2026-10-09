@@ -88,7 +88,9 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 
 .content { flex: 1; min-width: 0; }
 
-.page { padding: 20px 24px 32px; max-width: 1500px; }
+/* U1 — full-width: no max-width ceiling; the page fills the viewport width.
+   Long-text blocks (tables, transcripts, logs) get their own readability caps. */
+.page { padding: 20px 24px 32px; width: 100%; }
 .page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
 .head-actions { display: flex; gap: 8px; align-items: center; }
 .crumb { font-weight: 400; }
@@ -541,9 +543,10 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .group-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { background: var(--bg-panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; font-size: 0.75rem; color: var(--muted); }
 
-.library-layout { display: grid; grid-template-columns: 1fr 320px; gap: 16px; }
+.library-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; }
 @media (max-width: 1100px) { .library-layout { grid-template-columns: 1fr; } }
-.library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+/* U1: cards stay a readable width on wide screens (auto-fill, capped max) — no smear. */
+.library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 340px)); gap: 12px; }
 .library-card { text-align: left; cursor: pointer; color: var(--text); margin: 0; }
 .library-card:hover { border-color: var(--accent); }
 .library-card-head { display: flex; justify-content: space-between; align-items: center; }
