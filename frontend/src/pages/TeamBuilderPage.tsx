@@ -5,7 +5,7 @@ import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useToast } from '../components/ui/Toast';
-import { errorMessage, ErrorState, Spinner } from '../components/ui/States';
+import { errorMessage, ErrorState, PageSkeleton } from '../components/ui/States';
 import { validateTopologyGraph } from '../lib/topology';
 import type { RelativeType, ValidateTopologyResponse } from '../types/api';
 import TopologyCanvas, { type TopologySelection } from '../components/Topology/TopologyCanvas';
@@ -255,9 +255,9 @@ export default function TeamBuilderPage() {
     }
   };
 
-  if (loading) return <div className="page"><Spinner label="Loading topology…" /></div>;
+  if (loading) return <div className="page"><PageSkeleton rows={5} label="Loading topology…" /></div>;
   if (error) return <div className="page"><ErrorState error={error} onRetry={refetch} /></div>;
-  if (!data) return <div className="page"><Spinner /></div>;
+  if (!data) return <div className="page"><PageSkeleton rows={5} /></div>;
 
   const selectionIsRole = selection?.type === 'role' ? roles.find((r) => r.id === selection.id) : undefined;
   const selectionIsSegment = selection?.type === 'segment' ? segments.find((s) => s.id === selection.id) : undefined;
