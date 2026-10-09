@@ -650,6 +650,37 @@ export interface WatchdogAlert {
   requires_action: boolean;
 }
 
+// P0.1 — Attention view «Что требует меня» (GET /api/v1/attention).
+export type AttentionKind =
+  | 'task_blocked'
+  | 'task_escalated'
+  | 'alert_unread'
+  | 'workflow_attention'
+  | 'session_failed';
+export type AttentionSeverity = 'critical' | 'high' | 'normal';
+export interface AttentionLink {
+  path: string;
+  label: string;
+}
+export interface AttentionItem {
+  kind: AttentionKind;
+  id: string;
+  severity: AttentionSeverity;
+  title: string;
+  detail: string;
+  created_at: string;
+  suggested_action: string;
+  link: AttentionLink;
+}
+export interface GetAttentionParams {
+  limit?: number;
+  offset?: number;
+}
+export interface GetAttentionResponse {
+  total: number;
+  items: AttentionItem[];
+}
+
 export interface GetAlertsResponse {
   alerts: WatchdogAlert[];
   total: number;

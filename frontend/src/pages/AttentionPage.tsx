@@ -1,0 +1,126 @@
+import { useCallback, useRef } from 'react';
+import { useQuery } from '../hooks/useQuery';
+import { api } from '../api';
+import { Badge, EmptyState, ErrorState, PageSkeleton } from '../components/ui/States';
+import EntityLink from '../components/ui/EntityLink';
+import { useWebSocket } from '../hooks/useWebSocket';
+
+// P0.1 — Attention view «Что требует меня»: единый список всего, что требует
+// действия оператора, с live-обновлением по WS-событиям (task./session./alert.).
+const ATTENTION_EVENTS = new Set([
+  'task.created',
+  'task.state_changed',
+  'session.started',
+  'session.stopped',
+  'session.failed',
+  'alert.created',
+]);
+
+// «normal» отображаем существующим accent-классом (badge-sev-info), чтобы не
+// вводить новый цвет (контраст — в scripts/contrast-check.mjs).
+const SEV_BADGE: Record<string, string> = { critical: 'critical', high: 'high', normal: 'info' };
+
+function humanElapsed(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return 'сейчас';
+  const m = Math.round(ms / 60000);
+  if (m < 1) return 'только что';
+  if (m < 60) return `${m}м назад`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}ч назад`;
+  return `${Math.floor(h / 24)}д назад`;
+}
+
+export default function AttentionPage() {
+  const q = useQuery('attention.list', () => api.attention.list());
+  const { onMessage } = useWebSocket([]);
+
+  // live-рефетч по релевантным событиям (debounce ~3с + 300мс)
+  const refetchRef = useRef(q.refetch);
+  refetchRef.current = q.refetch;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const last = useRef(0);
+  const onEvent = useCallback((_m: { type: string }) => {
+    if (!ATTENTION_EVENTS.has(_m.type)) return;
+    const now = Date.now();
+    if (now - last.current < 3000) return;
+    last.current = now;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => refetchRef.current(), 300);
+  }, []);
+  onMessage(onEvent);
+
+  if (q.loading) {
+    return (
+      <div className="page">
+        <PageSkeleton label="Загружаю список внимания…" />
+      </div>
+    );
+  }
+  if (q.error) {
+    return (
+      <div className="page">
+        <ErrorState error={q.error} onRetry={q.refetch} />
+      </div>
+    );
+  }
+
+  const items = q.data?.items ?? [];
+  return (
+    <div className="page">
+      <div className="page-head">
+        <h1>Внимание</h1>
+        <span className="muted small">
+          Что требует вашего действия · {q.data?.total ?? 0} шт.
+        </span>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            title="Всё спокойно"
+            hint="Ничего не требует вашего внимания. Новые эскалации, блокировки и алерты появятся здесь."
+          />
+        </div>
+      ) : (
+        <div className="card attention-card">
+          <div className="table-wrap">
+            <table className="table attention-table">
+              <thead>
+                <tr>
+                  <th className="atd-w-sev">Severity</th>
+                  <th>Item</th>
+                  <th className="atd-w-elapsed">Elapsed</th>
+                  <th className="atd-w-action">Suggested action</th>
+                  <th aria-label="Открыть" />
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it) => (
+                  <tr key={it.kind + it.id} data-severity={it.severity}>
+                    <td>
+                      <Badge kind="sev" value={SEV_BADGE[it.severity]}>
+                        {it.severity}
+                      </Badge>
+                    </td>
+                    <td>
+                      <div className="attention-title">{it.title}</div>
+                      <div className="muted small attention-detail">{it.detail}</div>
+                    </td>
+                    <td className="muted small attention-elapsed">{humanElapsed(it.created_at)}</td>
+                    <td className="attention-action">{it.suggested_action}</td>
+                    <td className="row-actions">
+                      <EntityLink to={it.link.path} title={it.link.label}>
+                        {it.link.label}
+                      </EntityLink>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

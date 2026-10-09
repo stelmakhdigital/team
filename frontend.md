@@ -213,6 +213,7 @@ X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/
 | Страница | Empty | Loading | Error | A11y / примечание |
 |---|---|---|---|---|
 | Dashboard | ✅ per-panel (tasks/sessions/alerts) | ✅ PageSkeleton (initial) + per-panel Spinner | ✅ per-panel ErrorState/Unavailable | EntityLink, progressbar, глоб. WS-бейдж |
+| Attention | ✅ «Всё спокойно» | ✅ PageSkeleton | ✅ ErrorState+retry | EntityLink CTA, severity-бейджи, nav-счётчик (live WS) |
 | Teams | ✅ +CTA | ✅ PageSkeleton | ✅ ErrorState+retry | ссылки-строки, focus |
 | Team Builder | ✅ drop-hint (пустой сегмент) | ✅ Spinner (canvas) | ✅ ErrorState | Edit/Team — текстовые кнопки, focus |
 | Workflows | ✅ +CTA | ✅ PageSkeleton | ✅ ErrorState+retry | ссылки-строки, focus |
@@ -289,6 +290,27 @@ X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/
 | Panel border (декор) | `#2d333b`/`#0d1117` | 1.49:1 | n/a | ℹ️ декор (1.4.11 n/a) |
 
 **P4 — мобильный 320px (follow-up §3c).** Overflow-аудит (Playwright, scrollWidth vs viewport, 12 routes @320/360): реальных виновников всего 2 — Dashboard SummaryCards (`.metrics-grid` minmax(250px) > ~240px контента) и `.library-save-row`. Workflow Editor canvas, Settings grid, Team Builder topology — уже чисты (stack/scroll в своих контейнерах; топология на узких = Table view, граф скрыт). Фикс `@media ≤480`: `.metrics-grid` → 1 колонка; `.library-save-row` → wrap + input `min-width:0/flex:1`. **Результат: 320 и 360px — 0 горизонтального overflow на всех 12 routes.** Скриншоты (4 страницы @320): `_workspace/ui-screenshots/ux-mobile-320x720-{dashboard,library,workflow-editor,team-builder}.png`.
+
+### 3e. Attention view «Что требует меня» (P0.1, 2026-10-09, T-20261009135335) — операторский срез
+
+Единый список всего, что требует действия оператора: `GET /api/v1/attention` (backend) → страница `/attention` + пункт навигации с live-бейджем. Миграций нет — service агрегирует существующие таблицы.
+
+**Источники (агрегация в `service.AttentionService`):**
+- `task_blocked` (state=blocked) → high.
+- `task_escalated` (closure_reason=escalation, не-терминальные) → critical; дедуп: blocked+escalated → один item (escalated).
+- `alert_unread` (watchdog is_read=0) → critical/high/normal по event_type (blocked→critical, stale→high, else→normal).
+- `workflow_attention` / `session_failed` — в схеме, но сейчас пусты (отсутствуют в ответе).
+- Сортировка: severity desc → created_at asc; limit/offset (def 50 / max 200); `total` = полный счёт (для бейджа).
+- RBAC: `dashboard.read` (viewer-доступен, без новой перми).
+
+**UI:**
+- Страница `/attention`: таблица (severity-бейдж / item+detail / elapsed / suggested action / CTA-EntityLink). Loading → `PageSkeleton`, ошибка → `ErrorState`+retry, пусто → `EmptyState` «Всё спокойно». Таблица в `.table-wrap` (внутренний горизонт. скролл на узких).
+- Навигация: пункт «Attention» (⚑) + бейдж-счётчик (red, `--red-strong` = AA 5.36:1). Счётчик = `total`, обновляется live по WS-событиям task./session./alert. (дебаунс ~3с). В rail-режиме (≤1100px) бейдж — оверлей на иконке.
+- `normal`-severity отображается существующим accent-классом `badge-sev-info` (новый цвет не введён; контраст — `contrast-check.mjs`).
+
+**Тесты:** `tests/attention.test.tsx` (4: рендер списка + severity-бейджи, CTA-навигация → /tasks/:id, пустое состояние, бейдж-счётчик > 0). Контраст: `contrast-check.mjs` — 22 пары, exit 0 (бейдж = та же пара, что critical-бейдж).
+
+**Скриншоты** (`_workspace/ui-screenshots/`): `attention-2560x1440.png` (список + бейдж), `attention-mobile-480x850.png` (rail + внутренний скролл таблицы), `attention-empty-2560x1440.png` (пусто, «Всё спокойно», бейдж скрыт).
 
 ## 4. Ключевые файлы
 | Файл | Назначение |

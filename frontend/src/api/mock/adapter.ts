@@ -1,6 +1,9 @@
 import type { Api } from '../types';
 import type {
   AgentSpec,
+  AttentionItem,
+  GetAttentionParams,
+  GetAttentionResponse,
   CreateRoleRequest,
   CreateSegmentRequest,
   CreateTeamRequest,
@@ -91,6 +94,20 @@ function toSessionDetail(s: Session): SessionDetail {
 }
 function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
+}
+
+// компактный elapsed для detail (мок): "5м", "2ч 10м", "3д"
+function humanDur(ms: number): string {
+  if (ms < 0) ms = 0;
+  const m = Math.round(ms / 60000);
+  if (m < 1) return 'только что';
+  if (m < 60) return `${m}м`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  if (h < 24) return rm ? `${h}ч ${rm}м` : `${h}ч`;
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return rh ? `${d}д ${rh}ч` : `${d}д`;
 }
 
 export function createMockAdapter(): Api {
@@ -678,6 +695,78 @@ export function createMockAdapter(): Api {
         maybeFail();
         await latency();
         return computeMetrics();
+      },
+    },
+
+    attention: {
+      async list(params?: GetAttentionParams): Promise<GetAttentionResponse> {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const now = Date.now();
+        const items: AttentionItem[] = [];
+        const escalated = new Set<number>();
+        const isTerminal = (s: string) => s === 'done' || s === 'canceled';
+        // 1. escalated (active + closure_reason=escalation) -> critical
+        for (const t of db.tasks) {
+          if (t.closure_reason === 'escalation' && !isTerminal(t.state)) {
+            escalated.add(t.id);
+            const since = new Date(t.updated_at).getTime();
+            items.push({
+              kind: 'task_escalated', id: String(t.id), severity: 'critical',
+              title: t.title,
+              detail: `Команда ${t.team_name} · ждёт ${humanDur(now - since)}`,
+              created_at: t.updated_at,
+              suggested_action: 'Разобрать эскалацию',
+              link: { path: `/tasks/${t.id}`, label: t.title },
+            });
+          }
+        }
+        // 2. blocked (skip already-escalated) -> high
+        for (const t of db.tasks) {
+          if (t.state === 'blocked' && !escalated.has(t.id)) {
+            const since = new Date(t.updated_at).getTime();
+            items.push({
+              kind: 'task_blocked', id: String(t.id), severity: 'high',
+              title: t.title,
+              detail: `Команда ${t.team_name} · ждёт ${humanDur(now - since)}`,
+              created_at: t.updated_at,
+              suggested_action: 'Разблокировать',
+              link: { path: `/tasks/${t.id}`, label: t.title },
+            });
+          }
+        }
+        // 3. unread alerts -> severity by event type
+        for (const a of db.alerts) {
+          if (a.is_read) continue;
+          const severity = a.event_type === 'blocked' ? 'critical' : a.event_type === 'stale' ? 'high' : 'normal';
+          const action =
+            a.event_type === 'blocked' ? 'Разобрать блокировку' :
+            a.event_type === 'stale' ? 'Проверить сессию' : 'Посмотреть';
+          const since = new Date(a.created_at).getTime();
+          const link =
+            a.session_id != null ? { path: `/sessions/${a.session_id}`, label: `Сессия ${a.session_id}` }
+            : a.queue_task_id != null ? { path: `/tasks/${a.queue_task_id}`, label: `Задача ${a.queue_task_id}` }
+            : { path: '/', label: 'Дашборд' };
+          items.push({
+            kind: 'alert_unread', id: String(a.id), severity,
+            title: `Watchdog: ${a.event_type}`,
+            detail: `${a.team_name} · ${a.description} · ${humanDur(now - since)}`,
+            created_at: a.created_at,
+            suggested_action: action,
+            link,
+          });
+        }
+        const rank: Record<string, number> = { critical: 0, high: 1, normal: 2 };
+        items.sort((x, y) => {
+          if (rank[x.severity] !== rank[y.severity]) return rank[x.severity] - rank[y.severity];
+          return new Date(x.created_at).getTime() - new Date(y.created_at).getTime();
+        });
+        const total = items.length;
+        const offset = params?.offset ?? 0;
+        const limit = params?.limit ?? 50;
+        const page = items.slice(offset, offset + limit);
+        return { total, items: clone(page) };
       },
     },
 

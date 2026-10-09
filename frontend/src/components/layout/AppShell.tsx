@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { getApiConfig } from '../../api/config';
+import { api } from '../../api';
 import { getMockError, setMockError } from '../../api/mock/adapter';
 import type { MockErrorKind } from '../../api/mock/adapter';
 import { useWebSocket } from '../../hooks/useWebSocket';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: '▦', end: true },
+  { to: '/attention', label: 'Attention', icon: '⚑' },
   { to: '/teams', label: 'Teams', icon: '⬡' },
   { to: '/tasks', label: 'Tasks', icon: '☰' },
   { to: '/workflows', label: 'Workflows', icon: '⑃' },
@@ -26,10 +28,46 @@ const WS_LABEL: Record<string, string> = {
   disconnected: 'real-time: offline',
 };
 
+// P0.1: счётчик «внимание» в навигации обновляется live по WS-событиям
+const ATTENTION_EVENTS = new Set([
+  'task.created',
+  'task.state_changed',
+  'session.started',
+  'session.stopped',
+  'session.failed',
+  'alert.created',
+]);
+
 export default function AppShell() {
   const cfg = getApiConfig();
   const [simError, setSimError] = useState<MockErrorKind | ''>(getMockError() ?? '');
-  const { status: wsStatus } = useWebSocket([]);
+  const { status: wsStatus, onMessage } = useWebSocket([]);
+
+  // P0.1: бейдж-счётчик «внимание» (total), live по task./session./alert.-событиям
+  const [attentionCount, setAttentionCount] = useState(0);
+  const loadAttention = useCallback(async () => {
+    try {
+      setAttentionCount((await api.attention.list({ limit: 1 })).total);
+    } catch {
+      /* best-effort badge */
+    }
+  }, []);
+  useEffect(() => {
+    void loadAttention();
+  }, [loadAttention]);
+  const last = useRef(0);
+  const onAttentionEvent = useCallback(
+    (m: { type: string }) => {
+      if (!ATTENTION_EVENTS.has(m.type)) return;
+      const now = Date.now();
+      if (now - last.current < 3000) return;
+      last.current = now;
+      void loadAttention();
+    },
+    [loadAttention],
+  );
+  onMessage(onAttentionEvent);
+
   const changeSimError = (k: MockErrorKind | '') => {
     setSimError(k);
     setMockError(k || null);
@@ -52,6 +90,11 @@ export default function AppShell() {
             >
               <span aria-hidden="true">{n.icon}</span>
               <span className="nav-label">{n.label}</span>
+              {n.to === '/attention' && attentionCount > 0 && (
+                <span className="nav-badge" data-testid="attention-count" title={`${attentionCount} требуют внимания`}>
+                  {attentionCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

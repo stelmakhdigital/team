@@ -16,6 +16,8 @@ import type {
   CreateWorkflowRequest,
   CreateWorkflowResponse,
   GetAlertsResponse,
+  GetAttentionParams,
+  GetAttentionResponse,
   GetAuditLogParams,
   GetAuditLogResponse,
   GetChatroomMessagesResponse,
@@ -127,6 +129,9 @@ export interface Api {
     getSessions(): Promise<GetSessionsResponse>;
     getAlerts(): Promise<GetAlertsResponse>;
     getMetrics(params?: GetMetricsParams): Promise<GetMetricsResponse>;
+  };
+  attention: {
+    list(params?: GetAttentionParams): Promise<GetAttentionResponse>;
   };
   sessions: {
     list(params?: ListSessionsParams): Promise<ListSessionsResponse>;

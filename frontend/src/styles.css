@@ -81,6 +81,22 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 .nav-item:hover { background: var(--bg-panel-2); text-decoration: none; }
 .nav-item.active { background: var(--bg-panel-2); color: var(--accent); font-weight: 600; }
 
+/* P0.1: счётчик «внимание» в навигации (filled red, white text = AA via --red-strong) */
+.nav-item { position: relative; }
+.nav-badge {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--red-strong);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  min-width: 16px;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .sidebar-footer { display: flex; flex-direction: column; gap: 10px; padding: 10px; }
 .mode-badge { font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; text-align: center; }
 .mode-mock { background: #3b2f12; color: var(--yellow); border: 1px solid var(--yellow); }
@@ -130,6 +146,15 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 
 .table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .table-wrap { overflow-x: auto; }
+
+/* P0.1: attention-таблица */
+.attention-title { font-weight: 600; }
+.attention-detail { margin-top: 2px; }
+.attention-elapsed { white-space: nowrap; }
+.attention-action { color: var(--text-dim); }
+.atd-w-sev { width: 92px; }
+.atd-w-elapsed { width: 96px; }
+.atd-w-action { min-width: 150px; }
 .table th {
   text-align: left;
   color: var(--muted);
@@ -713,6 +738,7 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   .brand-label { display: none; }
   .nav-item { justify-content: center; padding: 9px 0; }
   .nav-label { display: none; }
+  .nav-badge { position: absolute; top: 3px; right: 8px; margin-left: 0; min-width: 15px; padding: 0 4px; font-size: 10px; }
   .sidebar-footer { align-items: center; }
   .mode-badge { font-size: 0.55rem; padding: 2px 4px; text-align: center; }
   .dev-error { display: none; }

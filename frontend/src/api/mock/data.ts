@@ -549,6 +549,11 @@ export function getDb(): DB {
   return db;
 }
 
+// dev-only: expose the mock db for screenshots / manual inspection (stripped in prod builds)
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  (window as unknown as { __TEAM_MOCK__?: unknown }).__TEAM_MOCK__ = { getDb, resetMockDb };
+}
+
 export function recalcTeamCounts(): void {
   for (const team of db.teams) {
     team.segments_count = db.segments.filter((s) => s.team_id === team.id).length;

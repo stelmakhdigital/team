@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import AppShell from './components/layout/AppShell';
 import DashboardPage from './pages/DashboardPage';
+import AttentionPage from './pages/AttentionPage';
 import TeamsPage from './pages/TeamsPage';
 import TeamBuilderPage from './pages/TeamBuilderPage';
 import WorkflowsPage from './pages/WorkflowsPage';
@@ -27,6 +28,7 @@ export default function App() {
     <Routes>
       <Route element={<AppShell />}>
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/attention" element={<AttentionPage />} />
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/teams/:teamId" element={<TeamBuilderPage />} />
         <Route path="/tasks" element={<TasksPage />} />
