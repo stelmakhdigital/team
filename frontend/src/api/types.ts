@@ -51,6 +51,8 @@ import type {
   ListTasksParams,
   UpdateTaskStateRequest,
   HandoffTaskRequest,
+  ResolveTaskRequest,
+  ResolveTaskResponse,
   HandoffTaskResponse,
   Task,
   ApplyLibraryItemRequest,
@@ -147,6 +149,7 @@ export interface Api {
     get(id: number): Promise<GetTaskResponse>;
     updateState(id: number, req: UpdateTaskStateRequest): Promise<Task>;
     handoff(id: number, req: HandoffTaskRequest): Promise<HandoffTaskResponse>;
+    resolve(id: number, req: ResolveTaskRequest): Promise<ResolveTaskResponse>;
   };
   messages: {
     getMessages(params?: GetMessagesParams): Promise<GetMessagesResponse>;

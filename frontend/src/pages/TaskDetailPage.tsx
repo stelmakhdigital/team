@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
+import { useMutation } from '../hooks/useMutation';
 import { ErrorState, PageSkeleton, Spinner, Badge } from '../components/ui/States';
+import { useToast } from '../components/ui/Toast';
 import EntityLink from '../components/ui/EntityLink';
 import { formatDateTime, formatRelative, formatRelativeFromSecs } from '../lib/format';
+import type { Task, TaskWake } from '../types/api';
 
 // U4b: task drill-down — full task detail + history timeline + subtasks (fetch-by-id).
 export default function TaskDetailPage() {
@@ -73,6 +77,17 @@ export default function TaskDetailPage() {
             )}
           </div>
 
+          {(t.state === 'blocked' || task.data!.wake) && (
+            <WakePanel
+              task={t}
+              wake={task.data!.wake}
+              onRefetch={() => {
+                task.refetch();
+                hist.refetch();
+              }}
+            />
+          )}
+
           {subtasks.length > 0 && (
             <div className="card">
               <h2>Subtasks ({subtasks.length})</h2>
@@ -116,6 +131,77 @@ export default function TaskDetailPage() {
           )}
         </aside>
       </div>
+    </div>
+  );
+}
+
+// P0.3: панель wake (block with wake) + ручной resolve.
+function WakePanel({ task, wake, onRefetch }: { task: Task; wake?: TaskWake; onRefetch: () => void }) {
+  const { toast } = useToast();
+  const [decision, setDecision] = useState('');
+  const resolve = useMutation((d: string) => api.tasks.resolve(task.id, { decision: d }));
+  const isBlocked = task.state === 'blocked';
+  const armed = !!wake && !wake.fired;
+
+  const doResolve = async () => {
+    if (!decision.trim()) return;
+    try {
+      await resolve.mutate(decision.trim());
+      toast('success', `Task #${task.id} resolved — back to work`);
+      setDecision('');
+      onRefetch();
+    } catch (e) {
+      toast('error', e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <div className="card wake-panel" data-testid="wake-panel">
+      <h2>
+        Wake
+        {armed ? <span className="wake-status wake-armed">armed</span> : wake?.fired ? <span className="wake-status wake-fired">fired</span> : null}
+      </h2>
+      {!wake ? (
+        <p className="muted">No wake set — the task will wait until it is resolved manually.</p>
+      ) : (
+        <>
+          <div className="wake-kind">
+            <Badge kind="task" value={wake.kind}>{wake.kind}</Badge>
+            {wake.kind === 'timer' ? (
+              <span className="muted">
+                {wake.fired ? 'fired' : `fires in ${formatRelativeFromSecs(wake.remaining_secs ?? 0)}`}
+              </span>
+            ) : (
+              <EntityLink to={`/tasks/${wake.ref}`} title="Open referenced task">
+                task #{wake.ref}
+              </EntityLink>
+            )}
+          </div>
+          {wake.continuation && (
+            <div className="wake-continuation">
+              <strong>Continue:</strong> {wake.continuation}
+            </div>
+          )}
+          {isBlocked && (
+            <div className="wake-resolve">
+              <input
+                value={decision}
+                onChange={(e) => setDecision(e.target.value)}
+                placeholder="Decision (required): why the task is back in work"
+                aria-label="Resolve decision"
+              />
+              <button
+                className="btn btn-primary"
+                onClick={doResolve}
+                disabled={resolve.pending || !decision.trim()}
+                data-testid="wake-resolve-btn"
+              >
+                {resolve.pending ? 'Resolving…' : 'Resolve'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

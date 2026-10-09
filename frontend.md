@@ -218,8 +218,8 @@ X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/
 | Team Builder | ✅ drop-hint (пустой сегмент) | ✅ Spinner (canvas) | ✅ ErrorState | Edit/Team — текстовые кнопки, focus |
 | Workflows | ✅ +CTA | ✅ PageSkeleton | ✅ ErrorState+retry | ссылки-строки, focus |
 | Workflow Editor | n/a (редактор сущности) | ✅ Spinner | ✅ ErrorState | rename/delete aria-label, focus |
-| Tasks | ✅ +CTA («match filters» / «No overdue») | ✅ PageSkeleton | ✅ ErrorState+retry | Overdue-tab (role/aria-selected), Due-колонка + OVERDUE-бейдж, row-toggle aria, action-кнопки, focus |
-| Task Detail | ✅ subtask/history инлайн | ✅ PageSkeleton | ✅ ErrorState+retry | EntityLink, Deadline-строка (+ OVERDUE), focus |
+| Tasks | ✅ +CTA («match filters» / «No overdue») | ✅ PageSkeleton | ✅ ErrorState+retry | Overdue-tab, Due-колонка (OVERDUE + «N left», M2), block-with-wake-форма, live-WS-refetch (M1), row-toggle aria, focus |
+| Task Detail | ✅ subtask/history инлайн | ✅ PageSkeleton | ✅ ErrorState+retry | EntityLink, Deadline-строка, **Wake-панель** (armed/fired + Resolve), focus |
 | Session Detail | ✅ transcript/history инлайн | ✅ PageSkeleton | ✅ ErrorState+retry | focus |
 | Messages | ✅ dm/chatrooms/chat | ✅ Spinner | ✅ ErrorState/Unavailable | chatroom-кнопки, input aria, focus |
 | Library | ✅ «Nothing here» | ✅ PageSkeleton | ✅ ErrorState+retry | rename ✎ aria-label, focus |
@@ -333,7 +333,42 @@ X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/
 
 **Скриншоты** (`_workspace/ui-screenshots/`): `overdue-list-2560x1440.png` (Overdue-tab, 2 задачи, Due + OVERDUE), `tasks-due-2560x1440.png` (All-вью с Due-колонкой), `overdue-detail-2560x1440.png` (деталка, Deadline + OVERDUE), `attention-overdue-2560x1440.png` (Attention с task_overdue).
 
-## 4. Ключевые файлы
+### 3g. Block with wake (P0.3, 2026-10-09, T-20261009181739) + миноры P0.2
+
+Заблокированная задача получает wake (причина-триггер) + «как продолжить»; разблокировка —
+по срабатыванию wake (timer/task) или ручным resolve. Подробности — в
+`docs/contracts/api-decisions.md` §P0.3 (backend).
+
+**API-клиент:**
+- `api.tasks.resolve(id, { decision })` → `POST /tasks/{id}/resolve` (реал + мок).
+- `updateState` + `wake` (TaskWakeSpec): `kind` timer|task, `after` (timer), `task_id` (task),
+  `continuation`.
+- Типы: `TaskWake`/`TaskWakeSpec`/`WakeKind`; `GetTaskResponse` +`wake?`;
+  `UpdateTaskStateRequest` +`wake?`; `ResolveTaskRequest/Response`.
+- Мок: `db.taskWakes` (зеркалит backend: создание при block, timer/task-firing, resolve);
+  lazy `fireDueTimerWakes` при get; seed арм. timer-wake у задачи #4.
+
+**UI:**
+- **Block-with-wake форма** (TasksPage): действие «⛔ block» открывает `BlockTaskModal`
+  (как существующие модалки): checkbox «Set a wake», тип (timer/task), значение
+  (`after` / `task_id`), continuation. Без wake — совместимость.
+- **Wake-панель** (TaskDetailPage): kind + значение (timer «fires in N» / task —
+  EntityLink на referenced-задачу) + continuation + статус (armed/fired). Когда задача
+  blocked — **Resolve** (input решения, обязательный) → `api.tasks.resolve` → toast +
+  refetch → история показывает запись `resolve: …`.
+- **History**: wake-fired и resolve записи рендерятся существующим паттерном
+  (from_state → to_state + comment).
+- **M1**: TasksPage — live-refetch по WS `task.*`-событиям (обе вью, debounce ~3с,
+  стандарт X3, как AttentionPage).
+- **M2**: Due-колонка таблицы — дата + «N left» (внутри дедлайна) + OVERDUE (как в деталке).
+
+**Тесты:** `tests/wake.test.tsx` (6: block-форма открывается, wake-панель armed +
+resolve-flow (blocked→pending + история), M2 due-left; мок-семантика: resolve 409 на
+не-blocked, resolve 400 без decision, task-wake срабатывает при закрытии referenced). Контраст:
+`contrast-check.mjs` — 22 пары, exit 0 (armed-бейдж = `--accent-strong`, fired = `--dim`).
+
+**Скриншоты** (`_workspace/ui-screenshots/`): `wake-panel-armed-2560x1440.png` (Wake-панель armed
++ resolve-форма), `wake-block-form-2560x1440.png` (модалка block with wake + Due «N left»).
 | Файл | Назначение |
 |---|---|
 | `frontend/src/types/api.ts` | mirror контракта |

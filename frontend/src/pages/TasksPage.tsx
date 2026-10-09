@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
+import { useWebSocket } from '../hooks/useWebSocket';
 import { Badge, EmptyState, ErrorState, errorMessage, PageSkeleton, Spinner } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
 import { useToast } from '../components/ui/Toast';
-import { formatDateTime, formatRelative } from '../lib/format';
+import { formatDateTime, formatRelative, formatRelativeFromSecs } from '../lib/format';
 import { CLOSURE_REASONS, TASK_TRANSITIONS, isTerminalTaskState } from '../lib/task';
-import type { ClosureReason, Task, TaskState } from '../types/api';
+import type { ClosureReason, Task, TaskState, TaskWakeSpec, WakeKind } from '../types/api';
 
 const STATE_FILTERS: (TaskState | 'all')[] = ['all', 'pending', 'in_progress', 'blocked', 'done', 'canceled'];
 
@@ -26,6 +27,7 @@ export default function TasksPage() {
   const [view, setView] = useState<'all' | 'overdue'>('all');
   const [creating, setCreating] = useState(false);
   const [closedId, setClosedId] = useState<number | null>(null);
+  const [blockId, setBlockId] = useState<number | null>(null); // P0.3: block with wake
   const [handoffId, setHandoffId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
@@ -44,7 +46,32 @@ export default function TasksPage() {
   const active = view === 'overdue' ? overdue : list;
   const rows = active.data?.tasks ?? [];
 
-  const refetch = () => active.refetch();
+  // M1: live-refetch по WS task.-событиям (стандарт X3, как AttentionPage).
+  const { onMessage } = useWebSocket([]);
+  const listRef = useRef(list.refetch);
+  listRef.current = list.refetch;
+  const overdueRef = useRef(overdue.refetch);
+  overdueRef.current = overdue.refetch;
+  const wsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsLast = useRef(0);
+  const onWsEvent = useCallback((m: { type: string }) => {
+    if (!m.type.startsWith('task.')) return;
+    const now = Date.now();
+    if (now - wsLast.current < 3000) return;
+    wsLast.current = now;
+    if (wsTimer.current) clearTimeout(wsTimer.current);
+    wsTimer.current = setTimeout(() => {
+      listRef.current();
+      overdueRef.current();
+    }, 300);
+  }, []);
+  onMessage(onWsEvent);
+
+  // refetch обеих вью (blocked task может стать overdue / перестать)
+  const refetch = () => {
+    list.refetch();
+    overdue.refetch();
+  };
 
   const act = (label: string, fn: () => Promise<unknown>) =>
     fn()
@@ -141,7 +168,9 @@ export default function TasksPage() {
                   onAction={(to) =>
                     to === 'done'
                       ? setClosedId(t.id)
-                      : act(`Task #${t.id} → ${to}`, () => api.tasks.updateState(t.id, { state: to }))
+                      : to === 'blocked'
+                        ? setBlockId(t.id) // P0.3: block with wake
+                        : act(`Task #${t.id} → ${to}`, () => api.tasks.updateState(t.id, { state: to }))
                   }
                   onHandoff={() => setHandoffId(t.id)}
                 />
@@ -169,6 +198,16 @@ export default function TasksPage() {
           onDone={(reason) => {
             act(`Task #${closedId} → done (${reason})`, () => api.tasks.updateState(closedId, { state: 'done', closure_reason: reason }));
             setClosedId(null);
+          }}
+        />
+      )}
+      {blockId != null && (
+        <BlockTaskModal
+          taskId={blockId}
+          onClose={() => setBlockId(null)}
+          onDone={() => {
+            setBlockId(null);
+            refetch();
           }}
         />
       )}
@@ -228,11 +267,13 @@ function TaskRow({
           {task.closure_required_at ? (
             <>
               {formatDateTime(task.closure_required_at)}
-              {task.is_overdue && (
+              {task.is_overdue ? (
                 <div>
                   <span className="due-overdue">OVERDUE</span>
                 </div>
-              )}
+              ) : task.remaining_secs != null ? (
+                <div className="due-left">{formatRelativeFromSecs(task.remaining_secs)} left</div>
+              ) : null}
             </>
           ) : (
             '—'
@@ -445,6 +486,94 @@ function CloseTaskModal({
             </button>
             <button type="submit" className="btn btn-primary">
               Close as done
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// P0.3: block with wake — форма с полями wake (timer/task, значение, continuation).
+function BlockTaskModal({
+  taskId,
+  onClose,
+  onDone,
+}: {
+  taskId: number;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { toast } = useToast();
+  const [wakeEnabled, setWakeEnabled] = useState(true);
+  const [kind, setKind] = useState<WakeKind>('timer');
+  const [after, setAfter] = useState('30m');
+  const [refTaskId, setRefTaskId] = useState('');
+  const [continuation, setContinuation] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const block = useMutation((wake?: TaskWakeSpec) => api.tasks.updateState(taskId, { state: 'blocked', wake }));
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    let wake: TaskWakeSpec | undefined;
+    if (wakeEnabled) {
+      wake =
+        kind === 'timer'
+          ? { kind: 'timer', after, continuation }
+          : { kind: 'task', task_id: Number(refTaskId) || undefined, continuation };
+    }
+    setFormError(null);
+    try {
+      await block.mutate(wake);
+      toast('success', `Task #${taskId} blocked`);
+      onDone();
+    } catch (err) {
+      setFormError(errorMessage(err ?? new Error('Failed to block task')));
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>Block task #{taskId}</h2>
+        <form onSubmit={submit}>
+          <label className="check">
+            <input type="checkbox" checked={wakeEnabled} onChange={(e) => setWakeEnabled(e.target.checked)} />
+            Set a wake (auto-unblock when the trigger fires)
+          </label>
+          {wakeEnabled && (
+            <div className="wake-form">
+              <label>
+                Wake type
+                <select value={kind} onChange={(e) => setKind(e.target.value as WakeKind)}>
+                  <option value="timer">timer — after a duration</option>
+                  <option value="task">task — when another task closes</option>
+                </select>
+              </label>
+              {kind === 'timer' ? (
+                <label>
+                  After *
+                  <input value={after} onChange={(e) => setAfter(e.target.value)} placeholder="e.g. 30m, 2h" />
+                </label>
+              ) : (
+                <label>
+                  Referenced task id *
+                  <input type="number" value={refTaskId} onChange={(e) => setRefTaskId(e.target.value)} placeholder="task id" />
+                </label>
+              )}
+              <label>
+                Continuation (how to continue)
+                <input value={continuation} onChange={(e) => setContinuation(e.target.value)} placeholder="e.g. wait for CI, then retry" />
+              </label>
+            </div>
+          )}
+          {formError && <div className="form-error">{formError}</div>}
+          <div className="modal-actions">
+            <button type="button" className="btn" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={block.pending}>
+              {block.pending ? 'Blocking…' : 'Block'}
             </button>
           </div>
         </form>

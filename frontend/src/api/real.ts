@@ -68,6 +68,7 @@ export function createRealAdapter(): Api {
       get: (id) => http(`${B}/tasks/${id}`),
       updateState: (id, req) => http(`${B}/tasks/${id}/state`, { method: 'PATCH', body: req }),
       handoff: (id, req) => http(`${B}/tasks/${id}/handoff`, { method: 'POST', body: req }),
+      resolve: (id, req) => http(`${B}/tasks/${id}/resolve`, { method: 'POST', body: req }),
     },
     messages: {
       getMessages: (params) =>

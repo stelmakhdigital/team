@@ -844,3 +844,19 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tab-active { color: var(--accent); border-bottom-color: var(--accent); }
 .due-overdue { display: inline-block; margin-left: 4px; padding: 1px 8px; font-size: 0.68rem; font-weight: 700; color: #fff; background: var(--red-strong); border-radius: 10px; letter-spacing: 0.02em; vertical-align: middle; }
+
+/* P0.3: Block with wake */
+.wake-panel { margin-top: 16px; }
+.wake-status { margin-left: 8px; padding: 1px 8px; font-size: 0.68rem; font-weight: 700; border-radius: 10px; vertical-align: middle; }
+.wake-armed { background: var(--accent-strong); color: #fff; }
+.wake-fired { background: var(--dim); color: var(--text); }
+.wake-kind { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
+.wake-continuation { margin: 4px 0 10px; font-size: 0.88rem; }
+.wake-resolve { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.wake-resolve input { flex: 1; min-width: 200px; }
+
+/* P0.3: block-with-wake form (modal) */
+.wake-form { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.wake-form-row { display: flex; gap: 8px; }
+.wake-form-row input { flex: 1; min-width: 120px; }
+.due-left { font-size: 0.72rem; opacity: 0.85; }

@@ -17,6 +17,7 @@ import type {
   SkillSpec,
   Task,
   TaskHistoryEntry,
+  TaskWake,
   Team,
   TopologyLayout,
   WatchdogAlert,
@@ -25,6 +26,12 @@ import type {
   WorkflowConnection,
 } from '../../types/api';
 import { validateTopologyGraph } from '../../lib/topology';
+
+export interface MockWake extends TaskWake {
+  id: number;
+  task_id: number;
+  created_at: string;
+}
 
 interface DB {
   teams: Team[];
@@ -36,6 +43,7 @@ interface DB {
   blocks: WorkflowBlock[];
   connections: WorkflowConnection[];
   tasks: Task[];
+  taskWakes: MockWake[]; // P0.3
   sessions: Session[];
   alerts: WatchdogAlert[];
   messages: Message[];
@@ -102,6 +110,7 @@ function seed(): DB {
     blocks: [],
     connections: [],
     tasks: [],
+    taskWakes: [],
     sessions: [],
     alerts: [],
     messages: [],
@@ -309,6 +318,16 @@ function seed(): DB {
     mkTask(4, 'Fix flaky CI job', 'blocked', 'Backend.Worker2', 1, 'Dev Team', { is_blocked: true, is_stale: true, updated_at: iso(60 * 3), closure_required_at: iso(120) }),
     mkTask(5, 'Update deployment docs', 'done', 'Infra.Docs', 4, 'Platform Team', { destination_role_id: 6 }),
     mkTask(6, 'Migrate config schema', 'in_progress', 'Infra.Lead', 2, 'Platform Team', { destination_role_id: 5, progress: 20, closure_required_at: iso(-60) }),
+  ];
+
+  // P0.3: арм. timer-wake у заблокированной задачи #4 (для wake-панели / скриншотов)
+  t.taskWakes = [
+    {
+      id: 1, task_id: 4, kind: 'timer',
+      ref: iso(-90), // fire-at = now + 90m (armed)
+      continuation: 'wait for the CI pipeline to go green, then re-run the flaky job',
+      fired: false, created_at: iso(60 * 3),
+    },
   ];
 
   t.sessions = [

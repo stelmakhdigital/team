@@ -14,6 +14,7 @@ import type {
   Session,
   SessionDetail,
   Task,
+  TaskWake,
   UpdateRoleConfigRequest,
   Workflow,
 } from '../../types/api';
@@ -118,6 +119,102 @@ function decorateOverdue(t: Task): Task {
     t.remaining_secs = Math.round(ms / 1000);
   }
   return t;
+}
+
+// ---------- P0.3: wake (мок, зеркалит backend) ----------
+
+// parseDurMs — "30m"/"2h"/"1h30m"/"45s"/"1d" → ms (мок; Go-длительности).
+function parseDurMs(s: string): number {
+  const re = /(\d+)\s*(d|h|m|s|ms)/g;
+  let total = 0;
+  let m: RegExpExecArray | null;
+  let matched = false;
+  while ((m = re.exec(s)) !== null) {
+    matched = true;
+    const n = parseInt(m[1], 10);
+    switch (m[2]) {
+      case 'd': total += n * 86400000; break;
+      case 'h': total += n * 3600000; break;
+      case 'm': total += n * 60000; break;
+      case 's': total += n * 1000; break;
+      case 'ms': total += n; break;
+    }
+  }
+  return matched ? total : 0;
+}
+
+function addMockHist(
+  db: ReturnType<typeof getDb>,
+  h: { queue_task_id: number; from_state?: string; to_state: string; actor_type: string; comment?: string; icon?: string; color?: string; metadata?: Record<string, unknown> },
+) {
+  db.taskHistory.push({
+    id: nextId(),
+    queue_task_id: h.queue_task_id,
+    from_state: h.from_state,
+    to_state: h.to_state,
+    actor_type: h.actor_type as never,
+    comment: h.comment,
+    created_at: now(),
+    icon: h.icon,
+    color: h.color,
+    metadata: h.metadata,
+  });
+}
+
+// fireDueTimerWakes — арм. timer-wakes с наступившим сроком → blocked → pending (мок).
+function fireDueTimerWakes(db: ReturnType<typeof getDb>): void {
+  const nowMs = Date.now();
+  for (const w of db.taskWakes) {
+    if (w.fired || w.kind !== 'timer') continue;
+    const fireAt = new Date(w.ref).getTime();
+    if (Number.isNaN(fireAt) || fireAt >= nowMs) continue;
+    const t = db.tasks.find((x) => x.id === w.task_id);
+    if (!t || t.state !== 'blocked') continue;
+    w.fired = true;
+    w.fired_at = new Date(fireAt).toISOString();
+    t.state = 'pending';
+    t.updated_at = now();
+    addMockHist(db, {
+      queue_task_id: t.id, from_state: 'blocked', to_state: 'pending', actor_type: 'daemon',
+      comment: 'wake timer fired', icon: 'play', color: 'blue',
+      metadata: { type: 'wake_fired', wake_kind: 'timer' },
+    });
+  }
+}
+
+// fireTaskWakes — referenced-задача закрыта → её task-wakes срабатывают (мок).
+function fireTaskWakes(db: ReturnType<typeof getDb>, closedId: number): void {
+  for (const w of db.taskWakes) {
+    if (w.fired || w.kind !== 'task' || w.ref !== String(closedId)) continue;
+    const t = db.tasks.find((x) => x.id === w.task_id);
+    if (!t || t.state !== 'blocked') continue;
+    w.fired = true;
+    w.fired_at = now();
+    t.state = 'pending';
+    t.updated_at = now();
+    addMockHist(db, {
+      queue_task_id: t.id, from_state: 'blocked', to_state: 'pending', actor_type: 'daemon',
+      comment: `wake task #${closedId} closed`, icon: 'play', color: 'blue',
+      metadata: { type: 'wake_fired', wake_kind: 'task' },
+    });
+  }
+}
+
+// latestWakeFor — самая свежая wake задачи (мок).
+function latestWakeFor(db: ReturnType<typeof getDb>, taskId: number): (TaskWake & { id: number; created_at: string }) | undefined {
+  const list = db.taskWakes.filter((w) => w.task_id === taskId);
+  return list.length ? list.reduce((a, b) => (a.created_at >= b.created_at ? a : b)) : undefined;
+}
+
+// wakeView — TaskWake в контрактном виде (remaining_secs для timer, live).
+function wakeView(w: TaskWake & { id: number; created_at: string }): TaskWake {
+  const out: TaskWake = { kind: w.kind, ref: w.ref, continuation: w.continuation, fired: w.fired };
+  if (w.fired_at) out.fired_at = w.fired_at;
+  if (w.kind === 'timer' && !w.fired) {
+    const ms = new Date(w.ref).getTime() - Date.now();
+    out.remaining_secs = Math.round(ms / 1000);
+  }
+  return out;
 }
 
 export function createMockAdapter(): Api {
@@ -939,9 +1036,15 @@ export function createMockAdapter(): Api {
         maybeFail();
         await latency();
         const db = getDb();
+        fireDueTimerWakes(db);
         const t = db.tasks.find((x) => x.id === id);
         if (!t) throw new ApiClientError(404, 'not_found', `Task ${id} not found`);
-        return { task: decorateOverdue(clone(t)), subtasks: clone(db.tasks.filter((x) => x.parent_task_id === id)).map(decorateOverdue) };
+        const wake = latestWakeFor(db, id);
+        return {
+          task: decorateOverdue(clone(t)),
+          subtasks: clone(db.tasks.filter((x) => x.parent_task_id === id)).map(decorateOverdue),
+          wake: wake ? clone(wakeView(wake)) : undefined,
+        };
       },
 
       async updateState(id, req) {
@@ -965,6 +1068,25 @@ export function createMockAdapter(): Api {
           t.closure_reason = req.closure_reason;
           t.closure_target_id = req.closure_target_id;
         }
+        // P0.3: wake при блокировке (мок, зеркалит backend)
+        if (req.state === 'blocked' && req.wake) {
+          db.taskWakes.forEach((w) => {
+            if (w.task_id === id && !w.fired) {
+              w.fired = true;
+              w.fired_at = now();
+            }
+          });
+          const ref =
+            req.wake.kind === 'timer'
+              ? new Date(Date.now() + parseDurMs(req.wake.after || '')).toISOString()
+              : String(req.wake.task_id ?? '');
+          db.taskWakes.push({
+            id: nextId(), task_id: id, kind: req.wake.kind, ref,
+            continuation: req.wake.continuation ?? '', fired: false, created_at: now(),
+          });
+        }
+        // P0.3: referenced-задача закрыта → её task-wakes срабатывают
+        if (isTerminalTaskState(req.state)) fireTaskWakes(db, id);
         db.audit.unshift({ id: nextId(), timestamp: now(), action: `task.${req.state}`, resource: `task:${id}` });
         return clone(t);
       },
@@ -984,6 +1106,7 @@ export function createMockAdapter(): Api {
         t.closure_reason = 'handed_off_to';
         t.closure_target_id = newId;
         t.updated_at = at;
+        fireTaskWakes(db, id); // P0.3: handoff закрывает задачу → её task-wakes
         const nt: Task = {
           ...clone(t),
           id: newId,
@@ -1000,6 +1123,33 @@ export function createMockAdapter(): Api {
         db.tasks.unshift(nt);
         db.audit.unshift({ id: nextId(), timestamp: at, action: 'task.handoff', resource: `task:${id}` });
         return { new_task_id: newId, closed_task_id: id, task: clone(nt), status: 'handed_off' };
+      },
+
+      async resolve(id, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const t = db.tasks.find((x) => x.id === id);
+        if (!t) throw new ApiClientError(404, 'not_found', `Task ${id} not found`);
+        if (!req?.decision?.trim()) throw new ApiClientError(400, 'validation_failed', 'decision is required to resolve a blocked task');
+        if (t.state !== 'blocked') throw new ApiClientError(409, 'conflict', `Task ${id} is ${t.state}, only blocked tasks can be resolved`);
+        const at = now();
+        // закрыть арм. wake (идемпотентность: не сработает повторно)
+        db.taskWakes.forEach((w) => {
+          if (w.task_id === id && !w.fired) {
+            w.fired = true;
+            w.fired_at = at;
+          }
+        });
+        t.state = 'pending';
+        t.updated_at = at;
+        addMockHist(db, {
+          queue_task_id: id, from_state: 'blocked', to_state: 'pending', actor_type: 'human',
+          comment: `resolve: ${req.decision}`, icon: 'check', color: 'green',
+          metadata: { type: 'resolve', decision: req.decision },
+        });
+        db.audit.unshift({ id: nextId(), timestamp: at, action: 'task.resolve', resource: `task:${id}` });
+        return { task: clone(t), status: 'resolved' };
       },
     },
 

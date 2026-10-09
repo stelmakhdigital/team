@@ -543,6 +543,23 @@ export interface Task {
   remaining_secs?: number;
 }
 
+// P0.3: wake для заблокированной задачи (block with wake).
+export type WakeKind = 'timer' | 'task';
+export interface TaskWake {
+  kind: WakeKind; // timer | task (watchdog: planned, P1.6)
+  ref: string; // kind=task: task_id; kind=timer: fire-at (RFC3339)
+  continuation?: string; // «как продолжить»
+  fired: boolean; // закрыт (fired ИЛИ resolve)
+  fired_at?: string;
+  remaining_secs?: number; // timer only: fire_at - now (neg = fired)
+}
+export interface TaskWakeSpec {
+  kind: WakeKind;
+  after?: string; // timer: duration, e.g. "30m"
+  task_id?: number; // task: referenced task_id
+  continuation?: string;
+}
+
 export interface GetTasksResponse {
   tasks: Task[];
   total: number;
@@ -580,6 +597,7 @@ export interface CreateTaskResponse {
 export interface GetTaskResponse {
   task: Task;
   subtasks: Task[];
+  wake?: TaskWake; // P0.3: current/most-recent wake
 }
 
 export interface UpdateTaskStateRequest {
@@ -587,6 +605,14 @@ export interface UpdateTaskStateRequest {
   closure_reason?: ClosureReason;  // обязателен для state=done (иначе 400)
   closure_target_id?: number;
   comment?: string;
+  wake?: TaskWakeSpec; // P0.3: при blocked (опционально)
+}
+export interface ResolveTaskRequest {
+  decision: string; // P0.3: обязательно — почему задача снова в работу
+}
+export interface ResolveTaskResponse {
+  task: Task;
+  status: string;
 }
 
 export interface HandoffTaskRequest {
