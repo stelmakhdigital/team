@@ -127,6 +127,7 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 /* ---------- table ---------- */
 
 .table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.table-wrap { overflow-x: auto; }
 .table th {
   text-align: left;
   color: var(--muted);
@@ -617,7 +618,7 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .ts-system { border-left-color: var(--purple); }
 
 /* ---- Tasks page ---- */
-.filters { display: flex; gap: 16px; margin-bottom: 14px; align-items: end; }
+.filters { display: flex; gap: 16px; margin-bottom: 14px; align-items: end; flex-wrap: wrap; }
 .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--muted); }
 
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -718,7 +719,6 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   .page { padding: 14px 10px; }
   .page-head { flex-wrap: wrap; gap: 8px; }
   .head-actions { flex-wrap: wrap; }
-  .table-wrap { overflow-x: auto; }
   .table-wrap .table { min-width: 560px; }
   .builder-fab { bottom: 92px; }
 }
@@ -735,7 +735,11 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .cfg-section-workspace h2 { color: var(--accent); }
 
 .settings-sections-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 16px; align-items: start; }
+.settings-sections-grid > * { min-width: 0; }
 .settings-sections-grid .card { margin-bottom: 0; }
+/* mobile: the 440px-min track overflows narrow viewports → single full-width column
+   (must come AFTER the base rule above to win at equal specificity). */
+@media (max-width: 640px) { .settings-sections-grid { grid-template-columns: minmax(0, 1fr); } }
 
 .cfg-table { width: 100%; }
 .cfg-table td { vertical-align: top; }

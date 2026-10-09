@@ -236,6 +236,21 @@ X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/
 **Тесты:** `tests/emptyStates.test.tsx` (4: dashboard/tasks/workflows/library),
 `tests/feedback.test.tsx` (2: errorMessage code-mapping + глоб. WS-бейдж).
 
+### 3c. Мобильные брейкпоинты (R1)
+
+Проверено **программным overflow-аудитом** (Playwright, `documentElement.scrollWidth` vs viewport) по всем 12 страницам на 375/768/1100/320px. **375 и 768px — без горизонтального overflow по всем 12 страницам** (1100 всегда чисто; 2 минорных кейса на экстремально узких 320px → follow-up в report).
+
+**Брейкпоинты:** 1200px (TeamBuilder: 1 колонка + drawer/FAB); 1100px (сайдбар→60px rail, dash-row/messages/library/detail → 1 колонка); 640px (padding ↓, `.table-wrap .table` min-width 560).
+
+**Дополнено (R2):**
+- `.table-wrap { overflow-x: auto }` — базовое правило (было только ≤640): широкие таблицы скроллятся на любой ширине, не ломая layout (фикс /tasks @768).
+- `.settings-sections-grid > * { min-width: 0 }` + `@media ≤640 { minmax(0,1fr) }` (media ПОСЛЕ базового правила, каскад) — cfg-таблица Settings (6 колонок) скроллится в `.table-wrap`, 440px-трек не проталкивает грид шире вьюпорта (фикс /settings @375).
+- `.filters { flex-wrap: wrap }` — селекты не вылезают на узких.
+
+**Follow-up (320px, некритично — ниже основных 360/375):** Dashboard `.metric` (SummaryCards) и `.library-save-row` (селект+кнопка) — можно minmax/wrap.
+
+Мобильные скриншоты в этой итерации не переснимались; десктопные зоны: `_workspace/ui-screenshots/after-2560x1440-*.png` (layout по брейкпоинтам ≥768 идентичен).
+
 ## 4. Ключевые файлы
 | Файл | Назначение |
 |---|---|

@@ -131,6 +131,7 @@ function SectionCard({ section, highlight, onChanged }: { section: ConfigSection
     <div className={highlight ? 'card cfg-section cfg-section-workspace' : 'card cfg-section'}>
       <h2>{highlight ? 'Workspace' : section.name}</h2>
       <p className="muted small">{section.description}</p>
+      <div className="table-wrap">
       <table className="table cfg-table">
         <thead>
           <tr>
@@ -148,6 +149,7 @@ function SectionCard({ section, highlight, onChanged }: { section: ConfigSection
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -181,6 +183,7 @@ function EnvironmentCard({ environment }: { environment: ConfigEnvVar[] }) {
   return (
     <div className="card">
       <h2>Environment <span className="muted small">— env variables affecting config (provenance)</span></h2>
+      <div className="table-wrap">
       <table className="table cfg-table">
         <thead>
           <tr>
@@ -201,6 +204,7 @@ function EnvironmentCard({ environment }: { environment: ConfigEnvVar[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
