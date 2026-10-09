@@ -148,6 +148,27 @@ task title/priority задаются при create (изменения в пол
 в `api-decisions.md` (U3-rename) + `backend.md` §3c. Тесты: `tests/editability.test.tsx`
 (team meta) + `tests/rename.test.tsx` (segment/workflow/library: mock persist + 404/400/409 + UI).
 
+### U4 — Settings / Configuration (OpenRIG-ориентир)
+Страница Settings (секции: Daemon, Storage, Agents, Watchdog, API, …): типизированный
+реестр ключей (key/type/current/default/source), layered resolution
+default → file → env → override с провенансом «какой слой выиграл», set/reset per key,
+маркировка restart-keys, секции Workspace / Environment / Meta (Meta — readonly:
+версия, uptime, git-хед, хэш конфигурации). Host-derived дефолты помечены «(derived)».
+Backend: `internal/config` (ConfigService), REST GET/PUT/DELETE /api/v1/config* +
+RBAC (config.update admin-only) — см. backend.md / api-decisions.md. OpenAPI 63 ops.
+
+### Доводка M1–M3 (2026-10-09, task-ui2, T-20261009041724)
+- **M1** after-скриншоты ≥2560px: `_workspace/ui-screenshots/after-2560x1440-teams-builder.png`
+  (Team Builder: full-width, segment ConfigPanel с Name/Description + Apply, «✎ Team» в шапке),
+  `after-2560x1440-workflow-editor.png` (rename-инпут + Save/Cancel в шапке),
+  `after-2560x1440-settings.png` (Settings: default per key + переносы по границам).
+  Пустых боковых зон нет.
+- **M2** Settings: под current value выводится «default: X» per key, host-derived —
+  «(derived)»; тест `settings.test.tsx` «M2: renders the default value per key».
+- **M3** Settings grid: `minmax(440px,1fr)` + `.cfg-key { word-break: normal }` + `<wbr>`
+  по подчёркиваниям — имена ключей переносятся только по границам, не посреди слова.
+- Коммит: `90cbec4` (M2+M3). Тесты: vitest 106 passed / 21 skipped; check_openapi 63/63.
+
 ### U4b — кликабельность и drill-down
 Паттерн: `components/ui/EntityLink.tsx` — единая обёртка-ссылка для элементов, ссылающихся
 на сущность; данные не дублируются — fetch по id. Новые деталки: `/tasks/:taskId`
@@ -210,6 +231,6 @@ LD_LIBRARY_PATH=/tmp/chrome-libs/ext/usr/lib/x86_64-linux-gnu node /tmp/shot-*.c
 ## 6. Как восстановить сессию
 1. Прочитать этот файл + `answer_backend.md` (последнее письмо) +
    `_workspace/ui-redesign-plan.md` (статусы R-фаз).
-2. `cd frontend && npm test` — ожидается **90/90**.
-3. `git log --oneline -5` — HEAD = `0f84d63` (R6.3+R6.4) или новее.
-4. Дальше: бэклог (§3) — либо ждём backend-срез DELETE, либо PG-свип при окружении.
+2. `cd frontend && npm test` — ожидается **106 passed / 21 skipped** (интеграционные — автоскип).
+3. `git log --oneline -5` — HEAD = `90cbec4` (U4 M2+M3) или новее.
+4. Дальше: бэклог (§3) — PG e2e при окружении; UI: UX-проход (пустые состояния/лоадеры/ошибки), доступность/мобильные брейкпоинты.
