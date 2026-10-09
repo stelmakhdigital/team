@@ -1079,3 +1079,65 @@ export interface AlertCreatedEvent {
   description: string;
   requires_action: boolean;
 }
+
+// ---------- U4: Settings / Configuration (OpenRIG-style) ----------
+export type ConfigKeyType = 'string' | 'integer' | 'duration' | 'boolean' | 'path' | 'string-list';
+export type ConfigSource = 'default' | 'file' | 'env' | 'override';
+
+export interface ConfigKeyView {
+  key: string;
+  section: string;
+  type: ConfigKeyType;
+  description: string;
+  current_value: unknown;
+  default_value: unknown;
+  source: ConfigSource;
+  source_detail?: string;
+  default_is_derived: boolean;
+  requires_restart: boolean;
+  editable: boolean;
+}
+
+export interface ConfigSection {
+  name: string;
+  description: string;
+  keys: ConfigKeyView[];
+}
+
+export interface ConfigMeta {
+  project: string;
+  instance: string;
+  version: string;
+  uptime_seconds: number;
+  git_commit?: string;
+  git_branch?: string;
+  config_hash: string;
+  started_at: string;
+}
+
+export interface ConfigEnvVar {
+  env_var: string;
+  value: string;
+  feeds_key: string;
+  source_active: boolean;
+}
+
+export interface ListConfigResponse {
+  meta: ConfigMeta;
+  sections: ConfigSection[];
+  environment: ConfigEnvVar[];
+}
+
+export interface SetConfigResponse {
+  key: string;
+  value: unknown;
+  source: string;
+  requires_restart: boolean;
+  needs_restart: boolean;
+}
+
+export interface ResetConfigResponse {
+  key: string;
+  source: string;
+  value: unknown;
+}

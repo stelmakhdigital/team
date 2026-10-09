@@ -695,3 +695,39 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   .table-wrap .table { min-width: 560px; }
   .builder-fab { bottom: 92px; }
 }
+
+/* ---------- U4: Settings / Configuration (OpenRIG-style) ---------- */
+.settings-meta { margin-bottom: 16px; }
+.cfg-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 20px; margin: 0; }
+.cfg-meta-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cfg-meta-item dt { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.cfg-meta-item dd { margin: 0; font-size: 0.92rem; word-break: break-all; }
+
+.cfg-section { margin-bottom: 16px; }
+.cfg-section-workspace { border-color: var(--accent); }
+.cfg-section-workspace h2 { color: var(--accent); }
+
+.settings-sections-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; align-items: start; }
+.settings-sections-grid .card { margin-bottom: 0; }
+
+.cfg-table { width: 100%; }
+.cfg-table td { vertical-align: top; }
+.cfg-table code { word-break: break-word; }
+.cfg-table th:last-child, .cfg-table td.cfg-actions { text-align: right; white-space: nowrap; }
+.cfg-table th.cfg-center, .cfg-table td.cfg-center { text-align: center; width: 56px; }
+
+.cfg-value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; word-break: break-word; }
+.cfg-type { font-size: 0.72rem; color: var(--muted); }
+.cfg-input { width: 100%; max-width: 260px; }
+.cfg-bool { display: inline-flex; align-items: center; gap: 6px; }
+.cfg-inline-actions { display: inline-flex; gap: 6px; }
+
+.cfg-source { font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.03em; }
+.cfg-source-default { color: var(--muted); }
+.cfg-source-file { color: var(--sky); border-color: var(--sky); }
+.cfg-source-env { color: var(--green); border-color: var(--green); }
+.cfg-source-override { color: var(--accent); border-color: var(--accent); background: #12233b; }
+
+.cfg-restart { color: var(--yellow); font-size: 0.95rem; }
+.derived-tag { color: var(--purple); font-size: 0.72em; }
+.cfg-row-override { background: rgba(79, 142, 247, 0.07); }

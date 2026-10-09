@@ -107,5 +107,10 @@ export function createRealAdapter(): Api {
         })}`),
       getTranscript: (id) => http(`${B}/sessions/${id}/transcript`),
     },
+    config: {
+      getConfig: () => http(`${B}/config`),
+      setConfig: (key, value) => http(`${B}/config/${encodeURIComponent(key)}`, { method: 'PUT', body: { value } }),
+      resetConfig: (key) => http(`${B}/config/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+    },
   };
 }

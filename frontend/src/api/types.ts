@@ -75,6 +75,9 @@ import type {
   ValidateTopologyResponse,
   DashboardSummaryResponse,
   GetWorkflowsParams,
+  ListConfigResponse,
+  SetConfigResponse,
+  ResetConfigResponse,
 } from '../types/api';
 
 export interface DeleteRelativeResponse {
@@ -152,5 +155,10 @@ export interface Api {
     getSessionHistory(sessionId: number): Promise<GetSessionHistoryResponse>;
     getAuditLog(params?: GetAuditLogParams): Promise<GetAuditLogResponse>;
     getTranscript(sessionId: number): Promise<GetTranscriptResponse>;
+  };
+  config: {
+    getConfig(): Promise<ListConfigResponse>;
+    setConfig(key: string, value: unknown): Promise<SetConfigResponse>;
+    resetConfig(key: string): Promise<ResetConfigResponse>;
   };
 }

@@ -12,6 +12,7 @@ const NAV = [
   { to: '/messages', label: 'Messages', icon: '✉' },
   { to: '/library', label: 'Library', icon: '▤' },
   { to: '/history', label: 'History', icon: '⏱' },
+  { to: '/settings', label: 'Settings', icon: '⚙' },
 ];
 
 const MOCK_ERRORS: (MockErrorKind | '')[] = ['', 'unauthorized', 'forbidden', 'not_found', 'conflict', 'server', 'network'];

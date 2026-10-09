@@ -14,6 +14,7 @@ import type {
   Workflow,
 } from '../../types/api';
 import { canTransition, isTerminalTaskState } from '../../lib/task';
+import { CONFIG_REGISTRY, resolveConfig, normalizeSetValue } from './configRegistry';
 import {
   computeMetrics,
   computeSummary,
@@ -1173,6 +1174,38 @@ export function createMockAdapter(): Api {
           total: 4,
           has_more: false,
         };
+      },
+    },
+    config: {
+      async getConfig() {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        return resolveConfig(db.configOverrides);
+      },
+      async setConfig(key, value) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const k = CONFIG_REGISTRY.find((x) => x.key === key);
+        if (!k) throw new ApiClientError(404, 'not_found', `Unknown config key ${key}`);
+        if (!k.editable) throw new ApiClientError(403, 'forbidden', `Config key ${key} is read-only`);
+        const v = normalizeSetValue(k.type, value);
+        const before = resolveConfig(db.configOverrides);
+        const beforeKey = before.sections.find((s) => s.name === k.section)!.keys.find((x) => x.key === key)!;
+        db.configOverrides[key] = v;
+        return { key, value: v, source: 'override', requires_restart: k.requires_restart, needs_restart: k.requires_restart && beforeKey.current_value !== v };
+      },
+      async resetConfig(key) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const k = CONFIG_REGISTRY.find((x) => x.key === key);
+        if (!k) throw new ApiClientError(404, 'not_found', `Unknown config key ${key}`);
+        delete db.configOverrides[key];
+        const after = resolveConfig(db.configOverrides);
+        const kv = after.sections.find((s) => s.name === k.section)!.keys.find((x) => x.key === key)!;
+        return { key, source: kv.source, value: kv.current_value };
       },
     },
   };

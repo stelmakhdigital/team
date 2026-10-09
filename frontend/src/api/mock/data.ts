@@ -44,6 +44,7 @@ interface DB {
   library: LibraryItem[];
   audit: AuditEntry[];
   taskHistory: TaskHistoryEntry[];
+  configOverrides: Record<string, unknown>;
   seq: number;
 }
 
@@ -109,6 +110,7 @@ function seed(): DB {
     library: [],
     audit: [],
     taskHistory: [],
+    configOverrides: {},
     seq: 1000,
   };
 

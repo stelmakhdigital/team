@@ -9,6 +9,7 @@ import MessagesPage from './pages/MessagesPage';
 import LibraryPage from './pages/LibraryPage';
 import HistoryPage from './pages/HistoryPage';
 import TasksPage from './pages/TasksPage';
+import SettingsPage from './pages/SettingsPage';
 import { EmptyState } from './components/ui/States';
 
 function NotFound() {
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="/messages" element={<MessagesPage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/history" element={<HistoryPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
