@@ -52,6 +52,8 @@ import type {
   Task,
   ApplyLibraryItemRequest,
   ApplyLibraryItemResponse,
+  RenameRequest,
+  RenameResponse,
   SaveToLibraryRequest,
   SaveToLibraryResponse,
   SaveTopologyRequest,
@@ -99,6 +101,7 @@ export interface Api {
     createRole(segmentId: number, req: CreateRoleRequest): Promise<CreateRoleResponse>;
     createRelative(teamId: number, req: CreateRelativeRequest): Promise<CreateRelativeResponse>;
     updateSegmentLayout(id: number, req: UpdateSegmentLayoutRequest): Promise<UpdateSegmentLayoutResponse>;
+    updateSegment(id: number, req: RenameRequest): Promise<RenameResponse>;
     updateRoleLayout(id: number, req: UpdateRoleLayoutRequest): Promise<UpdateRoleLayoutResponse>;
     deleteRelative(id: number): Promise<DeleteRelativeResponse>;
     getRoleConfig(id: number): Promise<GetRoleConfigResponse>;
@@ -113,6 +116,7 @@ export interface Api {
     createBlock(workflowId: number, req: CreateBlockRequest): Promise<CreateBlockResponse>;
     createConnection(workflowId: number, req: CreateConnectionRequest): Promise<CreateConnectionResponse>;
     updateBlock(workflowId: number, blockId: number, req: UpdateBlockRequest): Promise<UpdateBlockResponse>;
+    updateWorkflow(id: number, req: RenameRequest): Promise<RenameResponse>;
     deleteBlock(workflowId: number, blockId: number): Promise<DeleteWorkflowBlockResponse>;
     deleteConnection(workflowId: number, connectionId: number): Promise<DeleteWorkflowConnectionResponse>;
     deleteWorkflow(id: number): Promise<DeleteWorkflowResponse>;
@@ -148,6 +152,7 @@ export interface Api {
     getLibrary(params?: GetLibraryParams): Promise<GetLibraryResponse>;
     getLibraryItem(id: number): Promise<GetLibraryItemResponse>;
     saveToLibrary(req: SaveToLibraryRequest): Promise<SaveToLibraryResponse>;
+    updateLibraryItem(id: number, req: RenameRequest): Promise<RenameResponse>;
     applyLibrary(id: number, req: ApplyLibraryItemRequest): Promise<ApplyLibraryItemResponse>;
   };
   history: {

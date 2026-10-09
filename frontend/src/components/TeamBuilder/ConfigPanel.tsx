@@ -186,27 +186,30 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
   );
 }
 
-function SegmentConfig({ segment }: { segment: Segment }) {
+function SegmentConfig({ segment, onSaved }: { segment: Segment; onSaved: () => void }) {
   const { toast } = useToast();
   const [name, setName] = useState(segment.name);
   const [description, setDescription] = useState(segment.description ?? '');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setName(segment.name);
     setDescription(segment.description ?? '');
   }, [segment.id, segment.name, segment.description]);
 
-  if (!name.trim()) {
-    return (
-      <div>
-        <label>
-          Name *
-          <input value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <div className="form-error">Segment name is required</div>
-      </div>
-    );
-  }
+  const apply = async () => {
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    try {
+      await api.teams.updateSegment(segment.id, { name: name.trim(), description: description.trim() });
+      toast('success', 'Segment renamed');
+      onSaved();
+    } catch (e) {
+      toast('error', errorMessage(e ?? new Error('Failed to rename segment')));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div>
@@ -221,8 +224,8 @@ function SegmentConfig({ segment }: { segment: Segment }) {
       <div className="muted small">
         Roles in segment: {segment.roles_count} · created {segment.created_at.slice(0, 10)}
       </div>
-      <button className="btn" onClick={() => toast('info', 'Segment rename will use POST/PATCH once backend supports it (tracked)')}>
-        Apply
+      <button className="btn btn-primary" onClick={apply} disabled={saving || !name.trim()}>
+        {saving ? 'Saving…' : 'Apply'}
       </button>
     </div>
   );
@@ -239,7 +242,7 @@ export default function ConfigPanel({ selection, role, segment, onClose, onChang
       </div>
       {!selection && <p className="muted">Select a role or segment on the canvas to configure it.</p>}
       {selection?.type === 'role' && role && <RoleConfig roleId={selection.id} onSaved={onChanged} />}
-      {selection?.type === 'segment' && segment && <SegmentConfig segment={segment} />}
+      {selection?.type === 'segment' && segment && <SegmentConfig segment={segment} onSaved={onChanged} />}
     </aside>
   );
 }

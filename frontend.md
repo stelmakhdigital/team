@@ -128,23 +128,25 @@ RBAC-тесты, WS-auth fix, WS ping/pong live-проверка, ADR-004 (B3 CL
 |---|---|---|---|---|---|
 | Team | name, description | ✅ (добавлено в U3) | TeamBuilder → «✎ Team» (инлайн-форма, валидация) | `saveTopology` (Name/Description) | — |
 | Team | segments | ✅ | палитра (drop) + drag | `createSegment`, `updateSegmentLayout` | — |
-| Segment | name, description | ⚠️ GAP | — | нет `PATCH /segments/{id}` (только layout) | нужен бэкенд-эндпоинт |
+| Segment | name, description | ✅ (round 2) | TeamBuilder → выбрать сегмент → ConfigPanel «Apply» | `PATCH /segments/{id}` (`updateSegment`) | — |
 | Role/член | config (model/tools/prompt) | ✅ | ConfigPanel | `updateRoleConfig` | — |
-| Role/член | name, description | ⚠️ GAP | — | нет `PATCH /roles/{id}` (rename; только config+layout) | нужен бэкенд-эндпоинт |
+| Role/член | name, description | ⛔ read-only (обосновано) | — | нет `PATCH /roles/{id}` — rename ломает внешние ссылки (chatroom/relatives/session/alert = `segment.role`) | каскад, out of scope |
 | Role/член | position | ✅ | drag | `updateRoleLayout` | — |
 | Task | state (start/done/block/cancel/reopen) | ✅ | Tasks → действия | `updateState` | — |
 | Task | assignment (handoff) | ✅ | Tasks → «handoff» | `handoff` | — |
-| Task | title, priority | ⚠️ GAP (только при create) | форма «New task» | нет `PATCH /tasks/{id}` | нужен бэкенд-эндпоинт |
-| Workflow | name | ⚠️ GAP | — | нет `PATCH /workflows/{id}` | нужен бэкенд-эндпоинт |
+| Task | title, priority | ⛔ read-only (обосновано) | форма «New task» (только при create) | нет `PATCH /tasks/{id}` — title/priority задаются при create; изменения в полёте не в контракте | — |
+| Workflow | name | ✅ (round 2) | Workflow Editor → «✎ Rename» (в шапке) | `PATCH /workflows/{id}` (`updateWorkflow`) | — |
 | Workflow | block (type/name/params) | ✅ | блок → config-панель | `updateBlock` | — |
 | Workflow | connection (create/delete/label) | ✅ (create/delete; label у decision) | — | `createConnection`, `deleteConnection` | `PATCH` на label — нет |
-| Library item | name | ⚠️ GAP | — | нет `PATCH /library/{id}` (только save/apply) | нужен бэкенд-эндпоинт |
+| Library item | name | ✅ (round 2) | Library → выбрать элемент → «✎» в Details | `PATCH /library/{id}` (`updateLibraryItem`) | — |
 
-Результат U3: аудит выше + добавлена инлайн-форма редактирования **team name/description**
-(единственный из пропусков списка, который уже поддерживался API через `saveTopology`).
-Остальные rename-пропуски (segment/role/task/workflow/library) требуют новых backend-`PATCH`
-эндпоинтов — пометить как бэкенд-follow-up (см. бэклог).
-Тесты: `tests/editability.test.tsx` (persist + рендер формы с валидацией).
+Результат U3 (round 2): **безопасные сущности переименовываемы** — segment (ConfigPanel),
+workflow (✎ в редакторе), library item (✎ в Details) — backend `PATCH` + inline-edit + тесты
+(`tests/rename.test.tsx`). Role и task — **read-only по замыслу** (не «нужен эндпоинт»):
+role-name = ключ agent_spec + внешние ссылки (rename ломает связи — каскад, out of scope);
+task title/priority задаются при create (изменения в полёте не в контракте). Обоснование —
+в `api-decisions.md` (U3-rename) + `backend.md` §3c. Тесты: `tests/editability.test.tsx`
+(team meta) + `tests/rename.test.tsx` (segment/workflow/library: mock persist + 404/400/409 + UI).
 
 ### U4b — кликабельность и drill-down
 Паттерн: `components/ui/EntityLink.tsx` — единая обёртка-ссылка для элементов, ссылающихся

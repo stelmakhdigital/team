@@ -6,6 +6,7 @@ import type {
   CreateTeamRequest,
   Message,
   Profile,
+  RenameRequest,
   Segment,
   Session,
   SessionDetail,
@@ -350,6 +351,20 @@ export function createMockAdapter(): Api {
         return { id, status: 'updated', previous_layout: prev, new_layout: clone(l) };
       },
 
+      async updateSegment(id, req: RenameRequest) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const seg = db.segments.find((s) => s.id === id);
+        if (!seg) throw new ApiClientError(404, 'not_found', `Segment ${id} not found`);
+        if (!req.name || req.name.trim() === '') throw new ApiClientError(400, 'validation_failed', 'name is required');
+        const dup = db.segments.find((s) => s.id !== id && s.team_id === seg.team_id && s.name === req.name);
+        if (dup) throw new ApiClientError(409, 'conflict', `segment "${req.name}" already exists in team`);
+        seg.name = req.name;
+        if (req.description !== undefined) seg.description = req.description;
+        return { id, name: seg.name, status: 'updated' };
+      },
+
       async updateRoleLayout(id, req) {
         maybeFail();
         await latency();
@@ -577,6 +592,18 @@ export function createMockAdapter(): Api {
         }
         if (req.label !== undefined) block.label = req.label;
         return { id: block.id, status: 'updated', changes };
+      },
+
+      async updateWorkflow(id, req: RenameRequest) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const wf = db.workflows.find((w) => w.id === id);
+        if (!wf) throw new ApiClientError(404, 'not_found', `Workflow ${id} not found`);
+        if (!req.name || req.name.trim() === '') throw new ApiClientError(400, 'validation_failed', 'name is required');
+        wf.name = req.name;
+        if (req.description !== undefined) wf.description = req.description;
+        return { id, name: wf.name, status: 'updated' };
       },
 
       // R6.4 (контракт 20 §2.6–2.8)
@@ -968,6 +995,18 @@ export function createMockAdapter(): Api {
           tags: req.tags,
         });
         return { id, status: 'saved', library_item_id: id };
+      },
+
+      async updateLibraryItem(id, req: RenameRequest) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const item = db.library.find((it) => it.id === id);
+        if (!item) throw new ApiClientError(404, 'not_found', `Library item ${id} not found`);
+        if (!req.name || req.name.trim() === '') throw new ApiClientError(400, 'validation_failed', 'name is required');
+        item.name = req.name;
+        if (req.description !== undefined) item.description = req.description;
+        return { id, name: item.name, status: 'updated' };
       },
 
       async applyLibrary(id, req) {

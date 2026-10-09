@@ -4,7 +4,7 @@ import YAML from 'yaml';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import {  EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError , Badge } from '../components/ui/States';
+import {  EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError , Badge, errorMessage } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 
@@ -12,6 +12,7 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [libRename, setLibRename] = useState<string | null>(null);
   const [saveTeamId, setSaveTeamId] = useState<number | null>(null);
   const [applyTargetId, setApplyTargetId] = useState<number | null>(null);
   const list = useQuery(`library.list.${type}.${search}`, () =>
@@ -175,7 +176,37 @@ export default function LibraryPage() {
             <div>
               <h3>
                 {detail.data.item.name} <span className="badge">v{detail.data.item.version}</span>
+                {libRename === null ? (
+                  <button className="btn btn-small lib-rename-btn" title="Rename item" onClick={() => setLibRename(detail.data!.item.name)}>
+                    ✎
+                  </button>
+                ) : null}
               </h3>
+              {libRename !== null && (
+                <form
+                  className="lib-rename"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const name = libRename.trim();
+                    if (!name) return;
+                    try {
+                      await api.library.updateLibraryItem(detail.data!.item.id, { name });
+                      toast('success', 'Library item renamed');
+                      setLibRename(null);
+                      detail.refetch();
+                      list.refetch();
+                    } catch (err) {
+                      toast('error', errorMessage(err ?? new Error('Rename failed')));
+                    }
+                  }}
+                >
+                  <input className="input" value={libRename} onChange={(e) => setLibRename(e.target.value)} placeholder="Item name" aria-label="Item name" autoFocus />
+                  <div className="wf-config-actions">
+                    <button type="submit" className="btn btn-primary">Save</button>
+                    <button type="button" className="btn" onClick={() => setLibRename(null)}>Cancel</button>
+                  </div>
+                </form>
+              )}
               <p className="muted small">
                 author: {detail.data.item.author ?? '—'} · public: {detail.data.item.is_public ? 'yes' : 'no'}
               </p>

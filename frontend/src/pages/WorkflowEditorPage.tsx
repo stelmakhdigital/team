@@ -8,7 +8,7 @@ import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { ErrorState, Spinner } from '../components/ui/States';
+import { ErrorState, Spinner, errorMessage } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import WorkflowCanvas from '../components/Workflow/WorkflowCanvas';
 import { BLOCK_META } from '../components/Workflow/nodes/BlockNode';
@@ -30,6 +30,7 @@ export default function WorkflowEditorPage() {
   const navigate = useNavigate();
 
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [wfRename, setWfRename] = useState<string | null>(null);
   const narrowBuilder = useMediaQuery('(max-width: 1200px)');
   const [paletteOpen, setPaletteOpen] = useState(false);
   // hybrid: сохранённые позиции (есть ненулевые) — manual; иначе auto
@@ -173,6 +174,30 @@ export default function WorkflowEditorPage() {
         </h1>
         <div className="head-actions">
           <span className={`ws-badge ${cycle ? 'ws-err' : ''}`}>{cycle ? '⚠ cycle detected' : 'ok'}</span>
+          {wfRename !== null ? (
+            <form
+              className="wf-rename"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const name = wfRename.trim();
+                if (!name) return;
+                try {
+                  await api.workflows.updateWorkflow(id, { name });
+                  toast('success', 'Workflow renamed');
+                  setWfRename(null);
+                  refetch();
+                } catch (err) {
+                  toast('error', errorMessage(err ?? new Error('Rename failed')));
+                }
+              }}
+            >
+              <input className="input" value={wfRename} onChange={(e) => setWfRename(e.target.value)} placeholder="Workflow name" aria-label="Workflow name" autoFocus />
+              <button type="submit" className="btn btn-primary">Save</button>
+              <button type="button" className="btn" onClick={() => setWfRename(null)}>Cancel</button>
+            </form>
+          ) : (
+            <button className="btn" title="Rename workflow" onClick={() => setWfRename(workflow.name)}>✎ Rename</button>
+          )}
           <button
             className="btn"
             title="Recompute auto layout and save positions"

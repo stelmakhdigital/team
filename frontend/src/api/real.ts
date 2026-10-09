@@ -15,6 +15,7 @@ export function createRealAdapter(): Api {
       createRole: (segmentId, req) => http(`${B}/segments/${segmentId}/roles`, { method: 'POST', body: req }),
       createRelative: (teamId, req) => http(`${B}/teams/${teamId}/relatives`, { method: 'POST', body: req }),
       updateSegmentLayout: (id, req) => http(`${B}/segments/${id}/layout`, { method: 'PATCH', body: req }),
+      updateSegment: (id, req) => http(`${B}/segments/${id}`, { method: 'PATCH', body: req }),
       updateRoleLayout: (id, req) => http(`${B}/roles/${id}/layout`, { method: 'PATCH', body: req }),
       deleteRelative: (id) => http(`${B}/relatives/${id}`, { method: 'DELETE' }),
       getRoleConfig: (id) => http(`${B}/roles/${id}/config`),
@@ -30,6 +31,7 @@ export function createRealAdapter(): Api {
       createBlock: (workflowId, req) => http(`${B}/workflows/${workflowId}/blocks`, { method: 'POST', body: req }),
       createConnection: (workflowId, req) => http(`${B}/workflows/${workflowId}/connections`, { method: 'POST', body: req }),
       updateBlock: (workflowId, blockId, req) => http(`${B}/workflows/${workflowId}/blocks/${blockId}`, { method: 'PATCH', body: req }),
+      updateWorkflow: (id, req) => http(`${B}/workflows/${id}`, { method: 'PATCH', body: req }),
       deleteBlock: (workflowId, blockId) => http(`${B}/workflows/${workflowId}/blocks/${blockId}`, { method: 'DELETE' }),
       deleteConnection: (workflowId, connectionId) => http(`${B}/workflows/${workflowId}/connections/${connectionId}`, { method: 'DELETE' }),
       deleteWorkflow: (id) => http(`${B}/workflows/${id}`, { method: 'DELETE' }),
@@ -90,6 +92,7 @@ export function createRealAdapter(): Api {
         })}`),
       getLibraryItem: (id) => http(`${B}/library/${id}`),
       saveToLibrary: (req) => http(`${B}/library`, { method: 'POST', body: req }),
+      updateLibraryItem: (id, req) => http(`${B}/library/${id}`, { method: 'PATCH', body: req }),
       applyLibrary: (id, req) => http(`${B}/library/${id}/apply`, { method: 'POST', body: req }),
     },
     history: {

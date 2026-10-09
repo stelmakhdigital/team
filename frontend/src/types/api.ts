@@ -866,6 +866,17 @@ export interface GetLibraryResponse {
   groups: LibraryGroup[];
 }
 
+export interface RenameRequest {
+  name: string;
+  description?: string;
+}
+
+export interface RenameResponse {
+  id: number;
+  name: string;
+  status: 'updated';
+}
+
 export interface SaveToLibraryRequest {
   type: LibraryItemType;
   source_id: number;
