@@ -59,6 +59,10 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 	if err := authSvc.Init(context.Background()); err != nil {
 		t.Fatalf("auth init: %v", err)
 	}
+	cvc, err := service.NewConfigService(db)
+	if err != nil {
+		t.Fatalf("config service: %v", err)
+	}
 	bus := service.NewEventBus()
 	tsvc.Bus = bus
 	ssvc.Bus = bus
@@ -75,6 +79,7 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 		Audit:     aservice,
 		Metrics:   msvcMetrics,
 		Auth:      authSvc,
+		Config:    cvc,
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
@@ -822,12 +827,17 @@ func newRBACTestServer(t *testing.T, envKeys []string) (*httptest.Server, *servi
 	if err := auth.Init(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	cvc, err := service.NewConfigService(db)
+	if err != nil {
+		t.Fatal(err)
+	}
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger:    slog.New(slog.NewTextHandler(os.Stderr, nil)),
 		DB:        db,
 		Audit:     asvc,
 		Auth:      auth,
 		Workflows: service.NewWorkflowService(db, stores),
+		Config:    cvc,
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
@@ -868,11 +878,17 @@ func TestRBACViewerForbidden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// operator: PATCH role config — 403 (config.update только у admin)
+	// operator: PATCH role config — 200 (U4: config.update выдан admin+operator)
 	st, out, _ = do(t, "PATCH", base+"/roles/"+roleID+"/config", map[string]any{"config": map[string]any{"x": 1}},
 		map[string]string{"X-API-Key": opKey})
+	if st != http.StatusOK {
+		t.Fatalf("operator PATCH role config: want 200, got %d %v", st, out)
+	}
+	// viewer: PATCH role config — 403 (config.update только у admin+operator)
+	st, out, _ = do(t, "PATCH", base+"/roles/"+roleID+"/config", map[string]any{"config": map[string]any{"x": 1}},
+		map[string]string{"X-API-Key": viewKey})
 	if st != http.StatusForbidden {
-		t.Fatalf("operator PATCH role config: want 403, got %d %v", st, out)
+		t.Fatalf("viewer PATCH role config: want 403, got %d %v", st, out)
 	}
 	// admin (env-ключ): PATCH role config — 200
 	st, out, _ = do(t, "PATCH", base+"/roles/"+roleID+"/config", map[string]any{"config": map[string]any{"x": 2}},
@@ -922,7 +938,11 @@ func TestRBACViewerForbidden(t *testing.T) {
 		case "team.create":
 			opEntry = em
 		case "role.update":
-			adminEntry = em
+			// U4: config.update выдан и operator — в аудите 2 записи
+			// (operator + admin); admin-запись — от env-ключа (operator:<4hex>)
+			if n, ok := em["user_name"].(string); ok && strings.HasPrefix(n, "operator:") {
+				adminEntry = em
+			}
 		}
 		_ = viewerEntry
 	}

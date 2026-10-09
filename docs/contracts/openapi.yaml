@@ -37,6 +37,8 @@ tags:
     description: Library templates
   - name: history
     description: Audit log
+  - name: config
+    description: "Settings: конфигурация демона (U4)"
   - name: websocket
     description: Real-time события
 
@@ -1125,6 +1127,66 @@ paths:
         '101':
           description: WebSocket switched protocol
 
+  # ---- U4: Config (Settings; контракт .pi/pipeline/T-20261009005500/config-contract.md) ----
+  /api/v1/config:
+    get:
+      operationId: listConfig
+      summary: Все ключи конфигурации по секциям + meta + environment (source per key)
+      tags: [config]
+      responses:
+        '200':
+          description: Конфигурация (секции + метаданные + env-provenance)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListConfigResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/config/{key}:
+    put:
+      operationId: setConfigKey
+      summary: Установить override ключа (слой override в БД)
+      description: >-
+        Value проверяется по типу ключа (неверный тип → 400 validation_failed);
+        secret/readonly-ключи → 403; неизвестный ключ → 404.
+        needs_restart = true, если новое значение отличается от текущего эффективного
+        и ключ требует рестарта.
+      tags: [config]
+      parameters:
+        - { $ref: '#/components/parameters/Key' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetConfigRequest' }
+      responses:
+        '200':
+          description: Override установлен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SetConfigResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: resetConfigKey
+      summary: Сбросить override ключа (возврат к env/file/default; идемпотентно)
+      tags: [config]
+      parameters:
+        - { $ref: '#/components/parameters/Key' }
+      responses:
+        '200':
+          description: Override сброшен (source — слой, победивший после сброса)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResetConfigResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
 components:
   securitySchemes:
     apiKeyAuth:
@@ -1152,6 +1214,12 @@ components:
       in: path
       required: true
       schema: { type: integer, format: int64 }
+    Key:
+      name: key
+      in: path
+      required: true
+      description: Канонический ключ конфигурации (section.key)
+      schema: { type: string, example: server.listen_addr }
     Limit:
       name: limit
       in: query
@@ -2179,3 +2247,90 @@ components:
           type: array
           items: { $ref: '#/components/schemas/AuditEntry' }
         total: { type: integer }
+
+    # ---- U4: config (Settings) ----
+    ConfigKey:
+      type: object
+      required: [key, section, type, current_value, default_value, source, default_is_derived, requires_restart, editable]
+      properties:
+        key: { type: string, example: server.listen_addr }
+        section:
+          type: string
+          enum: [server, storage, sessions, watchdog, security, logging, workspace]
+        type:
+          type: string
+          enum: [string, integer, duration, boolean, path, string-list]
+        description: { type: string }
+        current_value: {} # any: str/num/bool/[] — решённое значение (верхний слой)
+        default_value: {} # any: дефолт (derived — host-derived, напр. cwd)
+        source:
+          type: string
+          enum: [default, file, env, override]
+        source_detail: { type: string, description: "Имя env-переменной / путь к файлу / \"\"" }
+        default_is_derived: { type: boolean, description: "Дефолт host-derived (cwd/машина), не константа" }
+        requires_restart: { type: boolean }
+        editable: { type: boolean, description: "false — secret/constant (PUT → 403)" }
+    ConfigSection:
+      type: object
+      required: [name, keys]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        keys:
+          type: array
+          items: { $ref: '#/components/schemas/ConfigKey' }
+    ConfigMeta:
+      type: object
+      required: [project, instance, version, uptime_seconds, config_hash, started_at]
+      properties:
+        project: { type: string, example: team }
+        instance: { type: string, example: local }
+        version: { type: string, example: "1.0.0" }
+        uptime_seconds: { type: integer, format: int64 }
+        git_commit: { type: string }
+        git_branch: { type: string }
+        config_hash: { type: string, example: "sha256:…", description: sha256 над отсортированным JSON эффективных значений всех ключей }
+        started_at: { type: string, format: date-time }
+    ConfigEnvVar:
+      type: object
+      required: [env_var, value, feeds_key, source_active]
+      properties:
+        env_var: { type: string, example: DAEMON_LOG_LEVEL }
+        value: { type: string, description: "Значение (secret — маскируется: sk-…/***)" }
+        feeds_key: { type: string, example: logging.level }
+        source_active: { type: boolean, description: env — победивший слой для этого ключа }
+    ListConfigResponse:
+      type: object
+      required: [meta, sections]
+      properties:
+        meta: { $ref: '#/components/schemas/ConfigMeta' }
+        sections:
+          type: array
+          items: { $ref: '#/components/schemas/ConfigSection' }
+        environment:
+          type: array
+          items: { $ref: '#/components/schemas/ConfigEnvVar' }
+    SetConfigRequest:
+      type: object
+      required: [value]
+      properties:
+        value: {} # any: тип проверяется по type ключа
+    SetConfigResponse:
+      type: object
+      required: [key, value, source, requires_restart, needs_restart]
+      properties:
+        key: { type: string }
+        value: {} # any
+        source: { type: string, enum: [override] }
+        requires_restart: { type: boolean }
+        needs_restart: { type: boolean, description: новое значение отличается от текущего эффективного }
+    ResetConfigResponse:
+      type: object
+      required: [key, source, value]
+      properties:
+        key: { type: string }
+        source:
+          type: string
+          enum: [default, file, env]
+          description: слой, победивший после сброса
+        value: {} # any

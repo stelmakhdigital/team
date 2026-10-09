@@ -25,6 +25,8 @@ type Options struct {
 	Metrics *service.MetricsService
 	// Slice 6 — Security (RBAC, api_keys)
 	Auth *service.AuthService
+	// U4 — Config (Settings)
+	Config *service.ConfigService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -35,7 +37,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	}
 	h := &handlers{svc: svc, tsvc: tsvc, ssvc: opts.Sessions, msvc: opts.Messages,
 		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
-		events: opts.Events, alerts: opts.Alerts}
+		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config}
 
 	mux := http.NewServeMux()
 
@@ -124,6 +126,11 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	// Slice 5b — History Viewer: audit log + metrics
 	mux.HandleFunc("GET /api/v1/audit", h.ListAudit)
 	mux.HandleFunc("GET /api/v1/dashboard/metrics", h.DashboardMetrics)
+
+	// U4 — Config (Settings)
+	mux.HandleFunc("GET /api/v1/config", h.ListConfig)
+	mux.HandleFunc("PUT /api/v1/config/{key}", h.SetConfigKey)
+	mux.HandleFunc("DELETE /api/v1/config/{key}", h.ResetConfigKey)
 
 	var chain http.Handler = mux
 	if opts.Audit != nil {

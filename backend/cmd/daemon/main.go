@@ -121,12 +121,18 @@ func run() error {
 	aservice := service.NewAuditService(db, stores)
 	msvcMetrics := service.NewMetricsService(db)
 
+	// U4 — Config (Settings): реестр ключей + layered resolution + overrides
+	cvc, err := service.NewConfigService(db)
+	if err != nil {
+		return err
+	}
+
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger: logger, DB: db,
 		Sessions: ssvc, Alerts: alerts, Messages: msvc,
 		Workflows: wsvc, Events: bus,
 		Library: lservice, Audit: aservice, Metrics: msvcMetrics,
-		Auth: authSvc,
+		Auth: authSvc, Config: cvc,
 	})
 
 	server := &http.Server{

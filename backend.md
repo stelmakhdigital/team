@@ -66,6 +66,7 @@
 | 7 Live-метрики сессий + WS `session.output` (live-терминал) | DONE (контракт 20 §3.6/§4.3, closed лидом) |
 | 8 DELETE workflows (контракт 20 §2.6–2.8, R6.4) | DONE (каскад связи→блоки→workflow в tx; RBAC `workflows.update`; 404; live + интеграционный `slice 5c`) |
 | 9 OpenAPI-спека (весь API) | DONE (openapi.yaml 3.0.3, 57 ops 1-в-1; `scripts/check_openapi.py`) |
+| U4 Backend: Config subsystem (Settings, layered resolution, overrides, RBAC) | DONE (backend; openapi 60 ops) |
 | Фронтенд F1–F15 + UI-редизайн R1–R5 (граф React Flow, edit, YAML, токены, R4 live-терминал, R5 рефакторинг) | DONE (зона лида) |
 
 ### Осталось (не блокирует)
@@ -78,6 +79,67 @@
 3. **Prometheus `/metrics`** — по требованию.
 4. Опциональное (вне контракта, по запросу): WS `ack subscribe`, security events
    (ТЗ 06 §3.2 — brute-force), password-логин (users.password_hash есть, API логина нет).
+
+## 3b. U4 — Config subsystem (backend, 2026-10-09)
+
+Подсистема конфигурации по контракту `.pi/pipeline/T-20261009005500/config-contract.md`
+(ориентир — OpenRIG). Frontend-часть (Settings UI) — зона лида.
+
+- **Layered resolution** (приоритет low→high): `default < file < env < override`.
+  - **file**: опциональный YAML (путь из `DAEMON_CONFIG_FILE`, по умолчанию
+    `daemon.yaml` в cwd; формат `секция.ключ`, 2 уровня; неизвестные ключи игнорятся).
+  - **env**: `DAEMON_*` (снапшот на старте — демон грузит конфиг на старте).
+  - **override**: таблица `config_overrides` (миграция 0008, sqlite+postgres),
+    выставляется через `PUT /api/v1/config/{key}`, сброс `DELETE /api/v1/config/{key}`.
+  - Каждый ключ: `source` (победивший слой) + `source_detail` (env var / файл).
+- **API**: `GET /api/v1/config` → `{meta, sections, environment}`; `PUT/DELETE
+  /api/v1/config/{key}` (тип-валидация по `type` → 400; secret/readonly → 403;
+  unknown → 404; `needs_restart` = новое ≠ текущего эффективного).
+- **RBAC**: `config.read` (GET; admin+operator+viewer), `config.update`
+  (PUT/DELETE; **теперь admin+operator** — раньше только admin; миграция 0008;
+  AllPermissions + `config.read`).
+- **Meta**: project/instance/version/uptime/git_commit/git_branch/started_at +
+  `config_hash` = `sha256:` над отсортированным JSON эффективных значений.
+- **Ключевые файлы**: `internal/config/{config.go,filelayer.go}`,
+  `internal/service/config_service.go` (реестр + resolution + meta),
+  `internal/repository/config_repo.go` (`Stores.ConfigOverrides`),
+  `internal/api/http/config_handlers.go`, миграции `0008_config_overrides.sql`.
+- **Тесты**: `service` — `TestConfigRegistryCompleteness`,
+  `TestConfigResolution{Default,FileLayer,EnvLayer,OverrideLayer}`,
+  `TestConfigSetOverrideValidation`, `TestConfigSetOverrideForbiddenAndNotFound`,
+  `TestConfigMetaAndHash`, `TestConfigEnvironmentSection`; `http` —
+  `TestConfigListHTTP`, `TestConfigSetResetHTTP`, `TestConfigRBAC`.
+- **Докс**: `docs/contracts/api-decisions.md` (секция U4), openapi.yaml
+  (+3 операции, 60 всего; `scripts/check_openapi.py` PASS).
+
+### Таблица ключей (полный реестр — 20 ключей, 7 секций)
+
+| key | type | default | env-слой | restart | editable |
+|---|---|---|---|---|---|
+| server.listen_addr | string | `:8080` | DAEMON_LISTEN_ADDR | yes | yes |
+| server.read_timeout | duration | `15s` | — (константа) | yes | no |
+| server.write_timeout | duration | `30s` | — (константа) | yes | no |
+| server.shutdown_timeout | duration | `10s` | — (константа) | yes | no |
+| storage.dsn | string | `sqlite:./daemon.db` | DAEMON_DB_DSN | yes | yes |
+| storage.migrate | boolean | `true` | DAEMON_MIGRATE | yes | yes |
+| sessions.poll_interval | duration | `5s` | DAEMON_SESSION_POLL_SECS | yes | yes |
+| sessions.configs_dir | path | `configs/sessions` | DAEMON_SESSION_CONFIGS_DIR | yes | yes |
+| watchdog.enabled | boolean | `true` | DAEMON_WATCHDOG_ENABLED | yes | yes |
+| watchdog.scan_interval | duration | `30s` | DAEMON_WATCHDOG_SCAN_SECS | yes | yes |
+| watchdog.stale_after | duration | `2h` | DAEMON_WATCHDOG_STALE_SECS | yes | yes |
+| watchdog.blocked_after | duration | `1h` | DAEMON_WATCHDOG_BLOCKED_SECS | yes | yes |
+| security.api_keys | string-list | `[]` | DAEMON_API_KEYS | yes | no (secret) |
+| security.secret_key | string | `""` | DAEMON_SECRET_KEY | yes | no (secret) |
+| security.agent_specs_dir | path | `agents` | DAEMON_AGENT_SPECS_DIR | yes | yes |
+| logging.level | string | `info` | DAEMON_LOG_LEVEL | yes | yes |
+| workspace.root | path | cwd (**derived**) | DAEMON_WORKSPACE_ROOT | yes | yes |
+| workspace.artifacts_dir | path | `workspace.root/artifacts` (**derived**) | DAEMON_WORKSPACE_ARTIFACTS | yes | yes |
+| workspace.screenshots_dir | path | `workspace.root/screenshots` (**derived**) | DAEMON_WORKSPACE_SCREENSHOTS | yes | yes |
+| workspace.logs_dir | path | `logs/sessions` (contract: derived) | DAEMON_LOGS_DIR | yes | yes |
+
+Слои для каждого ключа: default (таблица) → file (`daemon.yaml`)
+→ env (см. колонку) → override (БД). Env-длительности — в **секундах**
+(конвенция daemon); в file/override — `Go duration` ("45s") или секунды.
 
 ## 4. Как проверить
 ```
@@ -125,10 +187,14 @@ npx vitest run`. Анти-цикл: один чистый прогон в кон
   FK-порядок, batch, cast'ы timestamptz), `migrations/{sqlite,postgres}/0001..0007`.
 - `internal/repository/*` + `store.go`; `internal/models/*` (security.go —
   User/APIKey/AuthContext/Secret).
+- `internal/service/config_service.go` — U4: реестр ключей, layered resolution
+  (default<file<env<override), SetOverride/ResetOverride, meta+config_hash.
+- `internal/config/{config.go,filelayer.go}` — Load + workspace-ключи +
+  file-слой (YAML, DAEMON_CONFIG_FILE).
 - Ключевые env: `DAEMON_LISTEN_ADDR`/`DAEMON_HOST`+`DAEMON_PORT`, `DAEMON_DB_DSN`,
   `DAEMON_API_KEYS`, **`DAEMON_AGENT_SPECS_DIR` (абсолютный!)**, `DAEMON_LOGS_DIR`,
   `DAEMON_SESSION_CONFIGS_DIR`, `DAEMON_WATCHDOG_*`, `DAEMON_SESSION_POLL_SECS`,
-  `DAEMON_SECRET_KEY`.
+  `DAEMON_SECRET_KEY`, `DAEMON_CONFIG_FILE` (file-слой), `DAEMON_WORKSPACE_*` (U4).
 
 ## 6. Тесты (регресс-якоря)
 - Slice 1: `TestSlice1LayoutRegressions`, `TestValidateTopologyEmpty`,

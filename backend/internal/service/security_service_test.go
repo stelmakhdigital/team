@@ -105,8 +105,11 @@ func TestAuthDBKeysAndRoles(t *testing.T) {
 	if ac.HasPerm("tasks.create") != true {
 		t.Error("operator must have tasks.create")
 	}
-	if ac.HasPerm("config.update") {
-		t.Error("operator must NOT have config.update")
+	if !ac.HasPerm("config.update") {
+		t.Error("operator must have config.update (U4: admin+operator)")
+	}
+	if !ac.HasPerm("config.read") {
+		t.Error("operator must have config.read")
 	}
 
 	// viewer
@@ -125,6 +128,12 @@ func TestAuthDBKeysAndRoles(t *testing.T) {
 	}
 	if vac.HasPerm("audit.read") != true {
 		t.Error("viewer must have audit.read")
+	}
+	if !vac.HasPerm("config.read") {
+		t.Error("viewer must have config.read (U4)")
+	}
+	if vac.HasPerm("config.update") {
+		t.Error("viewer must NOT have config.update")
 	}
 
 	// admin (DB)

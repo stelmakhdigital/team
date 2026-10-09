@@ -143,6 +143,8 @@ func requiredPermission(method, path string) string {
 			return "dashboard.read"
 		case "audit":
 			return "audit.read"
+		case "config": // U4: Settings (GET /api/v1/config)
+			return "config.read"
 		case "segments", "roles", "relatives":
 			return "teams.read" // Team Builder: сегменты/роли/связи
 		default:
@@ -165,6 +167,12 @@ func requiredPermission(method, path string) string {
 		default:
 			return res + ".create"
 		}
+	case http.MethodPut:
+		// U4: PUT /api/v1/config/{key} — set override
+		if res == "config" {
+			return "config.update"
+		}
+		return ""
 	case http.MethodPatch:
 		if res == "roles" && id != "" && sub == "config" {
 			return "config.update"
@@ -181,6 +189,8 @@ func requiredPermission(method, path string) string {
 			return "teams.delete"
 		case "sessions":
 			return "sessions.stop"
+		case "config": // U4: DELETE /api/v1/config/{key} — reset override
+			return "config.update"
 		case "relatives":
 			return "teams.update"
 		default:

@@ -441,3 +441,36 @@ History Viewer (audit + transcripts), Prometheus `/metrics`.
   проекта): сравнивает `method path` из `server.go` с `paths` в спеке, падает (exit 1)
   на расхождение. Запуск: `python3 scripts/check_openapi.py`. В финальном состоянии — PASS (57/57).
 - Валидность: `python3 -c "import yaml; yaml.safe_load(open('docs/contracts/openapi.yaml'))"`. 
+
+### U4 — Config subsystem / Settings (backend, 2026-10-09)
+
+- **Контракт (source of truth)**: `.pi/pipeline/T-20261009005500/config-contract.md`
+  (единый контракт backend+frontend, ориентир — OpenRIG).
+- **API**: `GET /api/v1/config` (все ключи по секциям + meta + environment,
+  source per key), `PUT /api/v1/config/{key}` (set override),
+  `DELETE /api/v1/config/{key}` (reset override, идемпотентно).
+  Тип-валидация value по `type` ключа (неверный тип → 400 validation_failed),
+  secret/readonly-ключи → 403, unknown key → 404; `needs_restart` — честный
+  сигнал (новое значение ≠ текущего эффективного).
+- **Layered resolution**: `default < file < env < override`. File-слой —
+  опциональный YAML (`DAEMON_CONFIG_FILE`, по умолчанию `daemon.yaml` в cwd);
+  override-слой — таблица `config_overrides` (миграция 0008, sqlite+postgres).
+  Демон грузит конфиг на старте; runtime-override применяется после рестарта
+  (`requires_restart`/`needs_restart` сообщают).
+- **Реестр — полный охват**: 20 ключей, 7 секций (server/storage/sessions/
+  watchdog/security/logging/workspace; workspace — новый, ключи добавлены в
+  `internal/config` + `Load()`). Host-derived дефолты помечены
+  `default_is_derived` (workspace.root=cwd, подпапки от root).
+- **RBAC**: `config.read` (GET; admin+operator+viewer, новая permission в
+  миграции 0008); `config.update` (PUT/DELETE) — **теперь выдан и operator**
+  (раньше только admin, slice 6) — осознанное изменение по контракту U4
+  (коснётся также `PATCH /roles/{id}/config` — та же permission).
+- **Meta**: project/instance/version/uptime/git_commit/git_branch/started_at;
+  `config_hash` = `sha256:` над отсортированным JSON эффективных значений
+  всех ключей. Секция `environment` — env-provenance (secret-значения маскируются).
+- **Опции**: env-длительности — секунды (существующая конвенция daemon);
+  пустое env-значение трактуется как «слоя нет»; неизвестные ключи в
+  `daemon.yaml` игнорируются.
+- **OpenAPI**: +3 операции (всего 60), schemas ConfigKey/ConfigSection/
+  ConfigMeta/ListConfigResponse/SetConfigRequest/SetConfigResponse/
+  ResetConfigResponse (+ConfigEnvVar); `scripts/check_openapi.py` — PASS.

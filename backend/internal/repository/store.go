@@ -39,6 +39,8 @@ type Stores struct {
 	Library         *LibraryRepo
 	LibraryVersions *LibraryVersionRepo
 	Audit           *AuditRepo
+	// U4 — Config (overrides)
+	ConfigOverrides *ConfigRepo
 }
 
 func NewStores(db *sql.DB) *Stores {
@@ -61,6 +63,7 @@ func NewStores(db *sql.DB) *Stores {
 		Library:             &LibraryRepo{db: db},
 		LibraryVersions:     &LibraryVersionRepo{db: db},
 		Audit:               &AuditRepo{db: db},
+		ConfigOverrides:     &ConfigRepo{db: db},
 	}
 }
 

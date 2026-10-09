@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -28,6 +29,12 @@ type Config struct {
 
 	// Slice 6 — Security
 	SecretKey string // AES-256-GCM ключ для secrets (64 hex-символа, пусто = выключен)
+
+	// U4 — workspace (рабочая область; дефолты host-derived)
+	WorkspaceRoot           string // корень workspace (дефолт — cwd)
+	WorkspaceArtifactsDir   string // артефакты (дефолт — root/artifacts)
+	WorkspaceScreenshotsDir string // скриншоты (дефолт — root/screenshots)
+	// LogsDir (DAEMON_LOGS_DIR) = workspace.logs_dir
 }
 
 func Load() (*Config, error) {
@@ -52,6 +59,15 @@ func Load() (*Config, error) {
 
 		SecretKey: envStr("DAEMON_SECRET_KEY", ""),
 	}
+
+	// U4 — workspace: дефолты host-derived (root = cwd; подпапки — от root)
+	wsRoot := envStr("DAEMON_WORKSPACE_ROOT", ".")
+	if wsRoot == "" {
+		wsRoot = "."
+	}
+	cfg.WorkspaceRoot = wsRoot
+	cfg.WorkspaceArtifactsDir = envStr("DAEMON_WORKSPACE_ARTIFACTS", filepath.Join(wsRoot, "artifacts"))
+	cfg.WorkspaceScreenshotsDir = envStr("DAEMON_WORKSPACE_SCREENSHOTS", filepath.Join(wsRoot, "screenshots"))
 
 	if cfg.ListenAddr == "" {
 		return nil, fmt.Errorf("DAEMON_LISTEN_ADDR must not be empty")

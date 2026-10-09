@@ -32,6 +32,7 @@ var AllPermissions = []string{
 	"library.read", "library.create", "library.apply",
 	"dashboard.read",
 	"audit.read",
+	"config.read",
 	"config.update",
 }
 

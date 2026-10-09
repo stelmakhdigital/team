@@ -23,6 +23,8 @@ type handlers struct {
 	msvcM  *service.MetricsService
 	alerts *service.AlertStoreRef
 	events *service.EventBus
+	// U4 — Config (Settings)
+	cvc *service.ConfigService
 }
 
 func limitOffset(q url.Values) (int, int) {
