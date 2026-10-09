@@ -366,11 +366,21 @@ npx vitest run`. Анти-цикл: один чистый прогон в кон
   `session_live_handlers_test.go` (`TestSessionLiveFieldsHTTP`,
   `TestSessionOutputWSHTTP`).
 - PG: `internal/database/{pgx_rewriter,migrate_pg}_test.go`.
+- P1.4 (workflow engine): `workflow_engine_service_test.go` (projection, transactionality,
+  idempotency, decision, parallel, loop, waiting, failed, resume, route, abort, compat),
+  `workflow_engine_handlers_test.go` (вертикаль + RBAC). Attention: `workflow_attention`
+  (failed→critical, waiting→high) в `attention_service_test.go`.
 - Setup'ы: `newTestServer`/`newRBACTestServer` (http, все сервисы + bus + auth),
   `setupSecurityEnv`/`setupSessionEnv` (service), `specBody()` (http, команда
   "dev-team" — уникальное имя на тест-файл!).
 
 ## 7. Решения (не менять без ADR/договорённости)
+- P1.4 (workflow engine): projection (`ProjectStepClose`) — в ТОМ ЖЕ tx что и смена
+  состояния задачи (TaskService), idempotent (active-шаг закрыт → no-op), события
+  post-commit. `engine_enabled` opt-in (off по умолчанию, старый воркфлоу без изменений).
+  RBAC: переиспользуем `workflows.read`/`workflows.update` (без новых perm).
+  Loop-блок: cap=50 итераций; agent/task без role_id → skipped; decision: ветка =
+  closure-comment ↔ connection.condition.
 - Stdlib HTTP без фреймворков (ADR-001); SQLite default / PG опционально
   (ADR-002 + ADR-004: rewriter принят, PG e2e — при окружении); error envelope
   + dual auth (ADR-003).

@@ -377,6 +377,7 @@ export interface Workflow {
   name: string;
   description?: string;
   state: 'draft' | 'active' | 'archived';
+  engine_enabled?: boolean; // P1.4: исполняемый воркфлоу
   created_at: string;
   updated_at: string;
 }
@@ -410,6 +411,47 @@ export interface GetWorkflowResponse {
 
 export interface GetWorkflowsResponse {
   workflows: Workflow[];
+  total: number;
+}
+
+// ---- P1.4: Workflow engine (instances + trail) ----
+export type WorkflowInstanceState = 'running' | 'waiting' | 'completed' | 'failed' | 'aborted';
+export type WorkflowStepState = 'pending' | 'active' | 'done' | 'failed' | 'skipped' | 'routed';
+
+export interface WorkflowInstance {
+  id: number;
+  workflow_id: number;
+  state: WorkflowInstanceState;
+  root_objective?: string;
+  current_block_id?: number;
+  created_at: string;
+  updated_at: string;
+  finished_at?: string;
+}
+
+export interface WorkflowStep {
+  id: number;
+  block_id: number;
+  block_type: string;
+  block_label?: string;
+  task_id?: number;
+  task_title?: string;
+  state: WorkflowStepState;
+  exit_kind?: string;
+  actor_name?: string;
+  result_note?: string;
+  entered_at?: string;
+  exited_at?: string;
+}
+
+export interface WorkflowInstanceDetail {
+  instance: WorkflowInstance;
+  steps: WorkflowStep[];
+  active_step_ids?: number[];
+}
+
+export interface ListWorkflowInstancesResponse {
+  instances: WorkflowInstance[];
   total: number;
 }
 
@@ -944,6 +986,7 @@ export interface GetLibraryResponse {
 export interface RenameRequest {
   name: string;
   description?: string;
+  engine_enabled?: boolean; // P1.4 (workflows)
 }
 
 export interface RenameResponse {

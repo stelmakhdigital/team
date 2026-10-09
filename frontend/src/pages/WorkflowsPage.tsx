@@ -21,6 +21,30 @@ export default function WorkflowsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const create = useMutation((payload: { team_id: number; name: string }) => api.workflows.createWorkflow(payload));
+  const run = useMutation((id: number) => api.workflows.runWorkflow(id, {}));
+  const toggleEngine = useMutation((req: { id: number; name: string; on: boolean }) =>
+    api.workflows.updateWorkflow(req.id, { name: req.name, engine_enabled: req.on }),
+  );
+
+  const doRun = async (w: { id: number }) => {
+    try {
+      const res = await run.mutate(w.id);
+      toast('success', 'Workflow запущен');
+      navigate(`/workflows/${w.id}/instances/${res.instance.id}`);
+    } catch {
+      toast('error', errorMessage(run.error ?? new Error('Failed to run workflow')));
+    }
+  };
+  const doToggle = async (w: { id: number; name: string; engine_enabled?: boolean }) => {
+    const on = !w.engine_enabled;
+    try {
+      await toggleEngine.mutate({ id: w.id, name: w.name, on });
+      toast('success', on ? 'Engine включён' : 'Engine выключен');
+      refetch();
+    } catch {
+      toast('error', errorMessage(toggleEngine.error ?? new Error('Failed to update workflow')));
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +84,7 @@ export default function WorkflowsPage() {
                 <th>Name</th>
                 <th>Team</th>
                 <th>State</th>
+                <th>Engine</th>
                 <th>Updated</th>
               </tr>
             </thead>
@@ -75,6 +100,22 @@ export default function WorkflowsPage() {
                   <td>team #{w.team_id}</td>
                   <td>
                     <Badge kind="entity" value={w.state} />
+                  </td>
+                  <td>
+                    <label className="small" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 12 }}>
+                      <input
+                        type="checkbox"
+                        checked={!!w.engine_enabled}
+                        onChange={() => doToggle(w)}
+                        disabled={toggleEngine.pending}
+                      />
+                      run
+                    </label>
+                    {w.engine_enabled && (
+                      <button className="btn btn-primary" style={{ padding: '2px 10px' }} disabled={run.pending} onClick={() => doRun(w)}>
+                        {run.pending ? '…' : '▶ Run'}
+                      </button>
+                    )}
                   </td>
                   <td className="muted">{formatRelative(w.updated_at)}</td>
                 </tr>

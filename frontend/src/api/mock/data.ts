@@ -23,6 +23,8 @@ import type {
   TopologyLayout,
   WatchdogAlert,
   Workflow,
+  WorkflowInstance,
+  WorkflowStep,
   WorkflowBlock,
   WorkflowConnection,
 } from '../../types/api';
@@ -44,6 +46,8 @@ interface DB {
   workflows: Workflow[];
   blocks: WorkflowBlock[];
   connections: WorkflowConnection[];
+  workflow_instances: WorkflowInstance[]; // P1.4
+  workflow_steps: WorkflowStep[];
   tasks: Task[];
   taskWakes: MockWake[]; // P0.3
   sessions: Session[];
@@ -110,6 +114,8 @@ function seed(): DB {
     projects: [],
     layouts: undefined,
     workflows: [],
+    workflow_instances: [],
+    workflow_steps: [],
     blocks: [],
     connections: [],
     tasks: [],
@@ -269,6 +275,7 @@ function seed(): DB {
       name: 'Build & Review',
       description: 'Standard dev workflow',
       state: 'active',
+      engine_enabled: true, // P1.4
       created_at: iso(60 * 24 * 2),
       updated_at: iso(60 * 6),
     },
@@ -281,6 +288,17 @@ function seed(): DB {
       created_at: iso(60 * 20),
       updated_at: iso(60 * 20),
     },
+  ];
+
+  // P1.4: демо-инстанс workflow 1 (running) + trail шагов
+  t.workflow_instances = [
+    { id: 1, workflow_id: 1, state: 'running', root_objective: 'Build & review feature', current_block_id: 2, created_at: iso(60 * 3), updated_at: iso(60 * 1) },
+    { id: 2, workflow_id: 1, state: 'failed', root_objective: 'Build & review feature', current_block_id: 2, created_at: iso(60 * 5), updated_at: iso(60 * 4), finished_at: iso(60 * 4) },
+    { id: 3, workflow_id: 1, state: 'waiting', root_objective: 'Manual review pending', current_block_id: 3, created_at: iso(60 * 8), updated_at: iso(60 * 6) },
+  ];
+  t.workflow_steps = [
+    { id: 1, block_id: 1, block_type: 'task', block_label: 'Implement', task_id: 1, task_title: 'Implement feature', state: 'done', exit_kind: 'handoff', actor_name: 'lead', entered_at: iso(60 * 3), exited_at: iso(60 * 2) },
+    { id: 2, block_id: 2, block_type: 'agent', block_label: 'Worker runs', task_id: 2, task_title: 'Run worker', state: 'active', entered_at: iso(60 * 2) },
   ];
 
   t.blocks = [

@@ -780,3 +780,44 @@ wake закрыт, `TestBlockWakeValidation`) + HTTP (`TestResolveTaskEndpoint`
 - HTTP (`project_handlers_test.go`): `TestProjectsCRUDEndpoint` (401/201/400/200/404/
   patch 200/409/DELETE+идемпотентность), `TestProjectsRBAC` (viewer read-OK + create-403,
   operator create-201), `TestTaskFilterByProject` (наследование + фильтр).
+
+## P1.4. Workflow engine: close-step → next task (T-20261009214429)
+
+Исполняемый воркфлоу: каждый шаг = задача; закрытие задачи проецирует следующий шаг
+(в том же tx). Engine opt-in (`engine_enabled`, off по умолчанию).
+
+### Эндпоинты (7, tag `workflows`)
+- `POST /workflows/{id}/run` (body `{root_objective?}`) → `201 {instance}`.
+  `400` no/multiple entry blocks; `409` engine не включён / team не active.
+- `GET /workflows/{id}/instances` → `{instances[], total}` (новые сверху).
+- `GET /workflow-instances/{iid}` → `{instance, steps[], active_step_ids[]}`.
+- `GET /workflow-instances/{iid}/trace` → `{steps[], total}` (ASC, append-only trail).
+- `POST /workflow-instances/{iid}/resume` → `200 {instance}`; `409` не failed / нет failed-шага.
+- `POST /workflow-instances/{iid}/route` (body `{to_role_id}`) → `200 {instance}`;
+  `409` не running / нет active-шага с задачей.
+- `POST /workflow-instances/{iid}/abort` → `200 {instance}` (active задачи → canceled);
+  `409` уже завершён.
+
+### Модель
+- `workflow_instances`: state `running|waiting|completed|failed|aborted`.
+- `workflow_steps`: state `pending|active|done|failed|skipped|routed`, exit
+  `handoff|waiting|done|failed`. Append-only (UPDATE только состояния).
+- `PATCH /workflows/{id}`: `engine_enabled` в `UpdateWorkflowRequest` (name обязателен).
+
+### Решения
+- **Projection в tx**: `ProjectStepClose` вызывается из `TaskService` (UpdateTaskState/
+  HandoffTask/ResolveTask/fireWake) в том же tx — атомарность: если прожекция упала,
+  состояние задачи откатывается. Idempotent: активный шаг по задаче уже закрыт → no-op.
+- **Без новых RBAC-перм**: GET instances → `workflows.read`; POST run/resume/route/abort →
+  `workflows.update`.
+- **Attention**: 5-й источник `workflow_attention` (failed → critical, waiting → high),
+  link → `/workflows/{wf}/instances/{iid}`.
+- **Loop**: body-задача на итерацию, cap=50; **agent/task без role_id** → skipped;
+  **decision** — ветка по closure-comment ↔ connection.condition.
+
+### Тесты
+- service (`workflow_engine_service_test.go`, 12): run+chain, decision, parallel, loop,
+  agent-skipped, waiting, failed, resume, route, abort, idempotent projection,
+  transactionality, run-validation, compat-old-workflow.
+- HTTP (`workflow_engine_handlers_test.go`): `TestWorkflowEngineVertical` (run/list/get/
+  trace/route/abort + 409), `TestWorkflowEngineRBAC` (viewer read-200/run-403, operator run-201).

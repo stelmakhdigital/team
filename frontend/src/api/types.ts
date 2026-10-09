@@ -93,6 +93,11 @@ import type {
   CreateProjectResponse,
   GetProjectResponse,
   UpdateProjectRequest,
+  // P1.4: Workflow engine
+  WorkflowInstance,
+  WorkflowInstanceDetail,
+  WorkflowStep,
+  ListWorkflowInstancesResponse,
 } from '../types/api';
 
 export interface DeleteRelativeResponse {
@@ -130,6 +135,14 @@ export interface Api {
     createConnection(workflowId: number, req: CreateConnectionRequest): Promise<CreateConnectionResponse>;
     updateBlock(workflowId: number, blockId: number, req: UpdateBlockRequest): Promise<UpdateBlockResponse>;
     updateWorkflow(id: number, req: RenameRequest): Promise<RenameResponse>;
+    // P1.4: engine
+    runWorkflow(id: number, req?: { root_objective?: string }): Promise<{ instance: WorkflowInstance }>;
+    listWorkflowInstances(id: number): Promise<ListWorkflowInstancesResponse>;
+    getWorkflowInstance(instanceId: number): Promise<WorkflowInstanceDetail>;
+    getWorkflowInstanceTrace(instanceId: number): Promise<{ steps: WorkflowStep[]; total: number }>;
+    resumeWorkflowInstance(instanceId: number): Promise<{ instance: WorkflowInstance }>;
+    routeWorkflowInstance(instanceId: number, toRoleId: number): Promise<{ instance: WorkflowInstance }>;
+    abortWorkflowInstance(instanceId: number): Promise<{ instance: WorkflowInstance }>;
     deleteBlock(workflowId: number, blockId: number): Promise<DeleteWorkflowBlockResponse>;
     deleteConnection(workflowId: number, connectionId: number): Promise<DeleteWorkflowConnectionResponse>;
     deleteWorkflow(id: number): Promise<DeleteWorkflowResponse>;

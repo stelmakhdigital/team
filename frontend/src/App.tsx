@@ -6,6 +6,7 @@ import TeamsPage from './pages/TeamsPage';
 import TeamBuilderPage from './pages/TeamBuilderPage';
 import WorkflowsPage from './pages/WorkflowsPage';
 import WorkflowEditorPage from './pages/WorkflowEditorPage';
+import WorkflowInstancePage from './pages/WorkflowInstancePage';
 import MessagesPage from './pages/MessagesPage';
 import LibraryPage from './pages/LibraryPage';
 import HistoryPage from './pages/HistoryPage';
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
         <Route path="/sessions/:sessionId" element={<SessionDetailPage />} />
         <Route path="/workflows" element={<WorkflowsPage />} />
+        <Route path="/workflows/:workflowId/instances/:instanceId" element={<WorkflowInstancePage />} />
         <Route path="/workflows/:workflowId" element={<WorkflowEditorPage />} />
         <Route path="/messages" element={<MessagesPage />} />
         <Route path="/library" element={<LibraryPage />} />

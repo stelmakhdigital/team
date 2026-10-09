@@ -733,6 +733,7 @@ export function createMockAdapter(): Api {
         if (!req.name || req.name.trim() === '') throw new ApiClientError(400, 'validation_failed', 'name is required');
         wf.name = req.name;
         if (req.description !== undefined) wf.description = req.description;
+        if (req.engine_enabled !== undefined) wf.engine_enabled = req.engine_enabled;
         return { id, name: wf.name, status: 'updated' };
       },
 
@@ -773,6 +774,79 @@ export function createMockAdapter(): Api {
         db.connections = db.connections.filter((c) => c.workflow_id !== id);
         db.workflows = db.workflows.filter((w) => w.id !== id);
         return { id, status: 'deleted' };
+      },
+      // P1.4: engine (mock simulation)
+      async runWorkflow(id, req) {
+        maybeFail(); await latency();
+        const db = getDb();
+        const wf = db.workflows.find((w) => w.id === id);
+        if (!wf) throw new ApiClientError(404, 'not_found', 'Workflow not found');
+        if (!wf.engine_enabled) throw new ApiClientError(409, 'engine_disabled', 'Engine не включён для workflow');
+        const firstBlock = db.blocks.find((b) => b.workflow_id === id);
+        const inst = {
+          id: Math.max(0, ...db.workflow_instances.map((i) => i.id)) + 1,
+          workflow_id: id, state: 'running' as const,
+          root_objective: req?.root_objective ?? '',
+          current_block_id: firstBlock?.id,
+          created_at: now(), updated_at: now(),
+        };
+        db.workflow_instances = [inst, ...db.workflow_instances];
+        const stepId = Math.max(0, ...db.workflow_steps.map((s) => s.id)) + 1;
+        if (firstBlock) {
+          db.workflow_steps = [...db.workflow_steps, { id: stepId, block_id: firstBlock.id, block_type: firstBlock.type, block_label: firstBlock.label ?? '', state: 'active', entered_at: now() }];
+        }
+        return { instance: clone(inst) };
+      },
+      async listWorkflowInstances(id) {
+        maybeFail(); await latency();
+        const db = getDb();
+        const list = db.workflow_instances.filter((i) => i.workflow_id === id);
+        return { instances: clone(list), total: list.length };
+      },
+      async getWorkflowInstance(iid) {
+        maybeFail(); await latency();
+        const db = getDb();
+        const inst = db.workflow_instances.find((i) => i.id === iid);
+        if (!inst) throw new ApiClientError(404, 'not_found', 'Instance not found');
+        const steps = clone(db.workflow_steps);
+        return { instance: clone(inst), steps, active_step_ids: db.workflow_steps.filter((s) => s.state === 'active').map((s) => s.id) };
+      },
+      async getWorkflowInstanceTrace(iid) {
+        maybeFail(); await latency();
+        const db = getDb();
+        const inst = db.workflow_instances.find((i) => i.id === iid);
+        if (!inst) throw new ApiClientError(404, 'not_found', 'Instance not found');
+        const steps = clone(db.workflow_steps);
+        return { steps, total: steps.length };
+      },
+      async resumeWorkflowInstance(iid) {
+        maybeFail(); await latency();
+        const db = getDb();
+        const inst = db.workflow_instances.find((i) => i.id === iid);
+        if (!inst) throw new ApiClientError(404, 'not_found', 'Instance not found');
+        if (inst.state !== 'failed') throw new ApiClientError(409, 'instance_not_failed', 'Instance не в failed');
+        inst.state = 'running'; inst.updated_at = now();
+        return { instance: clone(inst) };
+      },
+      async routeWorkflowInstance(iid, toRoleId) {
+        maybeFail(); await latency();
+        const db = getDb();
+        const inst = db.workflow_instances.find((i) => i.id === iid);
+        if (!inst) throw new ApiClientError(404, 'not_found', 'Instance not found');
+        if (inst.state !== 'running') throw new ApiClientError(409, 'instance_not_running', 'Instance не в running');
+        void toRoleId;
+        inst.updated_at = now();
+        return { instance: clone(inst) };
+      },
+      async abortWorkflowInstance(iid) {
+        maybeFail(); await latency();
+        const db = getDb();
+        const inst = db.workflow_instances.find((i) => i.id === iid);
+        if (!inst) throw new ApiClientError(404, 'not_found', 'Instance not found');
+        if (inst.state === 'completed' || inst.state === 'aborted') throw new ApiClientError(409, 'instance_terminal', 'Instance уже завершён');
+        inst.state = 'aborted'; inst.updated_at = now(); inst.finished_at = now();
+        db.workflow_steps = db.workflow_steps.map((s) => s.state === 'active' ? { ...s, state: 'skipped', exit_kind: 'done', exited_at: now() } : s);
+        return { instance: clone(inst) };
       },
     },
 

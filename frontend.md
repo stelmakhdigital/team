@@ -438,6 +438,25 @@ exit 0. Итого `vitest` **138 passed / 21 skipped**.
 | `frontend/src/{App.tsx}` + `components/layout/AppShell.tsx` | маршруты + пункт навигации |
 | `frontend/tests/projects.test.tsx` | P1.0 (8 тестов) |
 
+### 3i. Workflow engine: close-step → next task (P1.4, 2026-10-10, T-20261009214429)
+
+Исполняемый воркфлоу: запуск, trail инстансов, resume/route/abort.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/pages/WorkflowInstancePage.tsx` (NEW) | Инстанс: state-бейдж, root objective, Route active step, trail-таблица, Resume/Abort |
+| `frontend/src/pages/WorkflowsPage.tsx` | Engine toggle (checkbox) + Run button (для engine_enabled) → навигация на instance |
+| `frontend/src/{App.tsx}` | маршрут `/workflows/:workflowId/instances/:instanceId` |
+| `frontend/src/types/api.ts` | WorkflowInstance/WorkflowStep/WorkflowInstanceDetail + `engine_enabled?` в Workflow |
+| `frontend/src/api/{types,real}.ts` + `api/mock/{adapter,data}.ts` | 7 методов (run/list/get/trace/resume/route/abort) + mock-симуляция + seed (3 инстанса) |
+| `frontend/tests/workflowEngine.test.tsx` (NEW) | 2 теста: Run button + trail/abort |
+
+Attention view рендерит `workflow_attention` (failed→critical, waiting→high) через generic `link.path`
+→ `/workflows/{wf}/instances/{iid}` (без изменений в AttentionPage).
+
+Follow-up: last-instance badge per workflow в списке (сейчас Run открывает instance), WS-события
+инстансов для live-рефетча Attention.
+
 ## 5. Команды
 ```bash
 cd frontend

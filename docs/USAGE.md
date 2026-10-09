@@ -299,6 +299,38 @@ curl "localhost:8080/api/v1/sessions/<id>/transcript?limit=200"  # вывод (s
 curl -X DELETE localhost:8080/api/v1/sessions/<id>            # stop (SIGTERM)
 ```
 
+### 5.3. Workflow engine (close-step → next task, P1.4)
+
+Воркфлоу можно **исполнять**: каждый шаг становится задачей, и закрытие задачи
+автоматически создаёт следующий шаг. Engine включается тумблером **Run** в списке
+воркфлоу (`Workflows`), далее кнопка **Run** запускает инстанс.
+
+```bash
+# включить engine (toggle в UI или PATCH)
+curl -X PATCH localhost:8080/api/v1/workflows/1 \
+  -d '{"name": "Build & Review", "engine_enabled": true}'
+
+# запустить инстанс
+ curl -X POST localhost:8080/api/v1/workflows/1/run \
+  -d '{"root_objective": "build the feature"}'          # → 201 {instance}
+
+# список / детали / trail
+ curl "localhost:8080/api/v1/workflows/1/instances"       # → {instances, total}
+ curl localhost:8080/api/v1/workflow-instances/1          # → {instance, steps, active_step_ids}
+ curl localhost:8080/api/v1/workflow-instances/1/trace    # → {steps, total}
+
+# управление
+ curl -X POST localhost:8080/api/v1/workflow-instances/1/resume   # failed → running (re-arm)
+ curl -X POST localhost:8080/api/v1/workflow-instances/1/abort    # active задачи → canceled
+ curl -X POST localhost:8080/api/v1/workflow-instances/1/route \
+  -d '{"to_role_id": 7}'                                    # active-шаг → другая роль
+```
+
+Состояния: инстанс `running | waiting | completed | failed | aborted`; шаг
+`pending | active | done | failed | skipped | routed`. UI: страница **Workflow Instance**
+(trail, Route active step, Resume/Abort). Состояния `failed`/`waiting` видны в
+**Attention** («Что требует меня»). Ссылка: `docs/contracts/api-decisions.md` §P1.4.
+
 ---
 
 ## 6. Получение результата
