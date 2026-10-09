@@ -42,38 +42,42 @@ export default function DashboardPage() {
 
       {summary.data && <SummaryCards summary={summary.data} />}
       <div className="dash-grid">
-        {tasks.loading ? (
-          <Spinner label="Loading tasks…" />
-        ) : tasks.error ? (
-          <ErrorState error={tasks.error} onRetry={tasks.refetch} />
-        ) : (
-          <TaskList tasks={tasks.data?.tasks ?? []} />
-        )}
-        {alerts.loading ? (
-          <Spinner label="Loading alerts…" />
-        ) : alerts.error ? (
-          <ErrorState error={alerts.error} onRetry={alerts.refetch} />
-        ) : (
-          <AlertsPanel alerts={alerts.data?.alerts ?? []} />
-        )}
-        {sessions.loading ? (
-          <Spinner label="Loading sessions…" />
-        ) : sessions.error ? (
-          <ErrorState error={sessions.error} onRetry={sessions.refetch} />
-        ) : (
-          <SessionGrid sessions={sessions.data?.sessions ?? []} />
-        )}
-        {metrics.loading ? (
-          <Spinner label="Loading metrics…" />
-        ) : metrics.error ? (
-          isNotFoundError(metrics.error) ? (
-            <Unavailable feature="Metrics" />
+        <div className="dash-row">
+          <div>{tasks.loading ? (
+            <Spinner label="Loading tasks…" />
+          ) : tasks.error ? (
+            <ErrorState error={tasks.error} onRetry={tasks.refetch} />
           ) : (
-            <ErrorState error={metrics.error} onRetry={metrics.refetch} />
-          )
-        ) : (
-          <MetricsChart metrics={metrics.data!} />
-        )}
+            <TaskList tasks={tasks.data?.tasks ?? []} />
+          )}</div>
+          <div>{alerts.loading ? (
+            <Spinner label="Loading alerts…" />
+          ) : alerts.error ? (
+            <ErrorState error={alerts.error} onRetry={alerts.refetch} />
+          ) : (
+            <AlertsPanel alerts={alerts.data?.alerts ?? []} />
+          )}</div>
+        </div>
+        <div className="dash-row">
+          <div>{sessions.loading ? (
+            <Spinner label="Loading sessions…" />
+          ) : sessions.error ? (
+            <ErrorState error={sessions.error} onRetry={sessions.refetch} />
+          ) : (
+            <SessionGrid sessions={sessions.data?.sessions ?? []} />
+          )}</div>
+          <div>{metrics.loading ? (
+            <Spinner label="Loading metrics…" />
+          ) : metrics.error ? (
+            isNotFoundError(metrics.error) ? (
+              <Unavailable feature="Metrics" />
+            ) : (
+              <ErrorState error={metrics.error} onRetry={metrics.refetch} />
+            )
+          ) : (
+            <MetricsChart metrics={metrics.data!} />
+          )}</div>
+        </div>
       </div>
     </div>
   );

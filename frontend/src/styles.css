@@ -105,22 +105,23 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
   margin-bottom: 16px;
 }
 
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 8px; }
-.stat-card { margin: 0; }
+/* U2 — summary row: single equal-height row of stat cards. */
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 8px; align-items: stretch; }
+.stat-card { margin: 0; height: 100%; display: flex; flex-direction: column; }
 .stat-label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .stat-value { font-size: 1.8rem; font-weight: 700; margin: 4px 0; }
 .stat-sub { color: var(--muted); font-size: 0.78rem; }
 .updated-at { color: var(--muted); font-size: 0.75rem; margin-bottom: 14px; }
 
-.dash-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; align-items: start; }
-.dash-grid .card { margin-bottom: 0; }
-.dash-grid .card + .card { margin-top: 0; }
-.dash-grid .card:nth-child(odd) { grid-column: 1; }
-.dash-grid .card:nth-child(even) { grid-column: 2; }
+/* U2 — dashboard: explicit rows, each row a 3fr/2fr grid with equal-height cells.
+   Removes the old `align-items: start` staircase; row cards share one height. */
+.dash-grid { display: flex; flex-direction: column; gap: 16px; }
+.dash-row { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; align-items: stretch; }
+.dash-row > * { min-width: 0; }
+.dash-row .card { margin-bottom: 0; height: 100%; }
 
 @media (max-width: 1100px) {
-  .dash-grid { grid-template-columns: 1fr; }
-  .dash-grid .card:nth-child(odd), .dash-grid .card:nth-child(even) { grid-column: auto; }
+  .dash-row { grid-template-columns: 1fr; }
 }
 
 /* ---------- table ---------- */
