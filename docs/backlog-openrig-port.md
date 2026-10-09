@@ -4,7 +4,8 @@
 карточка с scope и критериями; исполнитель — pipeline (worker→planner→judge).
 Статусы: `new` → `in_progress` → `done` (ссылка на T-id).
 
-Порядок выполнения: P0.1 → P0.2 → P0.3 → **P1.0 Projects** → P1.4 → P1.5 → P1.6 → P2.* → P3.*.
+Порядок выполнения: P0.1 → P0.2 → P0.3 → **P1.0 Projects** → P1.4 → P1.5 → P1.6 →
+P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3.*.
 
 ---
 
@@ -133,6 +134,39 @@
 - **Критерии**: миграция, loop-тесты (trigger + dедуп), UI-список джобов
   (Settings или отдельная панель) + тесты, OpenAPI, docs.
 
+### P1.7 Session briefing (startup context, ориентир OpenRIG «what a seat knows when it arrives») — `new`
+- **Контекст**: агент не должен стартовать «в пустоту»: у OpenRIG сид получает
+  собранный context pack при запуске/возобновлении (позиция в очереди, интент,
+  последние решения, статус соседей).
+- **Scope**: при запуске сессии (и при handover — P1.5) демон автоматически
+  собирает **briefing**: тело привязанной задачи (+ parent), spec команды
+  (сегменты/роли/relatives компактно), проект (P1.0: path, git-статус, recent
+  commits/ветка), open tasks проекта, последние N сообщений роли, последние
+  алерты; briefing передаётся агенту (pi: в конфиг/промпт сессии; process/tmux:
+  аргумент/файл). Кнопка «показать брифинг» в UI запуска сессии + override/
+  добавление вручную.
+- **Критерии**: сборщик в service + тесты (комбинации источников, пустые
+  источники), интеграция в создание сессии и handover, UI-просмотр + тест,
+  OpenAPI (напр. `POST /sessions/{id}/briefing/preview`), docs.
+- **Зависимости**: усиливает P1.5 (handover передаёт briefing наследнику);
+  проект-часть — после P1.0 (до — из working_dir).
+
+### P1.8 Health/Doctor-панель (ориентир OpenRIG troubleshooting surface) — `new`
+- **Контекст**: у OpenRIG — «the surface that shows the truth»: что daemon/tmux/
+  seat/БД думают о состоянии и где расходятся; workspace doctor — 8-check.
+- **Scope**: `GET /diagnostics` (+ `POST /diagnostics/run` для полных проверок):
+  демон (uptime, version, git-хед), БД (ping, размер, применённые миграции vs
+  доступные), runtime-адаптеры (tmux жив? pi CLI доступен?), конфиг (хэш, ключи
+  с pending restart, secret-статус), **расхождения** (БД говорит active, а
+  процесса нет; сессия stopped, но tmux-сессия жива — bounded-список findings
+  с severity), watchdog-статус, disk-space по ключевым путям. UI: страница
+  **Health** (или вкладка Settings): findings ok/warn/fail, повторная проверка,
+  drill-down на сущность.
+- **Критерии**: каждый check — отдельная функция + тест (mock-состояния,
+  включая расхождения), UI + тесты, OpenAPI, docs; fail-findings → Attention
+  (P0.1) как алерт.
+- **Зависимости**: P0.1 (куда падают fail-findings).
+
 ---
 
 ## P2 — удобства
@@ -170,6 +204,43 @@
 - **Критерии**: логика по runtime-адаптерам, тесты, UI-статус доставки,
   OpenAPI, docs.
 
+### P2.12 CLI-клиент `teamctl` (ориентир OpenRIG «CLI — surface для агентов») — `new`
+- **Контекст**: golden rule OpenRIG: CLI — поверхность для агентов, UI — для
+  людей; оба читают те же записи. У нас — только REST (curl-магия).
+- **Scope**: CLI (`backend/cmd/teamctl`, отдельный бинарь): `task list/claim/
+  update/handoff/block`, `session list/transcript/capture/stop`, `attention
+  list`, `whoami`, `config get/set` — всё с `--json` (агенты парсят), auth через
+  env/API-key, поверх существующих HTTP-эндпоинтов (клиент, не обход).
+- **Критерии**: покрытие главных сценариев агента, `--json` на всё, тесты
+  (httptest), README-секция «Для агентов» + USAGE.md, без дублирования
+  бизнес-логики.
+
+### P2.13 Starter bundles (ориентир OpenRIG RigBundle) — `new`
+- **Scope**: готовые стартеры как pin'нутые library-предметы: напр. «dev-team:
+  lead+worker+reviewer (pi-* specs)» + связанный workflow; `apply` в один клик
+  (селект проекта, если P1.0 готов); метка `starter` в UI Library, защита от
+  удаления (pin), версия стартера.
+- **Критерии**: 2–3 стартера (fixture-снапшоты), apply-тесты, UI-метка +
+  скриншот, секция «Быстрый старт» в USAGE.md.
+
+### P2.14 Cost tracking (токены → деньги) — `new`
+- **Scope**: цены моделей в конфиге (config-ключи, напр. `cost.models.<name>.
+  in_usd_per_mtok` / `out_usd_per_mtok`); стоимость per session (из уже
+  парсящихся usage-токенов), per task (по привязанным сессиям), per project
+  (P1.0), период; в Dashboard metrics (график $), в Session/Task Detail;
+  бюджет-порог → watchdog-алерт (связка с P1.6). Честность: «оценка по
+  заявленным ценам», а не факт.
+- **Критерии**: расчёт в service + тесты (нет usage → «нет данных», не 0),
+  UI + скриншоты, конфиг-ключи в Settings, OpenAPI, docs.
+
+### P2.15 `whoami` для агентов — `new`
+- **Scope**: `GET /whoami` (по API-ключу/роли сессии): моя роль+команда, мои
+  pending/in-progress/blocked задачи, что ждёт меня (входящие), кто мой
+  upstream/downstream (relatives), статус моей сессии. Компактный JSON для
+  агента (используется `teamctl whoami`, P2.12).
+- **Критерии**: эндпоинт + тесты (разные роли/ключи), OpenAPI, docs;
+  реализуется совместно с P2.12 (одна итерация).
+
 ---
 
 ## P3 — долгосрочные проекты (если направление подтвердится)
@@ -201,6 +272,21 @@
 - **Критерии**: модель, API, UI (панель входящих на сессии/роли), тесты,
   OpenAPI, docs.
 
+### P3.16 Mode/permission posture (ориентир OpenRIG rig mode) — `new`
+- **Контекст**: у OpenRIG — осознанное переключение «кто рулит»: human-led vs
+  delegated по скоупам, effective-mode цитируем. Наш ответ на «агенты не
+  спрашивают, но важные решения — должны».
+- **Scope**: режим (posture) на уровне команды и/или сессии: `delegated` (авто)
+  vs `human-led` (с подтверждением); список «чувствительных операций» (delete,
+  force-операции, config-смены, секреты, работа вне project-path); в human-led
+  такие операции уходят в Attention как **human-request** (вид `human_request`):
+  описание операции, обратимость, approve/deny-кнопки; решение в audit;
+  effective-posture — badge на команде/сессии.
+- **Критерии**: модель (posture + sensitive-registry), interceptor в HTTP-слое
+  (тесты: delegated проходит, human-led паркует + approve продолжает), UI
+  (переключатель + human-request-деталка), OpenAPI, api-decisions.md.
+- **Зависимости**: P0.1 (Attention с human-request).
+
 ---
 
 ## Не переносить (решение зафиксировано)
@@ -209,4 +295,9 @@
 ## Зависимости
 - P0.3 (wake=watchdog) — опционально на P1.6 (timer/task-ветки работают без него).
 - P1.5(b) handover — проще после P3.12 (snapshots), но не требует его.
+- P1.7 briefing — усиливает P1.5; проект-часть — после P1.0.
+- P1.8 doctor — fail-findings падают в Attention (P0.1).
+- P2.15 whoami — вместе с P2.12 teamctl (одна итерация).
+- P2.14 cost — алерт по бюджету — после P1.6.
+- P3.16 posture — после P0.1 (human-request в Attention).
 - P2.11 — после проверки, реально ли runtime-адаптеры дают capture (P2.8 первый).
