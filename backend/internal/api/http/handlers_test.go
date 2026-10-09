@@ -63,6 +63,7 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 	if err != nil {
 		t.Fatalf("config service: %v", err)
 	}
+	attention := service.NewAttentionService(db, repository.NewStores(db))
 	bus := service.NewEventBus()
 	tsvc.Bus = bus
 	ssvc.Bus = bus
@@ -80,6 +81,7 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 		Metrics:   msvcMetrics,
 		Auth:      authSvc,
 		Config:    cvc,
+		Attention: attention,
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)

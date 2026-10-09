@@ -21,6 +21,7 @@ type TaskFilter struct {
 	ParentTaskID    *int64
 	ActiveOnly      bool // pending|in_progress|blocked
 	States          []models.TaskState
+	ClosureReason   *string // filter by queue_tasks.closure_reason (P0.1 attention: escalated)
 	Limit           int
 	Offset          int
 }
@@ -96,6 +97,9 @@ func (r *TaskRepo) List(ctx context.Context, tx DBTX, f TaskFilter) ([]*models.T
 			args = append(args, string(s))
 		}
 		addCond(fmt.Sprintf("state IN (%s)", joinPh(ph)))
+	}
+	if f.ClosureReason != nil {
+		addCond("closure_reason = ?", *f.ClosureReason)
 	}
 
 	where := ""

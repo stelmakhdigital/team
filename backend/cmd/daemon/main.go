@@ -109,6 +109,9 @@ func run() error {
 	wd.Bus = bus
 	alerts := &service.AlertStoreRef{Events: stores.Watchdog, Teams: stores.Teams, DB: db}
 
+	// P0.1 — Attention view ("Что требует меня")
+	attention := service.NewAttentionService(db, stores)
+
 	// Slice 4 — Message Center
 	msvc := service.NewMessageService(db, stores)
 	msvc.Bus = bus
@@ -132,7 +135,7 @@ func run() error {
 		Sessions: ssvc, Alerts: alerts, Messages: msvc,
 		Workflows: wsvc, Events: bus,
 		Library: lservice, Audit: aservice, Metrics: msvcMetrics,
-		Auth: authSvc, Config: cvc,
+		Auth: authSvc, Config: cvc, Attention: attention,
 	})
 
 	server := &http.Server{

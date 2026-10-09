@@ -27,6 +27,8 @@ type Options struct {
 	Auth *service.AuthService
 	// U4 — Config (Settings)
 	Config *service.ConfigService
+	// P0.1 — Attention view ("Что требует меня")
+	Attention *service.AttentionService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -37,7 +39,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	}
 	h := &handlers{svc: svc, tsvc: tsvc, ssvc: opts.Sessions, msvc: opts.Messages,
 		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
-		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config}
+		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention}
 
 	mux := http.NewServeMux()
 
@@ -129,6 +131,9 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	// Slice 5b — History Viewer: audit log + metrics
 	mux.HandleFunc("GET /api/v1/audit", h.ListAudit)
 	mux.HandleFunc("GET /api/v1/dashboard/metrics", h.DashboardMetrics)
+
+	// P0.1 — Attention view ("Что требует меня"): единый срез требующего действия
+	mux.HandleFunc("GET /api/v1/attention", h.ListAttention)
 
 	// U4 — Config (Settings)
 	mux.HandleFunc("GET /api/v1/config", h.ListConfig)

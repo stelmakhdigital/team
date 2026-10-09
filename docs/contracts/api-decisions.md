@@ -514,3 +514,55 @@ History Viewer (audit + transcripts), Prometheus `/metrics`.
   - **task** — `title`/`priority` задаются при create; нет внешних ID-зависимостей, но
     task-объект — единица работы с историей/аудитом; изменение title/priority в полёте
     не предусмотрено контрактом (изменения — через state/handoff). Оставляем read-only.
+
+## P0.1 — Attention view «Что требует меня» (backend, 2026-10-09)
+
+`GET /api/v1/attention?limit=&offset=` — единый операторский срез: всё, что требует
+действия человека. Response `{ total, items[] }`; item = `{ kind, id, severity,
+title, detail, created_at, suggested_action, link{path,label} }`.
+
+**Источники (реальные данные, без новых миграций):**
+- **`task_blocked`** — все задачи `state = 'blocked'`. severity = `high`.
+- **`task_escalated`** — незавершённые (pending/in_progress/blocked) задачи с
+  `queue_tasks.closure_reason = 'escalation'`. severity = `critical`.
+  *Дедуп:* задача, которая одновременно blocked и escalated, эмитится только как
+  `task_escalated` (более высокий severity), не дублируется.
+  *Решение по детекции:* берём `closure_reason` с самого task (колонка), не парсим
+  `history_status` — проще, один query, нет N+1. Если позже нужна детекция по
+  комментариям/handoff — `history_status.closure_reason` уже несёт это на запись.
+- **`alert_unread`** — watchdog-алерты `is_read = 0` (флаг уже есть — watchdog events
+  read). severity по типу: `blocked`→`critical`, `stale`→`high`, остальные→`normal`.
+
+**Оставлены в схеме, но сейчас пусты/отсутствуют (документировано):**
+- **`workflow_attention`** — P1.4 (workflow status/attention) ещё не существует; вид
+  в enum/схеме, возвращает ничего до реализации P1.4.
+- **`session_failed`** — **опущено**: у `sessions` нет модели «непрочитано» (нет
+  `is_read`-флага), отличить «свежий failed, требует внимания» от «старый failed»
+  невозможно → не вводим, чтобы не засыпать оператор шумом. Добавим вместе с
+  read-флагом на сессиях (отдельный бэклог).
+
+**Сортировка:** severity desc (critical > high > normal) → `created_at` asc
+(старое требует внимания дольше). Для task — «since» = `blocked_since`/`updated_at`
+(escalated), для alert — `created_at` алерта.
+
+**Bounded:** `limit` (default 50, max 200) / `offset` (default 0) поверх уже
+отсортированного набора; `total` = полное число элементов (для badge-счётчика).
+Внутренняя выборка по источникам капируется (500) как защита.
+
+**RBAC** (`requiredPermission`): `GET /attention` → **`dashboard.read`** (как
+dashboard/watchdog) — read-only операторский вид, доступен **viewer** (viewer имеет
+все `*.read`). Новая permission не вводим — minimal, без смены схемы.
+
+**Service**: `AttentionService` (new, `internal/service/attention_service.go`) —
+агрегирует через существующие `TaskRepo.List` (+новый фильтр `ClosureReason`),
+`WatchdogRepo.List` (+новый фильтр `UnreadOnly`), `TeamRepo.GetByID` (team-name в
+detail). Repo-изменения аддитивные (nil/false по умолчанию → поведение существующих
+вызовов не меняется).
+
+**OpenAPI**: +1 операция (`listAttention`), schemas `ListAttentionResponse`/
+`AttentionItem`/`AttentionLink`; всего 64 ops; `check_openapi.py` PASS.
+
+**Тесты**: service (`TestAttentionAggregation`: комбинации источников, dedup,
+severity-сортировка, created_at-asc в рамках severity, limit/offset/total, read-
+алерт исключён; `TestAttentionEmpty`: total=0 + items=[]) +
+HTTP (`TestAttentionEndpoint`: 401 без ключа, 200 admin, >=2 items, limit, **200 viewer**).

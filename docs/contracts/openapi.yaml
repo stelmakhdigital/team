@@ -1197,6 +1197,23 @@ paths:
           description: WebSocket switched protocol
 
   # ---- U4: Config (Settings; контракт .pi/pipeline/T-20261009005500/config-contract.md) ----
+  /api/v1/attention:
+    get:
+      operationId: listAttention
+      summary: Attention view — «Что требует меня» (blocked/escalated задачи + непрочитанные watchdog-алерты)
+      tags: [attention]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: Срез требующего действия (severity desc → created_at asc)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListAttentionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/config:
     get:
       operationId: listConfig
@@ -2381,6 +2398,32 @@ components:
         value: { type: string, description: "Значение (secret — маскируется: sk-…/***)" }
         feeds_key: { type: string, example: logging.level }
         source_active: { type: boolean, description: env — победивший слой для этого ключа }
+    ListAttentionResponse:
+      type: object
+      required: [total, items]
+      properties:
+        total: { type: integer }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AttentionItem' }
+    AttentionItem:
+      type: object
+      required: [kind, id, severity, title, detail, created_at, suggested_action, link]
+      properties:
+        kind: { type: string, enum: [task_blocked, task_escalated, alert_unread, workflow_attention, session_failed] }
+        id: { type: string }
+        severity: { type: string, enum: [critical, high, normal] }
+        title: { type: string }
+        detail: { type: string }
+        created_at: { type: string, format: date-time }
+        suggested_action: { type: string }
+        link: { $ref: '#/components/schemas/AttentionLink' }
+    AttentionLink:
+      type: object
+      required: [path, label]
+      properties:
+        path: { type: string }
+        label: { type: string }
     ListConfigResponse:
       type: object
       required: [meta, sections]

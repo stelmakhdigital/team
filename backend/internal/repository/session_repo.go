@@ -344,8 +344,9 @@ func (r *WatchdogRepo) Create(ctx context.Context, tx DBTX, e *models.WatchdogEv
 }
 
 type AlertFilter struct {
-	TeamID *int64
-	Limit  int
+	TeamID     *int64
+	UnreadOnly bool // P0.1 attention: only is_read = 0
+	Limit      int
 }
 
 func (r *WatchdogRepo) List(ctx context.Context, tx DBTX, f AlertFilter) ([]*models.WatchdogEvent, int, error) {
@@ -354,6 +355,9 @@ func (r *WatchdogRepo) List(ctx context.Context, tx DBTX, f AlertFilter) ([]*mod
 	if f.TeamID != nil {
 		conds = append(conds, "team_id = ?")
 		args = append(args, *f.TeamID)
+	}
+	if f.UnreadOnly {
+		conds = append(conds, "is_read = 0")
 	}
 	where := ""
 	if len(conds) > 0 {

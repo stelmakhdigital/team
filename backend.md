@@ -67,6 +67,7 @@
 | 8 DELETE workflows (контракт 20 §2.6–2.8, R6.4) | DONE (каскад связи→блоки→workflow в tx; RBAC `workflows.update`; 404; live + интеграционный `slice 5c`) |
 | 9 OpenAPI-спека (весь API) | DONE (openapi.yaml 3.0.3, 57 ops 1-в-1; `scripts/check_openapi.py`) |
 | U4 Backend: Config subsystem (Settings, layered resolution, overrides, RBAC) | DONE (backend; openapi 60 ops) |
+| P0.1 Attention view «Что требует меня» (`GET /attention`: blocked/escalated + unread alerts) | DONE (backend; openapi 64 ops; RBAC viewer-ok) |
 | Фронтенд F1–F15 + UI-редизайн R1–R5 (граф React Flow, edit, YAML, токены, R4 live-терминал, R5 рефакторинг) | DONE (зона лида) |
 
 ### Осталось (не блокирует)
@@ -167,6 +168,19 @@ OpenAPI: +3 операции (всего 63); `check_openapi.py` PASS.
 `agent_spec` + внешние ссылки (chatroom/relatives/session/alert) → rename ломает связи
 (каскад, out of scope); task title/priority задаются при create, изменения в полёте
 не предусмотрены контрактом. Зафиксировано в `api-decisions.md` (U3-rename) + `frontend.md` §3b.
+
+### 3d. P0.1 — Attention view «Что требует меня» (backend, 2026-10-09)
+`GET /api/v1/attention?limit=&offset=` → `{ total, items[] }` (item: kind/id/severity/title/detail/created_at/suggested_action/link).
+- **Источники** (без миграций): `task_blocked` (state=blocked, high), `task_escalated`
+  (closure_reason=escalation + non-terminal, critical, дедуп с blocked), `alert_unread`
+  (watchdog is_read=0; severity по типу blocked→critical / stale→high / else normal).
+- **Пустые/отсутствующие (документация)**: `workflow_attention` (P1.4 ещё нет),
+  `session_failed` (нет read-модели на сессиях → опущено).
+- **Sort** severity desc → created_at asc; **limit** default 50/max 200; **RBAC** = `dashboard.read` (viewer-ok).
+- **Код**: `internal/service/attention_service.go` (new) + аддитивные фильтры `TaskFilter.ClosureReason`
+  и `AlertFilter.UnreadOnly`; handler `ListAttention` + route + RBAC branch.
+- **OpenAPI**: +1 op (`listAttention`) → 64 ops, `check_openapi.py` PASS.
+- **Тесты**: `TestAttentionAggregation`+`TestAttentionEmpty` (service), `TestAttentionEndpoint` (HTTP: 401/200 admin/limit/200 viewer).
 
 ## 4. Как проверить
 ```

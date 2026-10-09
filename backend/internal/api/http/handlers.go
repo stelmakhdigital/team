@@ -25,6 +25,8 @@ type handlers struct {
 	events *service.EventBus
 	// U4 — Config (Settings)
 	cvc *service.ConfigService
+	// P0.1 — Attention view
+	attention *service.AttentionService
 }
 
 func limitOffset(q url.Values) (int, int) {
@@ -37,6 +39,20 @@ func limitOffset(q url.Values) (int, int) {
 		offset = 0
 	}
 	return limit, offset
+}
+
+// ---------- P0.1 — Attention ----------
+
+// ListAttention — GET /api/v1/attention?limit=&offset=
+// Единый срез «требует внимания»: blocked/escalated задачи + непрочитанные watchdog-алерты.
+func (h *handlers) ListAttention(w http.ResponseWriter, r *http.Request) {
+	limit, offset := limitOffset(r.URL.Query())
+	res, err := h.attention.List(r.Context(), limit, offset)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 // ---------- Teams ----------
