@@ -222,6 +222,7 @@ export default function WorkflowEditorPage() {
           <button
             className="btn btn-danger"
             title="Delete this workflow"
+            aria-label="Delete workflow"
             onClick={async () => {
               if (!window.confirm(`Delete workflow "${workflow.name}"?`)) return;
               try {

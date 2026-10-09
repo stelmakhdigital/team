@@ -177,7 +177,7 @@ export default function LibraryPage() {
               <h3>
                 {detail.data.item.name} <span className="badge">v{detail.data.item.version}</span>
                 {libRename === null ? (
-                  <button className="btn btn-small lib-rename-btn" title="Rename item" onClick={() => setLibRename(detail.data!.item.name)}>
+                  <button className="btn btn-small lib-rename-btn" title="Rename item" aria-label="Rename item" onClick={() => setLibRename(detail.data!.item.name)}>
                     ✎
                   </button>
                 ) : null}

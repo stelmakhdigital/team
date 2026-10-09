@@ -112,7 +112,7 @@ function ConfigKeyRow({ kv, onChanged }: { kv: ConfigKeyView; onChanged: () => v
         ) : (
           <span className="cfg-inline-actions">
             {kv.editable ? (
-              <button className="btn btn-small" onClick={openEdit} title="Edit (set override)">✎</button>
+              <button className="btn btn-small" onClick={openEdit} title="Edit (set override)" aria-label={`Edit ${kv.key}`}>✎</button>
             ) : (
               <span className="muted small" title="read-only">🔒</span>
             )}
