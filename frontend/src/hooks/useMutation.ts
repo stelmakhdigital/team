@@ -11,25 +11,37 @@ export function useMutation<TArgs extends unknown[], TResult>(
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<MutationState['error']>(null);
   const alive = useRef(true);
+  // Re-entry guard: a second mutate() while one is in flight returns the same
+  // promise instead of firing a duplicate request. Defense-in-depth on top of
+  // the `disabled={pending}` button pattern — makes "no double-submit" hold
+  // even if a click lands before React re-renders the disabled attribute.
+  const inFlight = useRef<Promise<TResult> | null>(null);
 
   const mutate = useCallback(
-    async (...args: TArgs): Promise<TResult> => {
+    (...args: TArgs): Promise<TResult> => {
+      if (inFlight.current) return inFlight.current;
       setPending(true);
       setError(null);
-      try {
-        const res = await fn(...args);
-        return res;
-      } catch (e: unknown) {
-        if (alive.current) {
-          const status = typeof (e as { status?: number })?.status === 'number' ? (e as { status: number }).status : 0;
-          const code = (e as { code?: string })?.code ?? 'error';
-          const message = e instanceof Error ? e.message : 'Unknown error';
-          setError({ status, code, message });
+      const run = (async () => {
+        try {
+          return await fn(...args);
+        } catch (e: unknown) {
+          if (alive.current) {
+            const status = typeof (e as { status?: number })?.status === 'number' ? (e as { status: number }).status : 0;
+            const code = (e as { code?: string })?.code ?? 'error';
+            const message = e instanceof Error ? e.message : 'Unknown error';
+            setError({ status, code, message });
+          }
+          throw e;
+        } finally {
+          if (alive.current) {
+            setPending(false);
+            inFlight.current = null;
+          }
         }
-        throw e;
-      } finally {
-        if (alive.current) setPending(false);
-      }
+      })();
+      inFlight.current = run;
+      return run;
     },
     [fn],
   );

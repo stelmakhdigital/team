@@ -59,7 +59,11 @@ function maybeFail(): void {
 }
 
 function latency(): Promise<void> {
-  const ms = 120 + Math.random() * 280;
+  // Dev/test override: `window.__MOCK_LATENCY_MS = <ms>` makes every mock request
+  // take that long (used to capture a mutation button's pending/loading state).
+  const override =
+    typeof window !== 'undefined' ? (window as { __MOCK_LATENCY_MS?: number }).__MOCK_LATENCY_MS : undefined;
+  const ms = typeof override === 'number' ? override : 120 + Math.random() * 280;
   return new Promise((r) => setTimeout(r, ms));
 }
 
