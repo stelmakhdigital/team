@@ -247,9 +247,48 @@ X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/
 - `.settings-sections-grid > * { min-width: 0 }` + `@media ≤640 { minmax(0,1fr) }` (media ПОСЛЕ базового правила, каскад) — cfg-таблица Settings (6 колонок) скроллится в `.table-wrap`, 440px-трек не проталкивает грид шире вьюпорта (фикс /settings @375).
 - `.filters { flex-wrap: wrap }` — селекты не вылезают на узких.
 
-**Follow-up (320px, некритично — ниже основных 360/375):** Dashboard `.metric` (SummaryCards) и `.library-save-row` (селект+кнопка) — можно minmax/wrap.
+**Follow-up (320px) — закрыт в P4** (§3d): Dashboard `.metric` (SummaryCards) + `.library-save-row` фиксированы в `@media ≤480` (single-column / wrap).
 
 Мобильные скриншоты в этой итерации не переснимались; десктопные зоны: `_workspace/ui-screenshots/after-2560x1440-*.png` (layout по брейкпоинтам ≥768 идентичен).
+
+### 3d. UX-полиш P1–P4 (2026-10-09, T-20261009124055) — хвост UX-прохода
+
+**P1 — Team Builder: PageSkeleton.** Initial load `/teams/:id` (topology) был full-page `<Spinner>` → теперь `<PageSkeleton rows={5}>` (единый паттерн X2). По-панельные спиннеры (topology canvas, ConfigPanel) оставлены — допустимо по spec. Тест: `tests/teamBuilderSkeleton.test.tsx` (удерживает getTopology через mock-latency, проверяет `.page-skeleton` без `.spinner-wrap`).
+
+**P2 — mutation: no-double-submit + артефакты.** Паттерн disabled+pending теперь с re-entry-guard в `useMutation`: повторный `mutate()` во время in-flight возвращает тот же in-flight promise (не дублирует запрос) — держится даже если клик попал до ререндера disabled. Тест: `tests/mutation.test.tsx` (2: hook-level guard + button disabled/indicator/re-click). Скриншот loading-кнопки (Save → «Saving…» + disabled, mock-задержка 4s): `_workspace/ui-screenshots/ux-mutation-pending-2560x1440.png`.
+
+**P3 — контраст статусов: верификация WCAG AA.** Скрипт `frontend/scripts/contrast-check.mjs` (relative-luminance WCAG 2.1, exit 0/1 для CI) прогоняет все статусные цвета. Цели: норм. текст ≥4.5:1, non-text (border/icon) ≥3:1. **2 пары не проходили → исправлено в styles.css:**
+- белый на `--accent #4f8ef7` (`.btn-primary`) = 3.21:1 → `--accent-strong #2563eb` (5.17:1); hover темнеет (brightness .92), чтобы остаться ≥4.5.
+- белый на `--red #f85149` (`.badge-sev-critical`) = 3.35:1 → `--red-strong #cf222e` (5.36:1).
+
+Полная таблица (все 22 пары, после исправлений — `node frontend/scripts/contrast-check.mjs`):
+
+| Пара | fg / bg | ratio | цель | AA |
+|---|---|---|---|---|
+| Text на странице | `#e6edf3`/`#0d1117` | 16.02:1 | 4.5 | ✅ |
+| Text на панели | `#e6edf3`/`#161b22` | 14.64:1 | 4.5 | ✅ |
+| Muted на странице | `#8b949e`/`#0d1117` | 6.15:1 | 4.5 | ✅ |
+| Muted на панели | `#8b949e`/`#161b22` | 5.62:1 | 4.5 | ✅ |
+| Muted на бейдже | `#8b949e`/`#1c2330` | 5.12:1 | 4.5 | ✅ |
+| Green (ok) на бейдже | `#3fb950`/`#1c2330` | 6.20:1 | 4.5 | ✅ |
+| Green (ok) на панели | `#3fb950`/`#161b22` | 6.81:1 | 4.5 | ✅ |
+| Red (error) на бейдже | `#f85149`/`#1c2330` | 4.70:1 | 4.5 | ✅ |
+| Red (error) на панели | `#f85149`/`#161b22` | 5.16:1 | 4.5 | ✅ |
+| Yellow (warn) на бейдже | `#d29922`/`#1c2330` | 6.24:1 | 4.5 | ✅ |
+| Yellow (warn) на панели | `#d29922`/`#161b22` | 6.85:1 | 4.5 | ✅ |
+| Accent (info) на бейдже | `#4f8ef7`/`#1c2330` | 4.91:1 | 4.5 | ✅ |
+| Accent (info) на панели | `#4f8ef7`/`#161b22` | 5.39:1 | 4.5 | ✅ |
+| Accent на cfg-override chip | `#4f8ef7`/`#12233b` | 4.92:1 | 4.5 | ✅ |
+| Purple на бейдже | `#a371f7`/`#1c2330` | 4.70:1 | 4.5 | ✅ |
+| Sky на бейдже (cfg-source-file) | `#38bdf8`/`#1c2330` | 7.36:1 | 4.5 | ✅ |
+| Yellow на mode-mock | `#d29922`/`#3b2f12` | 5.20:1 | 4.5 | ✅ |
+| Green на mode-real | `#3fb950`/`#10291a` | 6.10:1 | 4.5 | ✅ |
+| White на primary-кнопке | `#ffffff`/`#2563eb` | 5.17:1 | 4.5 | ✅ |
+| White на critical-бейдже | `#ffffff`/`#cf222e` | 5.36:1 | 4.5 | ✅ |
+| Dim border (transcript) | `#64748b`/`#161b22` | 3.63:1 | 3.0 | ✅ |
+| Panel border (декор) | `#2d333b`/`#0d1117` | 1.49:1 | n/a | ℹ️ декор (1.4.11 n/a) |
+
+**P4 — мобильный 320px (follow-up §3c).** Overflow-аудит (Playwright, scrollWidth vs viewport, 12 routes @320/360): реальных виновников всего 2 — Dashboard SummaryCards (`.metrics-grid` minmax(250px) > ~240px контента) и `.library-save-row`. Workflow Editor canvas, Settings grid, Team Builder topology — уже чисты (stack/scroll в своих контейнерах; топология на узких = Table view, граф скрыт). Фикс `@media ≤480`: `.metrics-grid` → 1 колонка; `.library-save-row` → wrap + input `min-width:0/flex:1`. **Результат: 320 и 360px — 0 горизонтального overflow на всех 12 routes.** Скриншоты (4 страницы @320): `_workspace/ui-screenshots/ux-mobile-320x720-{dashboard,library,workflow-editor,team-builder}.png`.
 
 ## 4. Ключевые файлы
 | Файл | Назначение |
