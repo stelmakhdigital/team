@@ -451,6 +451,10 @@ export function createMockAdapter(): Api {
         const db = getDb();
         const team = db.teams.find((t) => t.id === id);
         if (!team) throw new ApiClientError(404, 'not_found', `Team ${id} not found`);
+        // U3: persist team meta (name/description) — mirrors backend SaveTopology Name/Description.
+        if (req?.name) team.name = req.name;
+        if (req?.description !== undefined) team.description = req.description;
+        team.updated_at = now();
         const validation = validateTeamTopology(id);
         if (req?.save_to_library) {
           const libraryId = nextId();

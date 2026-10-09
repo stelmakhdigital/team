@@ -556,6 +556,10 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .badge-type-role { color: var(--green); border-color: var(--green); }
 .badge-type-segment { color: var(--yellow); border-color: var(--yellow); }
 .detail-pane { height: fit-content; }
+
+/* U3: team meta inline edit (compact form) */
+.team-meta-edit { max-width: 520px; display: flex; flex-direction: column; gap: 10px; }
+.team-meta-edit label { display: flex; flex-direction: column; gap: 4px; }
 .spec-pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 0.78rem; overflow-x: auto; }
 .library-save-row { display: flex; gap: 8px; align-items: center; }
 .library-save-row .input { min-width: 180px; }

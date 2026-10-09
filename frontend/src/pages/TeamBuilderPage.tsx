@@ -126,6 +126,28 @@ export default function TeamBuilderPage() {
   const validate = useMutation(() => api.teams.validateTopology(id));
   const save = useMutation(() => api.teams.saveTopology(id, { save_to_library: false }));
 
+  // U3: team meta (name / description) edit — API-supported via saveTopology Name/Description.
+  const [metaEdit, setMetaEdit] = useState<{ name: string; description: string } | null>(null);
+  const saveMeta = useMutation(
+    (req: { name: string; description: string }) =>
+      api.teams.saveTopology(id, { name: req.name, description: req.description || undefined, save_to_library: false }),
+  );
+  const onSaveMeta = async () => {
+    if (!metaEdit) return;
+    if (!metaEdit.name.trim()) {
+      toast('error', 'Team name is required');
+      return;
+    }
+    try {
+      await saveMeta.mutate({ name: metaEdit.name.trim(), description: metaEdit.description.trim() });
+      toast('success', 'Team saved');
+      setMetaEdit(null);
+      commitRefetch();
+    } catch {
+      toast('error', errorMessage(saveMeta.error ?? new Error('Save failed')));
+    }
+  };
+
   const onRoleMoved = async (roleId: number, pos: { x: number; y: number }) => {
     try {
       await moveRole.mutate(roleId, { position: pos });
@@ -265,8 +287,31 @@ export default function TeamBuilderPage() {
           <button className={editMode ? 'btn btn-primary' : 'btn'} onClick={() => setEditMode((v) => !v)} aria-pressed={editMode}>
             {editMode ? '✓ Done' : '✎ Edit'}
           </button>
+          <button className={metaEdit ? 'btn btn-primary' : 'btn'} onClick={() => setMetaEdit(metaEdit ? null : { name: data.team.name, description: data.team.description ?? '' })} aria-pressed={!!metaEdit} title="Edit team name / description">
+            ✎ Team
+          </button>
         </div>
       </div>
+
+      {metaEdit && (
+        <div className="card team-meta-edit">
+          <h2>Team meta</h2>
+          <label className="muted small">
+            Name
+            <input className="input" value={metaEdit.name} onChange={(e) => setMetaEdit({ ...metaEdit, name: e.target.value })} />
+          </label>
+          <label className="muted small">
+            Description
+            <input className="input" value={metaEdit.description} onChange={(e) => setMetaEdit({ ...metaEdit, description: e.target.value })} placeholder="Optional" />
+          </label>
+          <div className="wf-config-actions">
+            <button className="btn btn-primary" onClick={onSaveMeta} disabled={saveMeta.pending}>
+              {saveMeta.pending ? 'Saving…' : 'Save'}
+            </button>
+            <button className="btn" onClick={() => setMetaEdit(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       <div className={`${editMode ? 'builder builder--edit' : 'builder'} ${drawer === 'config' ? 'drawer-open' : ''} ${drawer === 'palette' ? 'drawer-open-palette' : ''}`}>
         {editMode && <Toolbar connectType={connectType} onConnectType={(t) => setConnectType(t as RelativeType)} />}

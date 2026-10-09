@@ -108,6 +108,44 @@ RBAC-тесты, WS-auth fix, WS ping/pong live-проверка, ADR-004 (B3 CL
 4. OpenAPI (`docs/contracts/openapi.yaml`) — в конце проекта, генерирует backend.
 5. Prometheus `/metrics` (backend, по требованию).
 
+## 3b. UI-доводка 2026-10-09 (task-ui: U1–U4)
+
+### U1 — full-width адаптивный layout
+- Убран потолок `.page { max-width: 1500px }` → страницы занимают всю ширину вьюпорта
+  (нет пустой боковой зоны на ≥2560px). Сетки `auto-fit/auto-fill+minmax` перестраиваются
+  по ширине; длинные текстовые блоки при необходимости ограничиваются отдельно.
+- Library-grid: `auto-fill minmax(240,340)` — карточки читаемой ширины (не «размазываются»).
+- Проверено скриншотами ≥2560px: dashboard / tasks / library / workflows / messages / history.
+
+### U2 — выравнивание Dashboard
+- `.dash-grid` пересобран из плоской `nth-child 3fr/2fr + align-items:start` в явные строки
+  `.dash-row` (grid `3fr 2fr`, `align-items:stretch`) → карточки в строке одной высоты, ступенька ушла.
+- SummaryCards — одна строка единой высоты (`align-items:stretch`, `height:100%`); gap 16px;
+  responsive-collapse ≤1100px. До/после — скриншоты ≥2560px.
+
+### U3 — аудит редактируемости (каждая сущность редактируема в UI)
+| Сущность | Поле(а) | Редактируемо в UI? | Где / как | API | Пропуск? |
+|---|---|---|---|---|---|
+| Team | name, description | ✅ (добавлено в U3) | TeamBuilder → «✎ Team» (инлайн-форма, валидация) | `saveTopology` (Name/Description) | — |
+| Team | segments | ✅ | палитра (drop) + drag | `createSegment`, `updateSegmentLayout` | — |
+| Segment | name, description | ⚠️ GAP | — | нет `PATCH /segments/{id}` (только layout) | нужен бэкенд-эндпоинт |
+| Role/член | config (model/tools/prompt) | ✅ | ConfigPanel | `updateRoleConfig` | — |
+| Role/член | name, description | ⚠️ GAP | — | нет `PATCH /roles/{id}` (rename; только config+layout) | нужен бэкенд-эндпоинт |
+| Role/член | position | ✅ | drag | `updateRoleLayout` | — |
+| Task | state (start/done/block/cancel/reopen) | ✅ | Tasks → действия | `updateState` | — |
+| Task | assignment (handoff) | ✅ | Tasks → «handoff» | `handoff` | — |
+| Task | title, priority | ⚠️ GAP (только при create) | форма «New task» | нет `PATCH /tasks/{id}` | нужен бэкенд-эндпоинт |
+| Workflow | name | ⚠️ GAP | — | нет `PATCH /workflows/{id}` | нужен бэкенд-эндпоинт |
+| Workflow | block (type/name/params) | ✅ | блок → config-панель | `updateBlock` | — |
+| Workflow | connection (create/delete/label) | ✅ (create/delete; label у decision) | — | `createConnection`, `deleteConnection` | `PATCH` на label — нет |
+| Library item | name | ⚠️ GAP | — | нет `PATCH /library/{id}` (только save/apply) | нужен бэкенд-эндпоинт |
+
+Результат U3: аудит выше + добавлена инлайн-форма редактирования **team name/description**
+(единственный из пропусков списка, который уже поддерживался API через `saveTopology`).
+Остальные rename-пропуски (segment/role/task/workflow/library) требуют новых backend-`PATCH`
+эндпоинтов — пометить как бэкенд-follow-up (см. бэклог).
+Тесты: `tests/editability.test.tsx` (persist + рендер формы с валидацией).
+
 ## 4. Ключевые файлы
 | Файл | Назначение |
 |---|---|
