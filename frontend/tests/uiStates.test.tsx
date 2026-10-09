@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import TaskList from '../src/components/Dashboard/TaskList';
 import { ErrorState, EmptyState, Spinner } from '../src/components/ui/States';
 
@@ -11,23 +12,25 @@ describe('UI states', () => {
 
   it('TaskList renders rows with state badges', () => {
     render(
-      <TaskList
-        tasks={[
-          {
-            id: 1,
-            team_id: 1,
-            team_name: 'T',
-            title: 'Do thing',
-            state: 'in_progress',
-            priority: 1,
-            destination_role_id: 1,
-            destination_role_name: 'Worker',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            progress: 40,
-          },
-        ]}
-      />,
+      <MemoryRouter>
+        <TaskList
+          tasks={[
+            {
+              id: 1,
+              team_id: 1,
+              team_name: 'T',
+              title: 'Do thing',
+              state: 'in_progress',
+              priority: 1,
+              destination_role_id: 1,
+              destination_role_name: 'Worker',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              progress: 40,
+            },
+          ]}
+        />
+      </MemoryRouter>,
     );
     expect(screen.getByText('Do thing')).toBeInTheDocument();
     expect(screen.getByText('Worker')).toBeInTheDocument();

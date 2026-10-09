@@ -2,6 +2,7 @@ import { memo } from 'react';
 import type { Task } from '../../types/api';
 import { formatRelative } from '../../lib/format';
 import { Badge, EmptyState } from '../ui/States';
+import EntityLink from '../ui/EntityLink';
 
 function TaskListInner({ tasks }: { tasks: Task[] }) {
   if (tasks.length === 0) {
@@ -26,7 +27,7 @@ function TaskListInner({ tasks }: { tasks: Task[] }) {
             <tr key={t.id} className={t.is_stale ? 'row-stale' : ''}>
               <td>
                 <div className="task-title">
-                  {t.title}
+                  <EntityLink to={`/tasks/${t.id}`} title="Open task details">{t.title}</EntityLink>
                   {t.is_stale && <Badge kind="warn" title="Not updated for more than 2h">stale</Badge>}
                 </div>
                 <div className="muted small">#{t.id} · priority {t.priority}</div>

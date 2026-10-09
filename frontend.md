@@ -146,6 +146,25 @@ RBAC-тесты, WS-auth fix, WS ping/pong live-проверка, ADR-004 (B3 CL
 эндпоинтов — пометить как бэкенд-follow-up (см. бэклог).
 Тесты: `tests/editability.test.tsx` (persist + рендер формы с валидацией).
 
+### U4b — кликабельность и drill-down
+Паттерн: `components/ui/EntityLink.tsx` — единая обёртка-ссылка для элементов, ссылающихся
+на сущность; данные не дублируются — fetch по id. Новые деталки: `/tasks/:taskId`
+(TaskDetailPage) и `/sessions/:sessionId` (SessionDetailPage).
+
+| Было мёртвым | Теперь ведёт куда | API (fetch-by-id) |
+|---|---|---|
+| Dashboard: строка задачи (title) | `/tasks/:id` — деталка задачи + история | `tasks.get`, `getTaskHistory` |
+| Dashboard: карточка сессии (role) | `/sessions/:id` — сессия: метрики, история, transcript | `sessions.get`, `getSessionHistory`, `getTranscript` |
+| Dashboard: алерт watchdog | source → `/tasks/:id` (queue_task) / `/sessions/:id` | id из alert |
+| Tasks: строка задачи (title) | `/tasks/:id` (полная деталка) + инлайн-раскрытие (TaskDetail с историей — уже было) | `tasks.get`, `getTaskHistory` |
+| История: запись аудита | раскрытие → детали операции (актор/IP/params, ресурс) | `audit.details` |
+| Сообщения: сообщение | related task → `/tasks/:id` (queue_task_id) | id из message |
+| Task detail: subtask | `/tasks/:subId` (EntityLink) | `tasks.get` |
+
+Не трогал (уже работали): Tasks inline-expand (TaskDetail), Library detail-pane, TeamBuilder
+ConfigPanel, Workflow block config. Тесты: `tests/drilldown.test.tsx` (4). Скриншоты
+detail-панелей: `tasks_1`, `sessions_1` @2560.
+
 ## 4. Ключевые файлы
 | Файл | Назначение |
 |---|---|

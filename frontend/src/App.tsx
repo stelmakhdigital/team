@@ -9,6 +9,8 @@ import MessagesPage from './pages/MessagesPage';
 import LibraryPage from './pages/LibraryPage';
 import HistoryPage from './pages/HistoryPage';
 import TasksPage from './pages/TasksPage';
+import TaskDetailPage from './pages/TaskDetailPage';
+import SessionDetailPage from './pages/SessionDetailPage';
 import SettingsPage from './pages/SettingsPage';
 import { EmptyState } from './components/ui/States';
 
@@ -28,6 +30,8 @@ export default function App() {
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/teams/:teamId" element={<TeamBuilderPage />} />
         <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+        <Route path="/sessions/:sessionId" element={<SessionDetailPage />} />
         <Route path="/workflows" element={<WorkflowsPage />} />
         <Route path="/workflows/:workflowId" element={<WorkflowEditorPage />} />
         <Route path="/messages" element={<MessagesPage />} />

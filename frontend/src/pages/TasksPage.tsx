@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
 import { Badge, EmptyState, ErrorState, errorMessage, Spinner } from '../components/ui/States';
+import EntityLink from '../components/ui/EntityLink';
 import { useToast } from '../components/ui/Toast';
 import { formatDateTime, formatRelative } from '../lib/format';
 import { CLOSURE_REASONS, TASK_TRANSITIONS, isTerminalTaskState } from '../lib/task';
@@ -183,7 +184,7 @@ function TaskRow({
           </button>
         </td>
         <td>
-          {task.title}
+          <EntityLink to={`/tasks/${task.id}`} title="Open full task detail">{task.title}</EntityLink>
           {task.body && <div className="muted small">{task.body}</div>}
           {task.closure_reason && <div className="muted small">closure: {task.closure_reason}</div>}
         </td>

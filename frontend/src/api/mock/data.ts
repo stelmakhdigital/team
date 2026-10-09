@@ -517,8 +517,8 @@ function seed(): DB {
   ];
 
   t.audit = [
-    { id: 1, timestamp: iso(10), user_name: 'lead', action: 'task.create', resource: 'task:6', severity: 'info' },
-    { id: 2, timestamp: iso(40), user_name: 'lead', action: 'team.update', resource: 'team:1', severity: 'info' },
+    { id: 1, timestamp: iso(10), user_name: 'lead', action: 'task.create', resource: 'task:6', severity: 'info', user_id: 1, api_key_id: 2, ip_address: '127.0.0.1', details: { title: 'Implement auth middleware', priority: 1, destination_role: 'Backend.Worker' } },
+    { id: 2, timestamp: iso(40), user_name: 'lead', action: 'team.update', resource: 'team:1', severity: 'info', details: { name: 'Dev Team' } },
     { id: 3, timestamp: iso(70), user_name: 'daemon', action: 'session.fail', resource: 'session:4', severity: 'error' },
     { id: 4, timestamp: iso(95), user_name: 'watchdog', action: 'alert.create', resource: 'alert:1', severity: 'warning' },
     { id: 5, timestamp: iso(130), user_name: 'lead', action: 'library.save', resource: 'library:1', severity: 'info' },

@@ -2,6 +2,7 @@ import { memo } from 'react';
 import type { Session } from '../../types/api';
 import { formatBytes, formatUptime } from '../../lib/format';
 import { EmptyState } from '../ui/States';
+import EntityLink from '../ui/EntityLink';
 
 function SessionGridInner({ sessions }: { sessions: Session[] }) {
   if (sessions.length === 0) {
@@ -15,7 +16,7 @@ function SessionGridInner({ sessions }: { sessions: Session[] }) {
           <div key={s.id} className={`session-card session-${s.state}`}>
             <div className="session-head">
               <span className={`dot dot-${s.state}`} aria-hidden="true" />
-              <strong>{s.role_name}</strong>
+              <EntityLink to={`/sessions/${s.id}`} title="Open session details (history, transcript, metrics)"><strong>{s.role_name}</strong></EntityLink>
               <span className="muted small">{s.team_name}</span>
             </div>
             <div className="session-meta">

@@ -2,6 +2,7 @@ import { memo } from 'react';
 import type { WatchdogAlert } from '../../types/api';
 import { formatRelative } from '../../lib/format';
 import { Badge, EmptyState } from '../ui/States';
+import EntityLink from '../ui/EntityLink';
 
 function AlertsPanelInner({ alerts }: { alerts: WatchdogAlert[] }) {
   return (
@@ -20,6 +21,13 @@ function AlertsPanelInner({ alerts }: { alerts: WatchdogAlert[] }) {
                 {a.requires_action && !a.is_read && <Badge kind="warn">action required</Badge>}
               </div>
               <div className="alert-desc">{a.description}</div>
+              {(a.queue_task_id || a.session_id) && (
+                <div className="alert-source small">
+                  source:
+                  {a.queue_task_id && <EntityLink to={`/tasks/${a.queue_task_id}`} title="Open source task"> task #{a.queue_task_id}</EntityLink>}
+                  {a.session_id && <EntityLink to={`/sessions/${a.session_id}`} title="Open source session"> session #{a.session_id}</EntityLink>}
+                </div>
+              )}
               <div className="muted small">
                 {formatRelative(a.created_at)}
                 {a.action_taken ? ` · action: ${a.action_taken}` : ''}

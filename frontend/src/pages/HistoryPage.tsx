@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import {  EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError , Badge } from '../components/ui/States';
@@ -22,6 +22,7 @@ export default function HistoryPage() {
   );
 
   const [tab, setTab] = useState<'audit' | 'task' | 'transcript'>('audit');
+  const [expandedAudit, setExpandedAudit] = useState<number | null>(null);
 
   return (
     <div className="page">
@@ -66,17 +67,33 @@ export default function HistoryPage() {
                 </thead>
                 <tbody>
                   {audit.data.entries.map((e) => (
-                    <tr key={e.id}>
-                      <td className="muted">{formatDateTime(e.timestamp)}</td>
-                      <td>{e.user_name ?? '—'}</td>
-                      <td>
-                        <code>{e.action}</code>
-                      </td>
-                      <td className="muted">{e.resource ?? '—'}</td>
-                      <td>
-                        <Badge kind="sev" value={e.severity ?? 'info'} />
-                      </td>
-                    </tr>
+                    <Fragment key={e.id}>
+                      <tr className={expandedAudit === e.id ? 'row-expanded' : undefined}>
+                        <td className="muted">
+                          <button className="row-toggle" onClick={() => setExpandedAudit(expandedAudit === e.id ? null : e.id)} aria-expanded={expandedAudit === e.id} title="Show operation details">
+                            {expandedAudit === e.id ? '▾' : '▸'} {formatDateTime(e.timestamp)}
+                          </button>
+                        </td>
+                        <td>{e.user_name ?? '—'}</td>
+                        <td>
+                          <code>{e.action}</code>
+                        </td>
+                        <td className="muted">{e.resource ?? '—'}</td>
+                        <td>
+                          <Badge kind="sev" value={e.severity ?? 'info'} />
+                        </td>
+                      </tr>
+                      {expandedAudit === e.id && (
+                        <tr><td colSpan={5} className="row-detail">
+                          <div className="audit-detail">
+                            <div><strong>Actor:</strong> {e.user_name ?? '—'}{e.user_id ? ` (user #${e.user_id})` : ''}{e.api_key_id ? ` · key #${e.api_key_id}` : ''}</div>
+                            {e.ip_address && <div><strong>IP:</strong> {e.ip_address}</div>}
+                            {e.user_agent && <div><strong>Agent:</strong> {e.user_agent}</div>}
+                            {e.details && <><h4>Operation details</h4><pre className="spec-pre">{JSON.stringify(e.details, null, 2)}</pre></>}
+                          </div>
+                        </td></tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table></div>

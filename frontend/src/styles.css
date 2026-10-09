@@ -731,3 +731,30 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .cfg-restart { color: var(--yellow); font-size: 0.95rem; }
 .derived-tag { color: var(--purple); font-size: 0.72em; }
 .cfg-row-override { background: rgba(79, 142, 247, 0.07); }
+
+/* ---------- U4b: drill-down (EntityLink + detail pages) ---------- */
+.entity-link { color: inherit; text-decoration: none; cursor: pointer; }
+.entity-link:hover { color: var(--accent); text-decoration: underline; }
+.alert-source { margin: 4px 0; }
+
+.detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .detail-layout { grid-template-columns: 1fr; } }
+.detail-main { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.detail-main .card { margin-bottom: 0; }
+
+.hist-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hist-entry { border-left: 2px solid var(--border); padding-left: 10px; }
+.hist-transition { font-size: 0.88rem; }
+
+.subtask-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.subtask-list li { display: flex; gap: 8px; align-items: center; }
+
+.transcript-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.transcript-msg { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.transcript-content { margin: 4px 0 0; padding: 6px 8px; background: var(--bg); border-radius: 6px; font-size: 0.8rem; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
+.transcript-tool_call { border-color: var(--sky); }
+.transcript-tool_result { border-color: var(--dim); }
+.transcript-prompt { border-color: var(--green); }
+
+.audit-detail { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.audit-detail h4 { margin: 6px 0 2px; }

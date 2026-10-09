@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
 import { Badge, ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
+import EntityLink from '../components/ui/EntityLink';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 
@@ -61,6 +62,11 @@ export default function MessagesPage() {
                   <span className="muted small">{formatRelative(m.created_at)}</span>
                 </div>
                 <div className="message-body">{m.body}</div>
+                {m.queue_task_id && (
+                  <div className="small">
+                    related task: <EntityLink to={`/tasks/${m.queue_task_id}`} title="Open related task">#{m.queue_task_id}</EntityLink>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
