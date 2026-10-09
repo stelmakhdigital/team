@@ -188,6 +188,54 @@ RBAC (config.update admin-only) — см. backend.md / api-decisions.md. OpenAPI
 ConfigPanel, Workflow block config. Тесты: `tests/drilldown.test.tsx` (4). Скриншоты
 detail-панелей: `tasks_1`, `sessions_1` @2560.
 
+### UX-проход X1–X4 (2026-10-09, T-20261009100853) — состояния, обратная связь, доступность
+Единый UX-стандарт по всем страницам. Коммиты: X1 `b6a3edc`, X2 `c7a7762`, X3 `90c58fd`,
+X4 `6bebd70`. Тесты: vitest 112 passed / 21 skipped; `check_openapi.py` 63/63 (API не менялся).
+
+**Единые примитивы** (`components/ui/States.tsx`, `ui/Toast.tsx`, `hooks/useQuery`/`useWebSocket`):
+- **X1 EmptyState** — у каждого списка/панели; CTA там, где действие естественное
+  (Tasks/Workflows/Teams). Заполнены пропуски: Messages (dm/chatrooms/chat-room).
+- **X2 PageSkeleton/Skeleton** — скелетон (header + rows, `min-height`, shimmer,
+  `prefers-reduced-motion` off) вместо голого full-page `<Spinner>`: Task/Session detail,
+  Workflows, Teams, History (3 вкладки). Панели/действия — инлайн-`<Spinner>` (место
+  зарезервировано, layout не дёргается). Кнопки мутаций — `disabled + pending` («Creating…» и т.п.).
+- **X3** — `errorMessage()` мапит API-коды в конкретику (409→Conflict, 403→Not permitted,
+  404→Not found, 0→Network, 500→Server) → все toast-ы мутаций самодостаточные.
+  Глобальный WS-бейдж (auto-reconnect) в AppShell — на **каждой** странице (mock/connected/
+  reconnecting/offline). Toast'ы (`aria-live`) на create/rename/delete/config set-reset.
+  `CreateTaskModal`: ошибка API → инлайн form-error (было `alert()`).
+- **X4** — глобальный `:focus-visible` outline (a/button/[role=button]/[tabindex]);
+  `aria-label` на icon-кнопках (Workflow 🗑, Library ✎, Settings ✎ per key). Контраст статусных
+  цветов (green/red/yellow/accent) + `--muted` проверен: все ≥ WCAG AA 4.5:1 на тёмной теме.
+
+**Таблица покрытия** (empty / loading / error / a11y-аудит):
+
+| Страница | Empty | Loading | Error | A11y / примечание |
+|---|---|---|---|---|
+| Dashboard | ✅ per-panel (tasks/sessions/alerts) | ✅ per-panel Spinner | ✅ per-panel ErrorState/Unavailable | EntityLink, progressbar, глоб. WS-бейдж |
+| Teams | ✅ +CTA | ✅ PageSkeleton | ✅ ErrorState+retry | ссылки-строки, focus |
+| Team Builder | ✅ drop-hint (пустой сегмент) | ✅ Spinner (canvas) | ✅ ErrorState | Edit/Team — текстовые кнопки, focus |
+| Workflows | ✅ +CTA | ✅ PageSkeleton | ✅ ErrorState+retry | ссылки-строки, focus |
+| Workflow Editor | n/a (редактор сущности) | ✅ Spinner | ✅ ErrorState | rename/delete aria-label, focus |
+| Tasks | ✅ +CTA («match filters») | ✅ PageSkeleton | ✅ ErrorState+retry | row-toggle aria, action-кнопки, focus |
+| Task Detail | ✅ subtask/history инлайн | ✅ PageSkeleton | ✅ ErrorState+retry | EntityLink, focus |
+| Session Detail | ✅ transcript/history инлайн | ✅ PageSkeleton | ✅ ErrorState+retry | focus |
+| Messages | ✅ dm/chatrooms/chat | ✅ Spinner | ✅ ErrorState/Unavailable | chatroom-кнопки, input aria, focus |
+| Library | ✅ «Nothing here» | ✅ Spinner | ✅ ErrorState+retry | rename ✎ aria-label, focus |
+| History | ✅ per tab | ✅ PageSkeleton ×3 | ✅ ErrorState/Unavailable | tabs (role/aria-selected), focus |
+| Settings | n/a (реестр всегда) | ✅ Spinner | ✅ ErrorState+retry | edit ✎ aria-label, refresh, contrast AA |
+
+**Глобально (все страницы):** WS-бейдж в AppShell · toast'ы (`aria-live`) на мутации ·
+`:focus-visible` outline · контраст статусов AA.
+
+**Скриншоты @2560** (`_workspace/ui-screenshots/`):
+- `ux-2560x1440-empty-tasks-filtered.png` — Tasks (фильтр canceled) → EmptyState + CTA.
+- `ux-2560x1440-empty-library-search.png` — Library (поиск без совпадений) → «Nothing here».
+- `ux-2560x1440-focus.png` — keyboard-focus (focus-ring) на кнопке «+ New task».
+- `ux-2560x1440-error-state.png` — ErrorState «Server error» + Retry (+ глоб. WS-бейдж).
+**Тесты:** `tests/emptyStates.test.tsx` (4: dashboard/tasks/workflows/library),
+`tests/feedback.test.tsx` (2: errorMessage code-mapping + глоб. WS-бейдж).
+
 ## 4. Ключевые файлы
 | Файл | Назначение |
 |---|---|
