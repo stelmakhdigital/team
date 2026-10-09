@@ -24,6 +24,11 @@
     при запуске сессии `working_dir` по умолчанию = путь проекта команды
     (override на сессии сохраняется); в UI запуске сессии — селект проекта/пути
     с автозаполнением.
+  - **Project как свойство работы** (рекомендация командира, 2026-10-09):
+    `task.project_id` — наследуется от team при создании, override при
+    handoff/subtask; разрешение `working_dir`: `session.working_dir` (явное)
+    → `task.project` → `team.project` (layered, как в Settings).
+    Документировать порядок в api-decisions.md.
   - Фильтр «по проекту»: tasks/sessions/dashboard (team.project_id → фильтр);
     Attention/History учитывают проект в detail.
   - Артефакты: скриншоты/логи сессий привязываются к проекту (путь в
@@ -38,8 +43,11 @@
   backend.md/frontend.md актуализированы; скриншоты Projects @2560.
 - **Миграционная совместимость**: команды/сессии без project_id работают как
   раньше (path из working_dir); новые команды — с проектом.
-- **Не в scope (позже, если пойдёт)**: mission/slice-иерархия, per-slice git
-  worktrees, proof/evidence (P3.13), workspace doctor-диагностика.
+- **Не в scope (решение зафиксировано, пересмотр по триггеру)**: mission/slice-
+  иерархия (наш продукт — не их SDLC-миссии), per-slice git worktrees (пересмотр,
+  когда P1.4 начнёт проецировать параллельные задачи на один репозиторий —
+  тогда «per-task worktree on demand» в P3), proof/evidence (P3.13),
+  workspace doctor-диагностика.
 
 ---
 
