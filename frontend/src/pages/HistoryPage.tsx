@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
-import {  EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError , Badge } from '../components/ui/States';
+import {  EmptyState, ErrorState, PageSkeleton, Unavailable, isNotFoundError , Badge } from '../components/ui/States';
 import { formatDateTime, formatRelative } from '../lib/format';
 
 export default function HistoryPage() {
@@ -45,7 +45,7 @@ export default function HistoryPage() {
 
       {tab === 'audit' && (
         <>
-          {audit.loading && <Spinner label="Loading audit log…" />}
+          {audit.loading && <PageSkeleton label="Loading audit log…" />}
           {audit.error &&
           (isNotFoundError(audit.error) ? (
             <Unavailable feature="Audit log" hint="The audit endpoint is not implemented in the backend yet (planned)." />
@@ -104,7 +104,7 @@ export default function HistoryPage() {
 
       {tab === 'task' && (
         <>
-          {taskHistory.loading && <Spinner label="Loading task history…" />}
+          {taskHistory.loading && <PageSkeleton label="Loading task history…" rows={5} />}
           {taskHistory.error && <ErrorState error={taskHistory.error} onRetry={taskHistory.refetch} />}
           {taskHistory.data && taskHistory.data.history.length === 0 && <EmptyState title="No task history available" />}
           {taskHistory.data && taskHistory.data.history.length > 0 && (
@@ -136,7 +136,7 @@ export default function HistoryPage() {
 
       {tab === 'transcript' && (
         <>
-          {transcript.loading && <Spinner label="Loading transcript…" />}
+          {transcript.loading && <PageSkeleton label="Loading transcript…" rows={5} />}
           {transcript.error && <ErrorState error={transcript.error} onRetry={transcript.refetch} />}
           {transcript.data && transcript.data.transcript.length === 0 && <EmptyState title="No transcript available" />}
           {transcript.data && transcript.data.transcript.length > 0 && (

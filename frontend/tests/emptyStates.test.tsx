@@ -39,7 +39,7 @@ describe('X1: empty states (mock with empty data)', () => {
       </MemoryRouter>,
     );
     expect(await screen.findByRole('heading', { name: 'Tasks' }, { timeout: 10_000 })).toBeInTheDocument();
-    const empty = (await screen.findByText('No tasks', {}, { timeout: 10_000 })).closest('.empty-state')!;
+    const empty = (await screen.findByText('No tasks', {}, { timeout: 10_000 })).closest<HTMLElement>('.empty-state')!;
     expect(within(empty).getByRole('button', { name: /new task/i })).toBeInTheDocument();
   }, 20_000);
 
@@ -50,7 +50,7 @@ describe('X1: empty states (mock with empty data)', () => {
       </MemoryRouter>,
     );
     expect(await screen.findByRole('heading', { name: 'Workflows' }, { timeout: 10_000 })).toBeInTheDocument();
-    const empty = (await screen.findByText('No workflows', {}, { timeout: 10_000 })).closest('.empty-state')!;
+    const empty = (await screen.findByText('No workflows', {}, { timeout: 10_000 })).closest<HTMLElement>('.empty-state')!;
     expect(within(empty).getByRole('button', { name: /new workflow/i })).toBeInTheDocument();
   }, 20_000);
 

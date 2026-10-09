@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
-import { ErrorState, Spinner, Badge } from '../components/ui/States';
+import { ErrorState, PageSkeleton, Spinner, Badge } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
 import { formatDateTime, formatRelative } from '../lib/format';
 
@@ -12,7 +12,7 @@ export default function TaskDetailPage() {
   const task = useQuery(`task.${id}`, () => api.tasks.get(id));
   const hist = useQuery(`task.history.${id}`, () => api.history.getTaskHistory(id));
 
-  if (task.loading) return <div className="page"><Spinner label="Loading task…" /></div>;
+  if (task.loading) return <div className="page"><PageSkeleton label="Loading task…" /></div>;
   if (task.error) return <div className="page"><ErrorState error={task.error} onRetry={task.refetch} /></div>;
 
   const t = task.data!.task;

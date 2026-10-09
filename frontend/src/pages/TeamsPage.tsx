@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import {  EmptyState, ErrorState, errorMessage, Spinner , Badge } from '../components/ui/States';
+import {  EmptyState, ErrorState, errorMessage, PageSkeleton , Badge } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 import type { Team } from '../types/api';
@@ -68,7 +68,7 @@ export default function TeamsPage() {
         </button>
       </div>
 
-      {loading && <Spinner label="Loading teams…" />}
+      {loading && <PageSkeleton label="Loading teams…" />}
       {error && <ErrorState error={error} onRetry={refetch} />}
       {data && data.teams.length === 0 && (
         <EmptyState title="No teams yet" hint="Create your first team to build an agent topology." action={<button className="btn btn-primary" onClick={() => setCreating(true)}>Create team</button>} />

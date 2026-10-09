@@ -34,6 +34,24 @@ export function Unavailable({ feature, hint }: { feature: string; hint?: string 
   );
 }
 
+export function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`skeleton ${className}`.trim()} aria-hidden="true" />;
+}
+
+/** Unified page-level loading skeleton (header + rows). Replaces a bare
+ * full-page <Spinner> so the layout has reserved space and does not jump
+ * when the first payload arrives. */
+export function PageSkeleton({ rows = 4, label = 'Loading…' }: { rows?: number; label?: string }) {
+  return (
+    <div className="page-skeleton" role="status" aria-live="polite" aria-label={label}>
+      <Skeleton className="sk-head" />
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="sk-row" />
+      ))}
+    </div>
+  );
+}
+
 /** True when a query error is a 404 (resource/endpoint absent). */
 export function isNotFoundError(error: ErrorInfo | null | undefined): boolean {
   return !!error && error.status === 404;

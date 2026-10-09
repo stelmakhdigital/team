@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
-import { ErrorState, Spinner, isNotFoundError } from '../components/ui/States';
+import { ErrorState, PageSkeleton, Spinner, isNotFoundError } from '../components/ui/States';
 import { formatRelative } from '../lib/format';
 
 // U4b: session drill-down — session metrics + history + transcript (messages), fetch-by-id.
@@ -18,7 +18,7 @@ export default function SessionDetailPage() {
   const hist = useQuery(`session.history.${id}`, () => api.history.getSessionHistory(id));
   const trans = useQuery(`session.transcript.${id}`, () => api.history.getTranscript(id));
 
-  if (sess.loading) return <div className="page"><Spinner label="Loading session…" /></div>;
+  if (sess.loading) return <div className="page"><PageSkeleton label="Loading session…" /></div>;
   if (sess.error) return <div className="page"><ErrorState error={sess.error} onRetry={sess.refetch} /></div>;
 
   const s = sess.data!;
