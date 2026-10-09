@@ -810,6 +810,11 @@ wake закрыт, `TestBlockWakeValidation`) + HTTP (`TestResolveTaskEndpoint`
   состояние задачи откатывается. Idempotent: активный шаг по задаче уже закрыт → no-op.
 - **Без новых RBAC-перм**: GET instances → `workflows.read`; POST run/resume/route/abort →
   `workflows.update`.
+- **mapping closure_reason → exit_kind** (при закрытии задачи шага):
+  `handed_off_to` → `handoff`; `no_follow_on` → `done`; `escalation` → `failed`
+  (инстанс → failed, запись в trail); `blocked_on` → `waiting` (инстанс → waiting,
+  работает P0.3 wake: unblock → projection в tx); `canceled` → `failed`. Route →
+  шаг `routed` (актор обновляется, запись в trail).
 - **Attention**: 5-й источник `workflow_attention` (failed → critical, waiting → high),
   link → `/workflows/{wf}/instances/{iid}`.
 - **Loop**: body-задача на итерацию, cap=50; **agent/task без role_id** → skipped;

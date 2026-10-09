@@ -72,7 +72,7 @@ func (r *WorkflowInstanceRepo) ListByStates(ctx context.Context, tx DBTX, states
 		conds = append(conds, "state = ?")
 		args = append(args, string(s))
 	}
-	rows, err := tx.QueryContext(ctx, wfInstanceSelect+` WHERE `+joinAnd(conds)+` ORDER BY updated_at`, args...)
+	rows, err := tx.QueryContext(ctx, wfInstanceSelect+` WHERE `+joinOr(conds)+` ORDER BY updated_at`, args...)
 	if err != nil {
 		return nil, err
 	}

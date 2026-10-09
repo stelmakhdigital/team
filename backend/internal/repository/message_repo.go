@@ -189,6 +189,17 @@ func joinAnd(conds []string) string {
 	return out
 }
 
+func joinOr(conds []string) string {
+	out := ""
+	for i, c := range conds {
+		if i > 0 {
+			out += " OR "
+		}
+		out += c
+	}
+	return out
+}
+
 // ---------- Chatrooms ----------
 
 type ChatroomRepo struct{ db *sql.DB }

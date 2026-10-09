@@ -47,6 +47,7 @@ export default function WorkflowInstancePage() {
     }
   };
   const doAbort = async () => {
+    if (!window.confirm('Abort инстанс? Все active задачи будут canceled.')) return;
     try {
       await abort.mutate();
       toast('success', 'Instance aborted');

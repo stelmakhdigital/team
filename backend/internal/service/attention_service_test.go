@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -210,4 +211,51 @@ func TestAttentionEmpty(t *testing.T) {
 
 func idStr(v int64) string {
 	return strconv.FormatInt(v, 10)
+}
+
+// P1.4: workflow_attention (failed → critical, waiting → high) + link на деталку.
+func TestAttentionWorkflow(t *testing.T) {
+	db, svc, _, att, _, ctx := setupAttentionEnv(t)
+	teamID, roleA := attMakeTeam(t, svc, "att-wf-team")
+
+	stores := repository.NewStores(db)
+	wfs := service.NewWorkflowService(db, stores)
+	wf, err := wfs.CreateWorkflow(ctx, service.CreateWorkflowRequest{
+		TeamID: teamID, Name: "att-wf",
+		Blocks: []service.WorkflowBlockInput{{Type: "task", Config: map[string]any{"role_id": roleA}}},
+	})
+	if err != nil {
+		t.Fatalf("CreateWorkflow: %v", err)
+	}
+	failed := &models.WorkflowInstance{WorkflowID: wf.ID, State: models.WfInstanceFailed, RootObjective: "o"}
+	waiting := &models.WorkflowInstance{WorkflowID: wf.ID, State: models.WfInstanceWaiting, RootObjective: "o"}
+	if err := stores.WorkflowInstances.Create(ctx, db, failed); err != nil {
+		t.Fatalf("create failed instance: %v", err)
+	}
+	if err := stores.WorkflowInstances.Create(ctx, db, waiting); err != nil {
+		t.Fatalf("create waiting instance: %v", err)
+	}
+
+	res, err := att.List(ctx, 50, 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	byID := map[string]AttentionItemView{}
+	for _, it := range res.Items {
+		if it.Kind == "workflow_attention" {
+			byID[it.ID] = AttentionItemView{Severity: it.Severity, LinkPath: it.Link.Path}
+		}
+	}
+	if v, ok := byID["wf-"+idStr(failed.ID)]; !ok || v.Severity != "critical" ||
+		v.LinkPath != fmt.Sprintf("/workflows/%d/instances/%d", wf.ID, failed.ID) {
+		t.Fatalf("failed instance item wrong: %+v (want critical + instance link)", v)
+	}
+	if v, ok := byID["wf-"+idStr(waiting.ID)]; !ok || v.Severity != "high" {
+		t.Fatalf("waiting instance item wrong: %+v (want high)", v)
+	}
+}
+
+type AttentionItemView struct {
+	Severity string
+	LinkPath string
 }
