@@ -837,6 +837,7 @@ func newRBACTestServer(t *testing.T, envKeys []string) (*httptest.Server, *servi
 		Audit:     asvc,
 		Auth:      auth,
 		Workflows: service.NewWorkflowService(db, stores),
+		Library:   service.NewLibraryService(db, stores, svc), // U3-rename: PATCH /library/{id}
 		Config:    cvc,
 	})
 	srv := httptest.NewServer(handler)
@@ -967,6 +968,92 @@ func TestRBACViewerForbidden(t *testing.T) {
 	}
 	if _, ok := adminEntry["user_id"]; ok {
 		t.Errorf("audit role.update (env key): user_id must be absent: %v", adminEntry)
+	}
+}
+
+// TestRenameEndpointsRBAC — U3-rename: PATCH /segments/{id}, /workflows/{id}, /library/{id}
+// (200 + RBAC: operator 200 / viewer 403; 404 на неизвестный id; segment unique → 409).
+func TestRenameEndpointsRBAC(t *testing.T) {
+	srv, auth := newRBACTestServer(t, []string{"env-admin"})
+	_, viewKey := mustCreateKey(t, auth, "viewer-cli", "viewer", "viewer-user")
+	_, opKey := mustCreateKey(t, auth, "fe", "operator", "fe-user")
+	if err := auth.Init(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	base := srv.URL + "/api/v1"
+	opHdr := map[string]string{"X-API-Key": opKey}
+	viewHdr := map[string]string{"X-API-Key": viewKey}
+
+	// команда
+	st, out, _ := do(t, "POST", base+"/teams", map[string]any{"name": "rt"}, opHdr)
+	if st != http.StatusCreated {
+		t.Fatalf("create team: %d %v", st, out)
+	}
+	teamNum := int64(out["id"].(float64))
+	teamID := itoaID(teamNum)
+
+	// сегмент (+ второй для unique-конфликта)
+	st, out, _ = do(t, "POST", base+"/teams/"+teamID+"/segments", map[string]any{"name": "seg"}, opHdr)
+	if st != http.StatusCreated {
+		t.Fatalf("create segment: %d %v", st, out)
+	}
+	segID := itoaID(int64(out["id"].(float64)))
+	segNum := int64(out["id"].(float64))
+	do(t, "POST", base+"/teams/"+teamID+"/segments", map[string]any{"name": "other"}, opHdr)
+
+	// workflow
+	st, out, _ = do(t, "POST", base+"/workflows", map[string]any{"team_id": teamNum, "name": "wf"}, opHdr)
+	if st != http.StatusCreated {
+		t.Fatalf("create workflow: %d %v", st, out)
+	}
+	wfID := itoaID(int64(out["id"].(float64)))
+
+	// library item (source = сегмент; type не влияет на rename)
+	st, out, _ = do(t, "POST", base+"/library", map[string]any{"type": "segment", "source_id": segNum, "name": "lib"}, opHdr)
+	if st != http.StatusCreated {
+		t.Fatalf("save library: %d %v", st, out)
+	}
+	libID := itoaID(int64(out["id"].(float64)))
+
+	// --- сегмент: rename ---
+	st, out, _ = do(t, "PATCH", base+"/segments/"+segID, map[string]any{"name": "seg2"}, opHdr)
+	if st != http.StatusOK || out["status"] != "updated" || out["name"] != "seg2" {
+		t.Fatalf("operator rename segment: want 200 updated, got %d %v", st, out)
+	}
+	if st, _, _ = do(t, "PATCH", base+"/segments/"+segID, map[string]any{"name": "seg2"}, viewHdr); st != http.StatusForbidden {
+		t.Fatalf("viewer rename segment: want 403, got %d", st)
+	}
+	if st, _, _ = do(t, "PATCH", base+"/segments/999999", map[string]any{"name": "x"}, opHdr); st != http.StatusNotFound {
+		t.Fatalf("rename unknown segment: want 404, got %d", st)
+	}
+	// unique: переименовать seg2 → other (существует) → 409
+	st, out, _ = do(t, "PATCH", base+"/segments/"+segID, map[string]any{"name": "other"}, opHdr)
+	if st != http.StatusConflict || out["error"].(map[string]any)["code"] != "conflict" {
+		t.Fatalf("rename segment to dup: want 409 conflict, got %d %v", st, out)
+	}
+
+	// --- workflow: rename ---
+	st, out, _ = do(t, "PATCH", base+"/workflows/"+wfID, map[string]any{"name": "wf2"}, opHdr)
+	if st != http.StatusOK || out["name"] != "wf2" {
+		t.Fatalf("operator rename workflow: want 200, got %d %v", st, out)
+	}
+	if st, _, _ = do(t, "PATCH", base+"/workflows/"+wfID, map[string]any{"name": "wf2"}, viewHdr); st != http.StatusForbidden {
+		t.Fatalf("viewer rename workflow: want 403, got %d", st)
+	}
+	if st, _, _ = do(t, "PATCH", base+"/workflows/999999", map[string]any{"name": "x"}, opHdr); st != http.StatusNotFound {
+		t.Fatalf("rename unknown workflow: want 404, got %d", st)
+	}
+
+	// --- library: rename (gate = library.create; operator имеет) ---
+	st, out, _ = do(t, "PATCH", base+"/library/"+libID, map[string]any{"name": "lib2"}, opHdr)
+	if st != http.StatusOK || out["name"] != "lib2" {
+		t.Fatalf("operator rename library: want 200, got %d %v", st, out)
+	}
+	if st, _, _ = do(t, "PATCH", base+"/library/"+libID, map[string]any{"name": "lib2"}, viewHdr); st != http.StatusForbidden {
+		t.Fatalf("viewer rename library: want 403, got %d", st)
+	}
+	if st, _, _ = do(t, "PATCH", base+"/library/999999", map[string]any{"name": "x"}, opHdr); st != http.StatusNotFound {
+		t.Fatalf("rename unknown library: want 404, got %d", st)
 	}
 }
 

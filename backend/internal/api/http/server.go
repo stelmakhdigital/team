@@ -66,6 +66,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	// Team Builder — segments / roles / relatives
 	mux.HandleFunc("POST /api/v1/segments/{id}/roles", h.CreateRole)
 	mux.HandleFunc("PATCH /api/v1/segments/{id}/layout", h.UpdateSegmentLayout)
+	mux.HandleFunc("PATCH /api/v1/segments/{id}", h.UpdateSegmentMeta) // U3-rename
 	mux.HandleFunc("GET /api/v1/roles/{id}/config", h.GetRoleConfig)
 	mux.HandleFunc("PATCH /api/v1/roles/{id}/config", h.UpdateRoleConfig)
 	mux.HandleFunc("PATCH /api/v1/roles/{id}/layout", h.UpdateRoleLayout)
@@ -110,6 +111,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("POST /api/v1/workflows/{id}/blocks", h.CreateWorkflowBlock)
 	mux.HandleFunc("POST /api/v1/workflows/{id}/connections", h.CreateWorkflowConnection)
 	mux.HandleFunc("PATCH /api/v1/workflows/{id}/blocks/{blockId}", h.UpdateWorkflowBlock)
+	mux.HandleFunc("PATCH /api/v1/workflows/{id}", h.UpdateWorkflow) // U3-rename
 	mux.HandleFunc("DELETE /api/v1/workflows/{id}", h.DeleteWorkflow)
 	mux.HandleFunc("DELETE /api/v1/workflows/{id}/blocks/{blockId}", h.DeleteWorkflowBlock)
 	mux.HandleFunc("DELETE /api/v1/workflows/{id}/connections/{connectionId}", h.DeleteWorkflowConnection)
@@ -121,6 +123,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("GET /api/v1/library", h.ListLibrary)
 	mux.HandleFunc("POST /api/v1/library", h.SaveToLibrary)
 	mux.HandleFunc("GET /api/v1/library/{id}", h.GetLibraryItem)
+	mux.HandleFunc("PATCH /api/v1/library/{id}", h.UpdateLibraryItem) // U3-rename
 	mux.HandleFunc("POST /api/v1/library/{id}/apply", h.ApplyLibraryItem)
 
 	// Slice 5b — History Viewer: audit log + metrics

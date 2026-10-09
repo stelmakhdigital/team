@@ -54,6 +54,27 @@ func (h *handlers) GetWorkflow(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// UpdateWorkflow — PATCH /api/v1/workflows/{id} (U3-rename: name/description).
+func (h *handlers) UpdateWorkflow(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body service.UpdateWorkflowRequest
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	body.ID = id
+	view, err := h.wsvc.UpdateWorkflow(r.Context(), body)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": view.ID, "name": view.Name, "status": "updated"})
+}
+
 // CreateWorkflow — POST /api/v1/workflows (контракт 20 §2.2).
 func (h *handlers) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 	var body service.CreateWorkflowRequest

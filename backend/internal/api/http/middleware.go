@@ -177,6 +177,11 @@ func requiredPermission(method, path string) string {
 		if res == "roles" && id != "" && sub == "config" {
 			return "config.update"
 		}
+		// U3-rename: PATCH /library/{id} — library.write. В модели нет library.update,
+		// переименование (write) гейтится существующим write-разрешением library.create.
+		if res == "library" && id != "" && sub == "" {
+			return "library.create"
+		}
 		switch res {
 		case "segments", "roles", "relatives":
 			return "teams.update" // layout-правки Team Builder

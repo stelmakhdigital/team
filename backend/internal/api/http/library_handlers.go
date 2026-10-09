@@ -75,6 +75,27 @@ func (h *handlers) GetLibraryItem(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// UpdateLibraryItem — PATCH /api/v1/library/{id} (U3-rename: name/description).
+func (h *handlers) UpdateLibraryItem(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body service.UpdateLibraryRequest
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	body.ID = id
+	view, err := h.lsvc.Update(r.Context(), body)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": view.ID, "name": view.Name, "status": "updated"})
+}
+
 // ApplyLibraryItem — POST /api/v1/library/{id}/apply
 func (h *handlers) ApplyLibraryItem(w http.ResponseWriter, r *http.Request) {
 	id, err := parseIDParam(r.PathValue("id"))

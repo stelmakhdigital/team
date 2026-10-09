@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"daemon/internal/models"
 	"daemon/internal/repository"
@@ -29,6 +30,7 @@ type segmentStore interface {
 	ListByTeam(ctx context.Context, tx repository.DBTX, teamID int64) ([]*models.Segment, error)
 	CountRoles(ctx context.Context, tx repository.DBTX, segmentID int64) (int, error)
 	UpdateConfig(ctx context.Context, tx repository.DBTX, id int64, cfg map[string]any) error
+	UpdateMeta(ctx context.Context, tx repository.DBTX, id int64, name, description string) error
 }
 
 type roleStore interface {
@@ -842,6 +844,42 @@ func (s *TeamService) UpdateSegmentLayout(ctx context.Context, req UpdateSegment
 	}
 	seg.Config = newCfg
 	return &SegmentLayoutResult{Segment: seg, PreviousLayout: previous, NewLayout: next}, nil
+}
+
+// UpdateSegmentMetaRequest — PATCH /api/v1/segments/{id} (U3-rename: name/description).
+type UpdateSegmentMetaRequest struct {
+	ID          int64   `json:"-"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
+// UpdateSegmentMeta — переименование сегмента (name) + опц. description.
+// Возвращает новое имя. not_found на неизвестный id, conflict при дубликате имени в команде.
+func (s *TeamService) UpdateSegmentMeta(ctx context.Context, req UpdateSegmentMetaRequest) (string, error) {
+	if strings.TrimSpace(req.Name) == "" {
+		return "", NewValidation("invalid request", []FieldError{{Field: "name", Reason: "name is required"}})
+	}
+	seg, err := s.segments.GetByID(ctx, s.db, req.ID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return "", notFound("segment")
+		}
+		return "", err
+	}
+	desc := seg.Description // omit → сохраняем текущий
+	if req.Description != nil {
+		desc = *req.Description
+	}
+	if err := s.segments.UpdateMeta(ctx, s.db, seg.ID, req.Name, desc); err != nil {
+		if repository.IsUniqueViolation(err) {
+			return "", NewConflict(fmt.Sprintf("segment %q already exists in team %d", req.Name, seg.TeamID))
+		}
+		if errors.Is(err, repository.ErrNotFound) {
+			return "", notFound("segment")
+		}
+		return "", err
+	}
+	return req.Name, nil
 }
 
 type UpdateRoleLayoutRequest struct {

@@ -465,6 +465,33 @@ func (h *handlers) UpdateSegmentLayout(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type updateSegmentMetaBody struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
+// UpdateSegmentMeta — PATCH /api/v1/segments/{id} (U3-rename: name/description).
+func (h *handlers) UpdateSegmentMeta(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body updateSegmentMetaBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	name, err := h.svc.UpdateSegmentMeta(r.Context(), service.UpdateSegmentMetaRequest{
+		ID: id, Name: body.Name, Description: body.Description,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "name": name, "status": "updated"})
+}
+
 type updateRoleLayoutBody struct {
 	Position layoutPosition `json:"position"`
 }

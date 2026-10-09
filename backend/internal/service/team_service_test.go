@@ -641,3 +641,58 @@ func mustGetTeam(t *testing.T, svc *service.TeamService, teamID int64) *service.
 }
 
 func strPtr(s string) *string { return &s }
+
+func TestUpdateSegmentMeta(t *testing.T) {
+	svc := newTestService(t)
+	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
+	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "backend", Description: "old-desc"})
+
+	// rename без description → сохраняем текущий
+	name, err := svc.UpdateSegmentMeta(ctx(), service.UpdateSegmentMetaRequest{ID: seg.ID, Name: "platform"})
+	if err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	if name != "platform" {
+		t.Fatalf("want name platform, got %q", name)
+	}
+	topo, _ := svc.GetTopology(ctx(), team.ID)
+	for _, s := range topo.Segments {
+		if s.ID == seg.ID && (s.Name != "platform" || s.Description != "old-desc") {
+			t.Fatalf("persisted name/desc mismatch: %q / %q", s.Name, s.Description)
+		}
+	}
+
+	// rename + description
+	desc := "new-desc"
+	if _, err := svc.UpdateSegmentMeta(ctx(), service.UpdateSegmentMetaRequest{ID: seg.ID, Name: "platform2", Description: &desc}); err != nil {
+		t.Fatal(err)
+	}
+	topo, _ = svc.GetTopology(ctx(), team.ID)
+	for _, s := range topo.Segments {
+		if s.ID == seg.ID && (s.Name != "platform2" || s.Description != "new-desc") {
+			t.Fatalf("after 2nd rename: %q / %q", s.Name, s.Description)
+		}
+	}
+
+	// conflict: переименовать в существующее имя
+	svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "other"})
+	if _, err := svc.UpdateSegmentMeta(ctx(), service.UpdateSegmentMetaRequest{ID: seg.ID, Name: "other"}); err == nil {
+		t.Fatal("want conflict on duplicate name")
+	} else {
+		isAppErr(t, err, "conflict")
+	}
+
+	// not_found
+	if _, err := svc.UpdateSegmentMeta(ctx(), service.UpdateSegmentMetaRequest{ID: 999999, Name: "x"}); err == nil {
+		t.Fatal("want not_found")
+	} else {
+		isAppErr(t, err, "not_found")
+	}
+
+	// validation: пустое имя
+	if _, err := svc.UpdateSegmentMeta(ctx(), service.UpdateSegmentMetaRequest{ID: seg.ID, Name: "  "}); err == nil {
+		t.Fatal("want validation_failed on empty name")
+	} else {
+		isAppErr(t, err, "validation_failed")
+	}
+}

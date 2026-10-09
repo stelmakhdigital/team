@@ -61,6 +61,22 @@ func (r *LibraryRepo) GetByTypeAndName(ctx context.Context, tx DBTX, t models.Li
 	return scanLibraryItem(tx.QueryRowContext(ctx, libraryItemSelect+` WHERE type = ? AND name = ?`, string(t), name))
 }
 
+// UpdateName — меняет name (и опц. description) элемента библиотеки (PATCH /library/{id}, U3-rename).
+// ErrNotFound, если id не существует.
+func (r *LibraryRepo) UpdateName(ctx context.Context, tx DBTX, id int64, name string, description *string) error {
+	res, err := tx.ExecContext(ctx,
+		`UPDATE library_items SET name = ?, description = ?, updated_at = ? WHERE id = ?`,
+		name, description, nowStr(), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // LibraryFilter — фильтры GET /api/v1/library (контракт 20 §5.1).
 type LibraryFilter struct {
 	Type   *models.LibraryItemType

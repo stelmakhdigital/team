@@ -106,6 +106,22 @@ func (r *WorkflowRepo) UpdateState(ctx context.Context, tx DBTX, id int64, state
 	return nil
 }
 
+// UpdateName — меняет name (и опц. description) workflow (PATCH /workflows/{id}, U3-rename).
+// ErrNotFound, если id не существует.
+func (r *WorkflowRepo) UpdateName(ctx context.Context, tx DBTX, id int64, name string, description *string) error {
+	res, err := tx.ExecContext(ctx,
+		`UPDATE workflows SET name = ?, description = ?, updated_at = ? WHERE id = ?`,
+		name, description, nowStr(), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // Delete — удаляет workflow (контракт 20 §2.8). Блоки/связи удаляет вызывающий
 // (см. WorkflowService.DeleteWorkflow — явный порядок, не полагаемся на FK cascade,
 // т.к. в :memory: sqlite FK выключен). ErrNotFound, если id не существует.

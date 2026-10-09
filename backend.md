@@ -143,6 +143,31 @@
 → env (см. колонку) → override (БД). Env-длительности — в **секундах**
 (конвенция daemon); в file/override — `Go duration` ("45s") или секунды.
 
+### 3c. U3-rename (round 2, 2026-10-09): PATCH segment/workflow/library
+Переименование (name + опц. description) для безопасных сущностей — доводит U3 до
+«все сущности редактируемы в UI».
+
+| Эндпоинт | RBAC permission | Актеры |
+|---|---|---|
+| `PATCH /api/v1/segments/{id}` | `teams.update` | admin, operator |
+| `PATCH /api/v1/workflows/{id}` | `workflows.update` | admin, operator |
+| `PATCH /api/v1/library/{id}` | **`library.create`** (нет `library.update` в модели) | admin, operator |
+
+Body `{name (required), description?}`; response `{id, name, status: "updated"}`;
+`updated_at` обновляется. Ошибки: 400 (пустое имя), 404 (нет id), 409 (дубликат имени —
+toлько segment, unique `(team_id,name)`). description omit → текущее сохраняется.
+Код: `SegmentRepo.UpdateMeta` / `WorkflowRepo.UpdateName` / `LibraryRepo.UpdateName` +
+`TeamService.UpdateSegmentMeta` / `WorkflowService.UpdateWorkflow` / `LibraryService.Update`
++ 3 handler'а; `requiredPermission` — special-case `PATCH /library/{id}` → `library.create`.
+OpenAPI: +3 операции (всего 63); `check_openapi.py` PASS.
+Тесты: 3 service-unit + `TestRenameEndpointsRBAC` (HTTP: 200 operator / 403 viewer /
+404 unknown / 409 dup).
+
+**Role/task — read-only (обоснование, не «нужен эндпоинт»)**: role-name = ключ
+`agent_spec` + внешние ссылки (chatroom/relatives/session/alert) → rename ломает связи
+(каскад, out of scope); task title/priority задаются при create, изменения в полёте
+не предусмотрены контрактом. Зафиксировано в `api-decisions.md` (U3-rename) + `frontend.md` §3b.
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

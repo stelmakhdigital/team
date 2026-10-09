@@ -97,6 +97,25 @@ func (r *SegmentRepo) UpdateConfig(ctx context.Context, tx DBTX, id int64, cfg m
 	return nil
 }
 
+// UpdateMeta — меняет name/description сегмента (PATCH /segments/{id}, U3-rename).
+// ErrNotFound, если id не существует; unique-violation (team_id,name) — через IsUniqueViolation вызывающим.
+func (r *SegmentRepo) UpdateMeta(ctx context.Context, tx DBTX, id int64, name, description string) error {
+	res, err := tx.ExecContext(ctx,
+		`UPDATE segments SET name = ?, description = ?, updated_at = ? WHERE id = ?`,
+		name, description, timeNow(), id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func scanSegment(s teamScanner) (*models.Segment, error) {
 	var seg models.Segment
 	var cfg, ca, ua string

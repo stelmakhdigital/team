@@ -455,16 +455,21 @@ History Viewer (audit + transcripts), Prometheus `/metrics`.
 - **Layered resolution**: `default < file < env < override`. File-слой —
   опциональный YAML (`DAEMON_CONFIG_FILE`, по умолчанию `daemon.yaml` в cwd);
   override-слой — таблица `config_overrides` (миграция 0008, sqlite+postgres).
-  Демон грузит конфиг на старте; runtime-override применяется после рестарта
-  (`requires_restart`/`needs_restart` сообщают).
+  Демон грузит конфиг на старте из env+дефолтов (`config.Load()`). Слои file
+  (`DAEMON_CONFIG_FILE`/`daemon.yaml`) и override (БД) читаются **только ConfigService**
+  (Settings: просмотр/провенанс/валидация); runtime `config.Load()` их не потребляет,
+  поэтому выставленное override **не вступает в силу** даже после рестарта (bootstrap:
+  БД ещё нет на момент `Load()`). `requires_restart`/`needs_restart` — маркеры
+  restart-ключей; применение override в runtime — follow-up (см. бэклог).
 - **Реестр — полный охват**: 20 ключей, 7 секций (server/storage/sessions/
   watchdog/security/logging/workspace; workspace — новый, ключи добавлены в
   `internal/config` + `Load()`). Host-derived дефолты помечены
   `default_is_derived` (workspace.root=cwd, подпапки от root).
 - **RBAC**: `config.read` (GET; admin+operator+viewer, новая permission в
-  миграции 0008); `config.update` (PUT/DELETE) — **теперь выдан и operator**
-  (раньше только admin, slice 6) — осознанное изменение по контракту U4
-  (коснётся также `PATCH /roles/{id}/config` — та же permission).
+  миграции 0008); `config.update` (PUT/DELETE `/api/v1/config`) — **admin-only**
+  (осознанно НЕ выдаётся operator: та же permission охраняет
+  `PATCH /roles/{id}/config` из slice 6 — выдача operator ломала бы RBAC slice 6;
+  фикс-коммит `e9ceed2`).
 - **Meta**: project/instance/version/uptime/git_commit/git_branch/started_at;
   `config_hash` = `sha256:` над отсортированным JSON эффективных значений
   всех ключей. Секция `environment` — env-provenance (secret-значения маскируются).
@@ -474,3 +479,38 @@ History Viewer (audit + transcripts), Prometheus `/metrics`.
 - **OpenAPI**: +3 операции (всего 60), schemas ConfigKey/ConfigSection/
   ConfigMeta/ListConfigResponse/SetConfigRequest/SetConfigResponse/
   ResetConfigResponse (+ConfigEnvVar); `scripts/check_openapi.py` — PASS.
+
+## U3-rename (round 2, 2026-10-09): PATCH /segments/{id}, /workflows/{id}, /library/{id}
+
+**Цель** — довести U3 (редактируемость) до «все сущности редактируемы в UI» для
+безопасных сущностей: переименование (name + опц. description).
+
+- **Эндпоинты**: `PATCH /api/v1/segments/{id}`, `PATCH /api/v1/workflows/{id}`,
+  `PATCH /api/v1/library/{id}` — body `{name (required, non-empty), description?}`;
+  response `{id, name, status: "updated"}`; `updated_at` обновляется.
+- **Семантика description**: omit → сохраняем текущее значение (не сбрасываем);
+  пустая строка → очищаем (явное действие клиента).
+- **Ошибки**: 400 (пустое имя), 404 (неизвестный id), 409 (дубликат имени, только
+  segment — unique `(team_id, name)`); единый error-envelope.
+- **RBAC** (`requiredPermission`, middleware.go):
+  - `PATCH /segments/{id}` → `teams.update` (admin+operator; existing segments-branch).
+  - `PATCH /workflows/{id}` → `workflows.update` (admin+operator; default `res.update`).
+  - `PATCH /library/{id}` → **`library.create`** (admin+operator). В модели permissions
+    нет `library.update`; переименование (write) гейтится существующим write-разрешением
+    библиотеки `library.create`. (Альтернатива — новая permission `library.update` +
+    миграция — сознательно не добавляем: minimal, без смены схемы; admin+operator —
+    ожидаемые акторы write, viewer — read-only.)
+- **Service**: `TeamService.UpdateSegmentMeta`, `WorkflowService.UpdateWorkflow`,
+  `LibraryService.Update`; repo-методы `SegmentRepo.UpdateMeta`, `WorkflowRepo.UpdateName`,
+  `LibraryRepo.UpdateName` (ErrNotFound → 404; `IsUniqueViolation` → 409).
+- **OpenAPI**: +3 операции (`updateSegmentMeta`, `updateWorkflow`, `updateLibraryItem`),
+  общие schemas `RenameRequest`/`RenameResponse`; всего 63 ops; `check_openapi.py` PASS.
+- **Тесты**: service (unit: rename/persist/desc-omit/conflict/404/empty) +
+  HTTP (`TestRenameEndpointsRBAC`: 200 operator, 403 viewer, 404 unknown, 409 dup).
+- **Role/task НЕ переименовываются (read-only, обоснование)**:
+  - **role** — имя роли = ключ `agent_spec` и фигурирует во внешних ссылках
+    (chatroom-имена, relatives `segment.role`, session role_name, alert source);
+    rename ломает связи/историю. Переименование роли требует каскада — out of scope.
+  - **task** — `title`/`priority` задаются при create; нет внешних ID-зависимостей, но
+    task-объект — единица работы с историей/аудитом; изменение title/priority в полёте
+    не предусмотрено контрактом (изменения — через state/handoff). Оставляем read-only.

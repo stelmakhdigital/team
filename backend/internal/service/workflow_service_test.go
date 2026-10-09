@@ -319,3 +319,52 @@ func TestWorkflowValidation(t *testing.T) {
 		t.Fatal("want validation error for out-of-range connection index")
 	}
 }
+
+func TestUpdateWorkflowRename(t *testing.T) {
+	teamSvc, wsvc, ctx := setupWorkflowEnv(t)
+	team := makeWfTeam(t, teamSvc, "wf-team")
+	wf, err := wsvc.CreateWorkflow(ctx, service.CreateWorkflowRequest{TeamID: team.ID, Name: "orig"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// rename без description → сохраняем текущий (nil)
+	view, err := wsvc.UpdateWorkflow(ctx, service.UpdateWorkflowRequest{ID: wf.ID, Name: "renamed"})
+	if err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	if view.Name != "renamed" {
+		t.Fatalf("want renamed, got %q", view.Name)
+	}
+	got, _, _, err := wsvc.GetWorkflow(ctx, wf.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "renamed" {
+		t.Fatalf("persisted workflow name: %q", got.Name)
+	}
+
+	// rename + description
+	desc := "d2"
+	view, err = wsvc.UpdateWorkflow(ctx, service.UpdateWorkflowRequest{ID: wf.ID, Name: "renamed2", Description: &desc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Name != "renamed2" || view.Description == nil || *view.Description != "d2" {
+		t.Fatalf("after 2nd rename: %q / %v", view.Name, view.Description)
+	}
+
+	// not_found
+	if _, err := wsvc.UpdateWorkflow(ctx, service.UpdateWorkflowRequest{ID: 999999, Name: "x"}); err == nil {
+		t.Fatal("want not_found")
+	} else if ae, ok := err.(*service.AppError); !ok || ae.Code != "not_found" {
+		t.Fatalf("want not_found, got %v", err)
+	}
+
+	// validation: пустое имя
+	if _, err := wsvc.UpdateWorkflow(ctx, service.UpdateWorkflowRequest{ID: wf.ID, Name: " "}); err == nil {
+		t.Fatal("want validation_failed on empty name")
+	} else if ae, ok := err.(*service.AppError); !ok || ae.Code != "validation_failed" {
+		t.Fatalf("want validation_failed, got %v", err)
+	}
+}

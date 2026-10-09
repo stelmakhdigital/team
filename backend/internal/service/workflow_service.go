@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"strings"
 
 	"daemon/internal/models"
 	"daemon/internal/repository"
@@ -228,6 +230,41 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, req CreateWorkflow
 		return nil, err
 	}
 	return w, nil
+}
+
+// UpdateWorkflowRequest — PATCH /api/v1/workflows/{id} (U3-rename: name/description).
+type UpdateWorkflowRequest struct {
+	ID          int64   `json:"-"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
+// UpdateWorkflow — переименование workflow (name) + опц. description. Возвращает обновлённый view.
+// not_found на неизвестный id, conflict при дубликате имени в команде.
+func (s *WorkflowService) UpdateWorkflow(ctx context.Context, req UpdateWorkflowRequest) (*WorkflowView, error) {
+	if strings.TrimSpace(req.Name) == "" {
+		return nil, NewValidation("invalid request", []FieldError{{Field: "name", Reason: "name is required"}})
+	}
+	w, err := s.wf.GetByID(ctx, s.db, req.ID)
+	if err != nil {
+		return nil, wrapRepositoryNotFound(err, "workflow")
+	}
+	desc := w.Description // omit → сохраняем текущий
+	if req.Description != nil {
+		desc = req.Description
+	}
+	if err := s.wf.UpdateName(ctx, s.db, w.ID, req.Name, desc); err != nil {
+		if repository.IsUniqueViolation(err) {
+			return nil, NewConflict(fmt.Sprintf("workflow %q already exists in team %d", req.Name, w.TeamID))
+		}
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, NewNotFound("workflow")
+		}
+		return nil, err
+	}
+	w.Name = req.Name
+	w.Description = desc
+	return workflowView(w), nil
 }
 
 // CreateBlock — POST /api/v1/workflows/{id}/blocks (контракт 20 §2.3).

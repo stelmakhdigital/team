@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
 	"daemon/internal/models"
 	"daemon/internal/repository"
@@ -163,6 +165,38 @@ func (s *LibraryService) Get(ctx context.Context, id int64) (*LibraryItemView, m
 		})
 	}
 	return libraryItemView(it), it.Spec, vv, nil
+}
+
+// UpdateLibraryRequest — PATCH /api/v1/library/{id} (U3-rename: name/description).
+type UpdateLibraryRequest struct {
+	ID          int64   `json:"-"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
+// Update — переименование элемента библиотеки (name) + опц. description. Возвращает обновлённый view.
+// not_found на неизвестный id.
+func (s *LibraryService) Update(ctx context.Context, req UpdateLibraryRequest) (*LibraryItemView, error) {
+	if strings.TrimSpace(req.Name) == "" {
+		return nil, NewValidation("invalid request", []FieldError{{Field: "name", Reason: "name is required"}})
+	}
+	it, err := s.items.GetByID(ctx, s.db, req.ID)
+	if err != nil {
+		return nil, wrapRepositoryNotFound(err, "library item")
+	}
+	desc := it.Description // omit → сохраняем текущий
+	if req.Description != nil {
+		desc = req.Description
+	}
+	if err := s.items.UpdateName(ctx, s.db, it.ID, req.Name, desc); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, NewNotFound("library item")
+		}
+		return nil, err
+	}
+	it.Name = req.Name
+	it.Description = desc
+	return libraryItemView(it), nil
 }
 
 // Save — POST /api/v1/library (контракт 20 §5.2): снапшот spec источника.
