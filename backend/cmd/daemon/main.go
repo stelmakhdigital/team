@@ -130,6 +130,12 @@ func run() error {
 		return err
 	}
 
+	// P0.2: дедлайн закрытия читает tasks.closure_required_secs на момент перехода
+	// в in_progress (layered resolution, restart=false).
+	tsvc.ClosureRequiredFunc = func(ctx context.Context) (time.Duration, error) {
+		return cvc.ResolveDuration(ctx, "tasks.closure_required_secs")
+	}
+
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger: logger, DB: db,
 		Sessions: ssvc, Alerts: alerts, Messages: msvc,

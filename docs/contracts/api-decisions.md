@@ -566,3 +566,78 @@ detail). Repo-изменения аддитивные (nil/false по умолч
 severity-сортировка, created_at-asc в рамках severity, limit/offset/total, read-
 алерт исключён; `TestAttentionEmpty`: total=0 + items=[]) +
 HTTP (`TestAttentionEndpoint`: 401 без ключа, 200 admin, >=2 items, limit, **200 viewer**).
+
+## P0.2 — Overdue / дедлайны задач (backend, 2026-10-09)
+
+У задачи появляется честный дедлайн закрытия: вычисляется при переходе в
+`in_progress`, виден в UI, просроченные — отдельный bounded-список и в Attention.
+
+**Миграция 0009**: `queue_tasks.closure_required_at` (nullable). Храним как TEXT
+(RFC3339Nano, UTC) — единая конвенция всех временных полей `queue_tasks`
+(created_at/updated_at/started_at/...), НЕ `timestamptz` (spec-формулировка
+адаптирована под существующую конвенцию; модель — `time.Time`). Индекс
+`idx_queue_tasks_closure_due (state, closure_required_at)`.
+
+**Правила выставления/пересчёта** (`TaskService.UpdateTaskState`):
+- переход **в `in_progress`** (из pending, из blocked, из любого допустимого):
+  `closure_required_at = now + tasks.closure_required_secs`. Это и первичное
+  выставление, и **пересчёт** при повторном `blocked → in_progress`.
+- `in_progress → blocked`: дедлайн **не трогается** (переносится; `is_overdue`
+  учитывает и `blocked`).
+- `in_progress → done/canceled`: дедлайн **не трогается** (история сохраняет;
+  `is_overdue=false`, т.к. state вне (in_progress, blocked)).
+- **Handoff-создание**: `HandoffTask` создаёт новую задачу в `pending` (НЕ в
+  `in_progress`), поэтому дедлайн при handoff не выставляется — он появится, когда
+  новая задача перейдёт в `in_progress` через обычный transition. Отдельного
+  пути «handoff → in_progress» в модели нет.
+
+**Config-key** `tasks.closure_required_secs` (duration, default `7200s`/2h,
+`requires_restart=false`, editable, env `DAEMON_TASKS_CLOSURE_REQUIRED_SECS`).
+- Новый section `tasks` в реестре (config_service.go). `ConfigService.ResolveDuration`
+  (новый public) — layered value (default < file < env < override) **на момент
+  перехода** (читается в `UpdateTaskState`, а не на старте демона).
+- `TaskService.ClosureRequiredFunc` (новый, injectable) — main.go подвязывает к
+  `cvc.ResolveDuration`; nil → дефолт 2h (тесты).
+
+**`is_overdue` + `remaining_secs`** (в `TaskView`, и в списке, и в деталке):
+- `is_overdue = state in (in_progress, blocked) AND closure_required_at < now`.
+- `closure_required_at` — ISO (date-time); `remaining_secs = closure_required_at - now`
+  (целое; отрицательное = просрочено). Вычисляются в `viewsFor` (Go, по
+  `*time.Time` модели — полная точность), не в SQL.
+- Сравнение «просрочено» — в Go (portable): TEXT-RFC3339Nano не сравним
+  лексикографически надёжно для динамического `now`.
+
+**`GET /api/v1/tasks/overdue?limit=&offset=`** (default 50, max 200, bounded):
+- Возвращает `{tasks: [...с is_overdue, closure_required_at, remaining_secs], total}`
+  (`tasks`, а не `items` из spec-примера — для консистентности с `GET /tasks`).
+- Сортировка: самое просроченное (ранний дедлайн) — сверху. `total` = полное число.
+- Реализация: `TaskService.ListOverdue` — выборка кандидатов
+  (in_progress/blocked + `closure_required_at IS NOT NULL`, кап 500), фильтр
+  «< now» + сортировка + limit/offset в Go.
+- RBAC: `dashboard.read` (operator view, как attention; viewer-доступен).
+  (остальные `GET /tasks` — `tasks.read`; только `/overdue` — `dashboard.read`).
+
+**Attention (P0.1) — новый вид `task_overdue`** (severity `high`):
+- Источник: in_progress/blocked с `closure_required_at < now`.
+- detail — «Team X · просрочено на N»; suggested action — «Открыть задачу»;
+  link на деталку.
+- **Дедуп**: задача, уже выпущенная как `task_escalated`/`task_blocked`, НЕ
+  дублируется как `task_overdue` (избегание повторяющихся строк). Т.е. вид добавляет
+  новые строки только для задач, ещё не показанных (прежде всего in_progress с
+  просроченным дедлайном). Существующие виды/тесты не сломаны (дополнение).
+
+**`undelivered`** (задачи, чьё уведомление о создании не подтверждено) — **не в
+scope этой карточки**: у нас нет модели nudge-доставки (нет «прочитано/доставлено»
+для task-created nudge). Отложено с обоснованием (см. blockers/backlog) — появится,
+когда будет модель подтверждения доставки.
+
+**OpenAPI**: +1 операция (`listTasksOverdue`) → 65 ops; `Task` schema +`is_overdue`/
+`closure_required_at`/`remaining_secs`; `check_openapi.py` PASS (65/65).
+
+**Тесты**: service (`TestOverdueDeadlineSetOnInProgress`: выставление ~now+2h +
+не-просрочена; `TestOverdueRecalcOnBlockedToInProgress`: не трогается на blocked,
+пересчёт на входе в in_progress; `TestOverdueIsOverdueLogic`: in_progress/blocked +
+past = true, done = false, закрытие не сбрасывает; `TestListOverdue`: пусто/с
+данными/сортировка/limit) + HTTP (`TestTasksOverdueEndpoint`: 401/пусто/с данными/
+limit/поля/is_overdue в деталке/**viewer 200**; `TestAttentionTaskOverdue`:
+kind=task_overdue, severity=high, link).

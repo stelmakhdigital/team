@@ -49,6 +49,19 @@ func (h *handlers) ListTasks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"tasks": tasks, "total": total})
 }
 
+// ListTasksOverdue — P0.2: GET /api/v1/tasks/overdue?limit=&offset=
+// Bounded-срез просроченных задач (in_progress/blocked + closure_required_at < now).
+// RBAC: dashboard.read (operator view, viewer-доступен).
+func (h *handlers) ListTasksOverdue(w http.ResponseWriter, r *http.Request) {
+	limit, offset := limitOffset(r.URL.Query())
+	tasks, total, err := h.tsvc.ListOverdue(r.Context(), limit, offset)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": tasks, "total": total})
+}
+
 type createTaskBody struct {
 	TeamID            int64          `json:"team_id"`
 	ParentTaskID      *int64         `json:"parent_task_id"`

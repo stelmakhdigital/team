@@ -461,6 +461,27 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/tasks/overdue:
+    get:
+      operationId: listTasksOverdue
+      summary: Просроченные задачи (in_progress/blocked + closure_required_at < now)
+      description: |
+        P0.2: bounded-срез просроченных задач (дедлайн закрытия прошёл).
+        RBAC: dashboard.read (operator view, viewer-доступен). Сортировка: самое
+        просроченное (ранний дедлайн) — сверху. total = полное число просроченных.
+      tags: [tasks]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: Просроченные задачи (items с is_overdue + remaining_secs)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TasksListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/tasks/{id}:
     get:
       operationId: getTask
@@ -1696,6 +1717,9 @@ components:
         progress: { type: number }
         is_stale: { type: boolean }
         is_blocked: { type: boolean }
+        is_overdue: { type: boolean, description: "P0.2: in_progress/blocked и closure_required_at < now" }
+        closure_required_at: { type: string, format: date-time, description: "P0.2: дедлайн закрытия (выставляется в in_progress)" }
+        remaining_secs: { type: integer, format: int64, description: "P0.2: closure_required_at - now (отриц. = просрочено)" }
     TasksListResponse:
       type: object
       required: [tasks, total]

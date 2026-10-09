@@ -30,6 +30,7 @@ import (
 const (
 	AttentionKindTaskBlocked       = "task_blocked"
 	AttentionKindTaskEscalated     = "task_escalated"
+	AttentionKindTaskOverdue       = "task_overdue" // P0.2: closure_required_at просрочен
 	AttentionKindAlertUnread       = "alert_unread"
 	AttentionKindWorkflowAttention = "workflow_attention"
 	AttentionKindSessionFailed     = "session_failed"
@@ -105,6 +106,7 @@ func (s *AttentionService) List(ctx context.Context, limit, offset int) (*Attent
 	}
 	entries := make([]entry, 0, 16)
 	escalated := map[int64]bool{}
+	shown := map[int64]bool{} // все уже выпущенные task-ID (дедуп overdue, P0.2)
 
 	// 1) escalated (critical) — незавершённые задачи с closure_reason = escalation
 	escStr := string(models.ClosureEscalation)
@@ -114,6 +116,7 @@ func (s *AttentionService) List(ctx context.Context, limit, offset int) (*Attent
 	}
 	for _, t := range escTasks {
 		escalated[t.ID] = true
+		shown[t.ID] = true
 		since := t.UpdatedAt
 		if t.CreatedAt.After(since) {
 			since = t.CreatedAt
@@ -131,6 +134,7 @@ func (s *AttentionService) List(ctx context.Context, limit, offset int) (*Attent
 		if escalated[t.ID] {
 			continue
 		}
+		shown[t.ID] = true
 		since := t.CreatedAt
 		if t.BlockedSince != nil {
 			since = *t.BlockedSince
@@ -138,7 +142,26 @@ func (s *AttentionService) List(ctx context.Context, limit, offset int) (*Attent
 		entries = append(entries, entry{item: s.taskItem(ctx, t, AttentionKindTaskBlocked, "high", since, now), since: since})
 	}
 
-	// 3) unread watchdog alerts (severity по типу)
+	// 3) overdue (high, P0.2) — in_progress/blocked с просроченным closure_required_at.
+	//    Дедуп: задачи, уже выпущенные как escalated/blocked, не дублируются.
+	candTasks, _, err := s.tasks.List(ctx, s.db, repository.TaskFilter{
+		States:                 []models.TaskState{models.TaskInProgress, models.TaskBlocked},
+		ClosureRequiredNotNull: true,
+		Limit:                  attentionFetchCap,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("attention: list overdue candidates: %w", err)
+	}
+	for _, t := range candTasks {
+		if shown[t.ID] || t.ClosureRequiredAt == nil || !t.ClosureRequiredAt.Before(now) {
+			continue
+		}
+		shown[t.ID] = true
+		since := *t.ClosureRequiredAt
+		entries = append(entries, entry{item: s.taskOverdueItem(ctx, t, since, now), since: since})
+	}
+
+	// 4) unread watchdog alerts (severity по типу)
 	alerts, _, err := s.alerts.List(ctx, s.db, repository.AlertFilter{UnreadOnly: true, Limit: attentionFetchCap})
 	if err != nil {
 		return nil, fmt.Errorf("attention: list unread alerts: %w", err)
@@ -182,6 +205,22 @@ func (s *AttentionService) taskItem(ctx context.Context, t *models.Task, kind, s
 		Detail:          detail,
 		CreatedAt:       since.Format(rfc3339),
 		SuggestedAction: action,
+		Link:            AttentionLink{Path: fmt.Sprintf("/tasks/%d", t.ID), Label: t.Title},
+	}
+}
+
+// taskOverdueItem — P0.2: просроченная задача (closure_required_at < now).
+func (s *AttentionService) taskOverdueItem(ctx context.Context, t *models.Task, since, now time.Time) AttentionItem {
+	teamName := s.teamName(ctx, t.TeamID)
+	detail := fmt.Sprintf("Team %s · просрочено на %s", teamName, humanDuration(now.Sub(since)))
+	return AttentionItem{
+		Kind:            AttentionKindTaskOverdue,
+		ID:              strconv.FormatInt(t.ID, 10),
+		Severity:        "high",
+		Title:           t.Title,
+		Detail:          detail,
+		CreatedAt:       since.Format(rfc3339),
+		SuggestedAction: "Открыть задачу",
 		Link:            AttentionLink{Path: fmt.Sprintf("/tasks/%d", t.ID), Label: t.Title},
 	}
 }

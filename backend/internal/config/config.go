@@ -30,6 +30,9 @@ type Config struct {
 	// Slice 6 — Security
 	SecretKey string // AES-256-GCM ключ для secrets (64 hex-символа, пусто = выключен)
 
+	// P0.2 — дедлайн закрытия задачи (дефолт 7200s = 2h; читается на момент перехода в in_progress)
+	TasksClosureRequired time.Duration
+
 	// U4 — workspace (рабочая область; дефолты host-derived)
 	WorkspaceRoot           string // корень workspace (дефолт — cwd)
 	WorkspaceArtifactsDir   string // артефакты (дефолт — root/artifacts)
@@ -58,6 +61,8 @@ func Load() (*Config, error) {
 		ConfigsDir:           envStr("DAEMON_SESSION_CONFIGS_DIR", "configs/sessions"),
 
 		SecretKey: envStr("DAEMON_SECRET_KEY", ""),
+
+		TasksClosureRequired: envDuration("DAEMON_TASKS_CLOSURE_REQUIRED_SECS", 2*time.Hour),
 	}
 
 	// U4 — workspace: дефолты host-derived (root = cwd; подпапки — от root)

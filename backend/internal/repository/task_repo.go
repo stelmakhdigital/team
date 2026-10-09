@@ -15,21 +15,22 @@ import (
 type TaskRepo struct{ db *sql.DB }
 
 type TaskFilter struct {
-	TeamID          *int64
-	State           *models.TaskState
-	DestinationRole *int64
-	ParentTaskID    *int64
-	ActiveOnly      bool // pending|in_progress|blocked
-	States          []models.TaskState
-	ClosureReason   *string // filter by queue_tasks.closure_reason (P0.1 attention: escalated)
-	Limit           int
-	Offset          int
+	TeamID                 *int64
+	State                  *models.TaskState
+	DestinationRole        *int64
+	ParentTaskID           *int64
+	ActiveOnly             bool // pending|in_progress|blocked
+	States                 []models.TaskState
+	ClosureReason          *string // filter by queue_tasks.closure_reason (P0.1 attention: escalated)
+	ClosureRequiredNotNull bool    // P0.2: closure_required_at IS NOT NULL (кандидаты overdue)
+	Limit                  int
+	Offset                 int
 }
 
 const taskColumns = `id, team_id, parent_task_id, destination_role_id, source_role_id,
 	title, body, body_context, state, closure_reason, closure_target_id,
 	blocked_since, park_timeout_secs, priority, estimated_secs, actual_secs,
-	created_at, updated_at, started_at, completed_at`
+	created_at, updated_at, started_at, completed_at, closure_required_at`
 
 func (r *TaskRepo) Create(ctx context.Context, tx DBTX, t *models.Task) error {
 	ts, tsStr := nowTime(), nowStr()
@@ -48,12 +49,12 @@ func (r *TaskRepo) Create(ctx context.Context, tx DBTX, t *models.Task) error {
 		INSERT INTO queue_tasks (team_id, parent_task_id, destination_role_id, source_role_id,
 			title, body, body_context, state, closure_reason, closure_target_id,
 			blocked_since, park_timeout_secs, priority, estimated_secs, actual_secs,
-			created_at, updated_at, started_at, completed_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			created_at, updated_at, started_at, completed_at, closure_required_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.TeamID, t.ParentTaskID, t.DestinationRoleID, t.SourceRoleID,
 		t.Title, t.Body, bc, t.State, t.ClosureReason, t.ClosureTargetID,
 		t.BlockedSince, t.ParkTimeoutSecs, t.Priority, t.EstimatedSecs, t.ActualSecs,
-		tsStr, tsStr, t.StartedAt, t.CompletedAt)
+		tsStr, tsStr, t.StartedAt, t.CompletedAt, closureRequiredStr(t.ClosureRequiredAt))
 	if err != nil {
 		return err
 	}
@@ -101,6 +102,9 @@ func (r *TaskRepo) List(ctx context.Context, tx DBTX, f TaskFilter) ([]*models.T
 	if f.ClosureReason != nil {
 		addCond("closure_reason = ?", *f.ClosureReason)
 	}
+	if f.ClosureRequiredNotNull {
+		addCond("closure_required_at IS NOT NULL")
+	}
 
 	where := ""
 	if len(conds) > 0 {
@@ -143,10 +147,11 @@ func (r *TaskRepo) UpdateState(ctx context.Context, tx DBTX, id int64, t *models
 	res, err := tx.ExecContext(ctx, `
 		UPDATE queue_tasks
 		SET state = ?, closure_reason = ?, closure_target_id = ?, blocked_since = ?,
-			updated_at = ?, started_at = COALESCE(started_at, ?), completed_at = ?
+			updated_at = ?, started_at = COALESCE(started_at, ?), completed_at = ?,
+			closure_required_at = ?
 		WHERE id = ?`,
 		t.State, t.ClosureReason, t.ClosureTargetID, t.BlockedSince,
-		nowStr(), t.StartedAt, t.CompletedAt, id)
+		nowStr(), t.StartedAt, t.CompletedAt, closureRequiredStr(t.ClosureRequiredAt), id)
 	if err != nil {
 		return err
 	}
@@ -304,11 +309,12 @@ func scanTask(s taskScanner) (*models.Task, error) {
 		actSecs    sql.NullInt64
 		startedAt  sql.NullString
 		completed  sql.NullString
+		closureReq sql.NullString
 		ca, ua     string
 	)
 	err := s.Scan(&t.ID, &t.TeamID, &parentID, &t.DestinationRoleID, &sourceRole,
 		&t.Title, &t.Body, &bodyCtx, &t.State, &closure, &targetID,
-		&blockedAt, &parkTO, &t.Priority, &estSecs, &actSecs, &ca, &ua, &startedAt, &completed)
+		&blockedAt, &parkTO, &t.Priority, &estSecs, &actSecs, &ca, &ua, &startedAt, &completed, &closureReq)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -355,6 +361,11 @@ func scanTask(s taskScanner) (*models.Task, error) {
 			t.CompletedAt = &tm
 		}
 	}
+	if closureReq.Valid {
+		if tm, err := parseTime(closureReq.String); err == nil {
+			t.ClosureRequiredAt = &tm
+		}
+	}
 	var bc map[string]any
 	if err := json.Unmarshal([]byte(bodyCtx), &bc); err == nil && bc != nil {
 		t.BodyContext = bc
@@ -368,6 +379,16 @@ func scanTask(s taskScanner) (*models.Task, error) {
 		return nil, fmt.Errorf("parse task updated_at: %w", err)
 	}
 	return &t, nil
+}
+
+// closureRequiredStr — *time.Time → RFC3339Nano строка (или nil), чтобы parseTime
+// корректно читал значение обратно (единый формат как created_at/updated_at;
+// driver sqlite хранит *time.Time в своём формате, который parseTime не парсит).
+func closureRequiredStr(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.UTC().Format(time.RFC3339Nano)
 }
 
 func joinPh(parts []string) string {

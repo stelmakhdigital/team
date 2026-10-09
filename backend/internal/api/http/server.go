@@ -77,6 +77,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 
 	// Slice 2 — Tasks & History
 	mux.HandleFunc("GET /api/v1/tasks", h.ListTasks)
+	mux.HandleFunc("GET /api/v1/tasks/overdue", h.ListTasksOverdue) // P0.2 (literal — приоритетнее {id})
 	mux.HandleFunc("POST /api/v1/tasks", h.CreateTask)
 	mux.HandleFunc("GET /api/v1/tasks/{id}", h.GetTask)
 	mux.HandleFunc("PATCH /api/v1/tasks/{id}/state", h.UpdateTaskState)

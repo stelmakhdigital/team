@@ -59,6 +59,7 @@ type KeySpec struct {
 var configSections = []struct{ name, description string }{
 	{"server", "HTTP-сервер (адрес, таймауты)"},
 	{"storage", "Хранилище (DB DSN, миграции)"},
+	{"tasks", "Задачи (дедлайн закрытия)"},
 	{"sessions", "Сессии и runtime (reaper, конфиги pi-сессий)"},
 	{"watchdog", "Watchdog живости сессий (stale/blocked)"},
 	{"security", "Безопасность (API-ключи, secret key, specs)"},
@@ -85,6 +86,9 @@ func configRegistry() []KeySpec {
 		{Key: "storage.migrate", Section: "storage", Type: BoolType,
 			Description: "Применять миграции на старте", Default: "true",
 			RequiresRestart: true, Editable: true, EnvVar: "DAEMON_MIGRATE"},
+		{Key: "tasks.closure_required_secs", Section: "tasks", Type: DurType,
+			Description: "Дедлайн закрытия задачи: при переходе в in_progress = now + значение (пересчитывается при повторном входе); читается на момент перехода",
+			Default:     "7200s", RequiresRestart: false, Editable: true, EnvVar: "DAEMON_TASKS_CLOSURE_REQUIRED_SECS"},
 		{Key: "sessions.poll_interval", Section: "sessions", Type: DurType,
 			Description: "Интервал reaper-проверки живости сессий", Default: "5s",
 			RequiresRestart: true, Editable: true, EnvVar: "DAEMON_SESSION_POLL_SECS"},
@@ -261,6 +265,32 @@ func (s *ConfigService) Registry() []KeySpec {
 	out := make([]KeySpec, len(s.registry))
 	copy(out, s.registry)
 	return out
+}
+
+// ResolveDuration — layered value (default < file < env < override) of a
+// duration key, resolved at call time (P0.2: дедлайн закрытия читается на
+// момент перехода, restart=false).
+func (s *ConfigService) ResolveDuration(ctx context.Context, key string) (time.Duration, error) {
+	spec, ok := s.byKey[key]
+	if !ok {
+		return 0, NewNotFound("config key " + key)
+	}
+	if spec.Type != DurType {
+		return 0, NewValidation(fmt.Sprintf("config key %q is not a duration", key))
+	}
+	overrides, err := s.repo.All(ctx, s.db)
+	if err != nil {
+		return 0, NewInternal(err)
+	}
+	r, err := s.resolve(spec, overrides)
+	if err != nil {
+		return 0, err
+	}
+	d, ok := r.Value.(string)
+	if !ok {
+		return 0, NewInternal(fmt.Errorf("config key %q: unexpected duration value", key))
+	}
+	return time.ParseDuration(d)
 }
 
 // ---------- Layered resolution: default < file < env < override ----------

@@ -143,6 +143,11 @@ func requiredPermission(method, path string) string {
 			return "dashboard.read"
 		case "attention": // P0.1: read-only operator view; viewer имеет dashboard.read
 			return "dashboard.read"
+		case "tasks": // P0.2: GET /tasks/overdue = operator view (dashboard.read); остальное — tasks.read
+			if id == "overdue" {
+				return "dashboard.read"
+			}
+			return "tasks.read"
 		case "audit":
 			return "audit.read"
 		case "config": // U4: Settings (GET /api/v1/config)

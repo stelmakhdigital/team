@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"daemon/internal/models"
@@ -41,6 +42,9 @@ type TaskService struct {
 	alerts   *repository.WatchdogRepo
 	// Bus — real-time события (task.created/task.state_changed); nil = без событий.
 	Bus *EventBus
+	// P0.2: tasks.closure_required_secs на момент перехода в in_progress (layered config).
+	// nil = дефолт 2h (7200s).
+	ClosureRequiredFunc func(ctx context.Context) (time.Duration, error)
 }
 
 func NewTaskService(db *sql.DB, s *repository.Stores) *TaskService {
@@ -127,6 +131,16 @@ func (s *TaskService) CreateTask(ctx context.Context, req CreateTaskRequest) (*m
 	return task, nil
 }
 
+// closureRequired — P0.2: сколько ждать закрытия задачи (read-at-transition).
+func (s *TaskService) closureRequired(ctx context.Context) time.Duration {
+	if s.ClosureRequiredFunc != nil {
+		if d, err := s.ClosureRequiredFunc(ctx); err == nil && d > 0 {
+			return d
+		}
+	}
+	return 2 * time.Hour
+}
+
 type UpdateTaskStateRequest struct {
 	ID              int64                 `json:"-"`
 	State           models.TaskState      `json:"state"`
@@ -181,6 +195,10 @@ func (s *TaskService) UpdateTaskState(ctx context.Context, req UpdateTaskStateRe
 		if current.State == models.TaskBlocked {
 			updated.BlockedSince = nil
 		}
+		// P0.2: выставить/пересчитать дедлайн закрытия при входе в in_progress
+		// (включая blocked → in_progress: пересчёт). Из done/canceled — не трогаем.
+		deadline := now.Add(s.closureRequired(ctx))
+		updated.ClosureRequiredAt = &deadline
 	case models.TaskPending:
 		if current.State == models.TaskBlocked {
 			updated.BlockedSince = nil
@@ -377,6 +395,9 @@ type TaskView struct {
 	ClosureTargetID   *int64         `json:"closure_target_id,omitempty"`
 	IsStale           bool           `json:"is_stale"`
 	IsBlocked         bool           `json:"is_blocked"`
+	IsOverdue         bool           `json:"is_overdue"`
+	ClosureRequiredAt *string        `json:"closure_required_at,omitempty"` // P0.2: дедлайн закрытия
+	RemainingSecs     *int64         `json:"remaining_secs,omitempty"`      // P0.2: closure_required_at - now (neg = просрочено)
 	CreatedAt         string         `json:"created_at"`
 	UpdatedAt         string         `json:"updated_at"`
 	StartedAt         *string        `json:"started_at,omitempty"`
@@ -389,6 +410,51 @@ func (s *TaskService) ListTasks(ctx context.Context, f repository.TaskFilter) ([
 		return nil, 0, err
 	}
 	views, err := s.viewsFor(ctx, tasks)
+	if err != nil {
+		return nil, 0, err
+	}
+	return views, total, nil
+}
+
+// ListOverdue — P0.2: bounded-срез просроченных задач (in_progress/blocked +
+// closure_required_at < now). total = полное число просроченных.
+func (s *TaskService) ListOverdue(ctx context.Context, limit, offset int) ([]*TaskView, int, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	// кандидаты: in_progress/blocked с выставленным дедлайном (bounded);
+	// фильтрация "просрочено" — в Go (portable; без SQL-сравнения TEXT-time).
+	tasks, _, err := s.tasks.List(ctx, s.db, repository.TaskFilter{
+		States:                 []models.TaskState{models.TaskInProgress, models.TaskBlocked},
+		ClosureRequiredNotNull: true,
+		Limit:                  500,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	now := time.Now().UTC()
+	overdue := make([]*models.Task, 0, len(tasks))
+	for _, t := range tasks {
+		if t.ClosureRequiredAt != nil && t.ClosureRequiredAt.Before(now) {
+			overdue = append(overdue, t)
+		}
+	}
+	// самое просроченное (ранний дедлайн) — сверху
+	sort.Slice(overdue, func(i, j int) bool {
+		return overdue[i].ClosureRequiredAt.Before(*overdue[j].ClosureRequiredAt)
+	})
+	total := len(overdue)
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	views, err := s.viewsFor(ctx, overdue[offset:end])
 	if err != nil {
 		return nil, 0, err
 	}
@@ -642,6 +708,7 @@ func (s *TaskService) viewsFor(ctx context.Context, tasks []*models.Task) ([]*Ta
 		return nil, err
 	}
 
+	now := time.Now().UTC()
 	out := make([]*TaskView, 0, len(tasks))
 	for _, t := range tasks {
 		v := &TaskView{
@@ -669,6 +736,17 @@ func (s *TaskService) viewsFor(ctx context.Context, tasks []*models.Task) ([]*Ta
 		}
 		if t.State == models.TaskInProgress && time.Since(t.UpdatedAt) > StaleTaskAfter {
 			v.IsStale = true
+		}
+		// P0.2: дедлайн закрытия + is_overdue + remaining_secs
+		if t.ClosureRequiredAt != nil {
+			v.ClosureRequiredAt = ptr(t.ClosureRequiredAt.Format(rfc3339))
+			if t.State == models.TaskInProgress || t.State == models.TaskBlocked {
+				secs := int64(t.ClosureRequiredAt.Sub(now).Seconds())
+				v.RemainingSecs = ptr(secs)
+				if t.ClosureRequiredAt.Before(now) {
+					v.IsOverdue = true
+				}
+			}
 		}
 		out = append(out, v)
 	}

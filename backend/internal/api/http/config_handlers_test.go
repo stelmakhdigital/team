@@ -94,12 +94,12 @@ func TestConfigListHTTP(t *testing.T) {
 	if meta["project"] != "team" {
 		t.Errorf("meta.project = %v, want team", meta["project"])
 	}
-	// sections: все 7, у каждого ключа source
+	// sections: все 8, у каждого ключа source
 	sections, ok := out["sections"].([]any)
-	if !ok || len(sections) != 7 {
-		t.Fatalf("sections = %v, want 7", out["sections"])
+	if !ok || len(sections) != 8 {
+		t.Fatalf("sections = %v, want 8", out["sections"])
 	}
-	wantSections := map[string]bool{"server": true, "storage": true, "sessions": true,
+	wantSections := map[string]bool{"server": true, "storage": true, "tasks": true, "sessions": true,
 		"watchdog": true, "security": true, "logging": true, "workspace": true}
 	for _, s := range sections {
 		sm := s.(map[string]any)

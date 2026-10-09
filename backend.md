@@ -68,6 +68,7 @@
 | 9 OpenAPI-спека (весь API) | DONE (openapi.yaml 3.0.3, 57 ops 1-в-1; `scripts/check_openapi.py`) |
 | U4 Backend: Config subsystem (Settings, layered resolution, overrides, RBAC) | DONE (backend; openapi 60 ops) |
 | P0.1 Attention view «Что требует меня» (`GET /attention`: blocked/escalated + unread alerts) | DONE (backend; openapi 64 ops; RBAC viewer-ok) |
+| P0.2 Overdue / дедлайны задач (`closure_required_at`, `GET /tasks/overdue`, attention `task_overdue`) | DONE (backend; openapi 65 ops; RBAC viewer-ok; +config-key tasks.closure_required_secs) |
 | Фронтенд F1–F15 + UI-редизайн R1–R5 (граф React Flow, edit, YAML, токены, R4 live-терминал, R5 рефакторинг) | DONE (зона лида) |
 
 ### Осталось (не блокирует)
@@ -115,7 +116,7 @@
 - **Докс**: `docs/contracts/api-decisions.md` (секция U4), openapi.yaml
   (+3 операции, 60 всего; `scripts/check_openapi.py` PASS).
 
-### Таблица ключей (полный реестр — 20 ключей, 7 секций)
+### Таблица ключей (полный реестр — 21 ключ, 8 секций)
 
 | key | type | default | env-слой | restart | editable |
 |---|---|---|---|---|---|
@@ -125,6 +126,7 @@
 | server.shutdown_timeout | duration | `10s` | — (константа) | yes | no |
 | storage.dsn | string | `sqlite:./daemon.db` | DAEMON_DB_DSN | yes | yes |
 | storage.migrate | boolean | `true` | DAEMON_MIGRATE | yes | yes |
+| tasks.closure_required_secs | duration | `7200s` | DAEMON_TASKS_CLOSURE_REQUIRED_SECS | **no** (read-at-transition) | yes |
 | sessions.poll_interval | duration | `5s` | DAEMON_SESSION_POLL_SECS | yes | yes |
 | sessions.configs_dir | path | `configs/sessions` | DAEMON_SESSION_CONFIGS_DIR | yes | yes |
 | watchdog.enabled | boolean | `true` | DAEMON_WATCHDOG_ENABLED | yes | yes |
@@ -181,6 +183,47 @@ OpenAPI: +3 операции (всего 63); `check_openapi.py` PASS.
   и `AlertFilter.UnreadOnly`; handler `ListAttention` + route + RBAC branch.
 - **OpenAPI**: +1 op (`listAttention`) → 64 ops, `check_openapi.py` PASS.
 - **Тесты**: `TestAttentionAggregation`+`TestAttentionEmpty` (service), `TestAttentionEndpoint` (HTTP: 401/200 admin/limit/200 viewer).
+
+### 3e. P0.2 — Overdue / дедлайны задач (backend, 2026-10-09)
+Дедлайн закрытия: выставляется в `in_progress`, виден в UI, просроченные — отдельный
+список + в Attention. Подробности (правила, RBAC, openapi, тесты) — в
+`docs/contracts/api-decisions.md` §P0.2.
+
+- **Миграция 0009** (sqlite+postgres): `queue_tasks.closure_required_at` (TEXT RFC3339Nano,
+  nullable; единая конвенция временных полей) + индекс `(state, closure_required_at)`.
+- **Выставление/пересчёт** (`TaskService.UpdateTaskState`): переход **в `in_progress`**
+  (из pending/blocked/любого) → `closure_required_at = now + tasks.closure_required_secs`
+  (и первично, и пересчёт при `blocked→in_progress`). Из `in_progress` в `blocked`/
+  `done`/`canceled` — поле не трогается. Handoff создаёт `pending` → дедлайн при handoff
+  не выставляется (появится при обычном `in_progress`).
+- **`is_overdue`** = `state in (in_progress, blocked)` AND `closure_required_at < now`;
+  **+ `closure_required_at` + `remaining_secs`** (в `TaskView`, и в списке, и в деталке).
+  Вычисление — в Go (`viewsFor`), не в SQL (portable TEXT-time).
+- **`GET /api/v1/tasks/overdue?limit=&offset=`** (default 50, max 200): `{tasks[is_overdue,
+  closure_required_at, remaining_secs], total}`; сортировка самое-просроченное сверху;
+  RBAC `dashboard.read` (viewer-доступен). `TaskService.ListOverdue` (кандидаты +
+  фильтр/сортировка в Go).
+- **Attention** (P0.1): новый вид **`task_overdue`** (severity `high`, detail «просрочено
+  на N», action «Открыть задачу», link на деталку). Дедуп: задачи, уже выпущенные как
+  escalated/blocked, не дублируются (дополнение, существующие виды не сломаны).
+- **Config-key** `tasks.closure_required_secs` (duration, default `7200s`,
+  `requires_restart=false`, editable, env `DAEMON_TASKS_CLOSURE_REQUIRED_SECS`):
+  новый section `tasks`; `ConfigService.ResolveDuration` (read-at-transition);
+  `TaskService.ClosureRequiredFunc` (main.go подвязывает к cvc).
+- **`undelivered`** — вне scope (нет модели nudge-доставки); зафиксировано как отложенное
+  в api-decisions.md §P0.2.
+- **Код**: миграции 0009, `models.Task.ClosureRequiredAt`, `task_repo.go` (columns/create/
+  update/scan + `TaskFilter.ClosureRequiredNotNull` + `closureRequiredStr`), `config.go`
+  (`TasksClosureRequired`), `config_service.go` (section/key/`ResolveDuration`),
+  `task_service.go` (deadline в transition, `viewsFor`, `ListOverdue`), `attention_service.go`
+  (`task_overdue`), `task_handlers.go` (`ListTasksOverdue`), `server.go` (route),
+  `middleware.go` (RBAC), `main.go` (wiring).
+- **OpenAPI**: +1 op (`listTasksOverdue`) → 65 ops; `Task` +`is_overdue`/`closure_required_at`/
+  `remaining_secs`; `check_openapi.py` PASS (65/65).
+- **Тесты**: service (`TestOverdueDeadlineSetOnInProgress`, `TestOverdueRecalcOnBlockedToInProgress`,
+  `TestOverdueIsOverdueLogic`, `TestListOverdue`) + HTTP (`TestTasksOverdueEndpoint`,
+  `TestAttentionTaskOverdue`). Конфиг-тесты обновлены (21 ключ/8 секций; `tasks.closure_required_secs`
+  = read-at-transition исключение).
 
 ## 4. Как проверить
 ```

@@ -85,6 +85,7 @@ type Task struct {
 	UpdatedAt         time.Time
 	StartedAt         *time.Time
 	CompletedAt       *time.Time
+	ClosureRequiredAt *time.Time // P0.2: дедлайн закрытия (в in_progress = now + tasks.closure_required_secs)
 }
 
 // HistoryEntry — append-only запись о переходе состояния задачи.

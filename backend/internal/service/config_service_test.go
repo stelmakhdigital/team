@@ -105,6 +105,8 @@ func TestConfigRegistryCompleteness(t *testing.T) {
 		"server.write_timeout": "duration", "server.shutdown_timeout": "duration",
 		// storage
 		"storage.dsn": "string", "storage.migrate": "boolean",
+		// tasks (P0.2)
+		"tasks.closure_required_secs": "duration",
 		// sessions
 		"sessions.poll_interval": "duration", "sessions.configs_dir": "path",
 		// watchdog
@@ -131,10 +133,14 @@ func TestConfigRegistryCompleteness(t *testing.T) {
 			t.Errorf("key %s: type = %q, want %q", k, got[k], typ)
 		}
 	}
-	// все ключи: requires_restart, editable/secret-флаги
+	// все ключи: requires_restart (дефолт true; P0.2 tasks.closure_required_secs = false,
+	// т.к. читается на момент перехода в in_progress, а не на старте), editable/secret-флаги
 	for _, spec := range svc.Registry() {
-		if !spec.RequiresRestart {
+		if !spec.RequiresRestart && spec.Key != "tasks.closure_required_secs" {
 			t.Errorf("key %s: requires_restart = false, want true", spec.Key)
+		}
+		if spec.Key == "tasks.closure_required_secs" && spec.RequiresRestart {
+			t.Error("tasks.closure_required_secs must be read-at-transition (requires_restart=false)")
 		}
 		if spec.Key == "security.secret_key" && !spec.Secret {
 			t.Error("security.secret_key must be secret")
@@ -392,7 +398,7 @@ func TestConfigMetaAndHash(t *testing.T) {
 	for _, s := range resp1.Sections {
 		names = append(names, s.Name)
 	}
-	want := []string{"server", "storage", "sessions", "watchdog", "security", "logging", "workspace"}
+	want := []string{"server", "storage", "tasks", "sessions", "watchdog", "security", "logging", "workspace"}
 	if len(names) != len(want) {
 		t.Fatalf("sections = %v, want %v", names, want)
 	}
