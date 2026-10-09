@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
-import { Badge, ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
+import { Badge, EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
@@ -51,7 +51,9 @@ export default function MessagesPage() {
           ) : (
             <ErrorState error={messages.error} onRetry={messages.refetch} />
           ))}
-          {messages.data && messages.data.messages.length === 0 && <p className="muted">No messages yet.</p>}
+          {messages.data && messages.data.messages.length === 0 && (
+            <EmptyState title="No direct messages" hint="Direct messages between roles will appear here." />
+          )}
           <ul className="message-list">
             {messages.data?.messages.map((m) => (
               <li key={m.id} className={`message${m.is_mine ? ' message-mine' : ''}${m.type === 'watchdog' ? ' message-watchdog' : ''}`}>
@@ -81,6 +83,9 @@ export default function MessagesPage() {
           ) : (
             <ErrorState error={chatrooms.error} onRetry={chatrooms.refetch} />
           ))}
+          {chatrooms.data && chatrooms.data.chatrooms.length === 0 && (
+            <EmptyState title="No chatrooms" hint="Team chatrooms appear once agents are wired up." />
+          )}
           <ul className="chatroom-list">
             {chatrooms.data?.chatrooms.map((c) => (
               <li key={c.id}>
@@ -103,6 +108,9 @@ export default function MessagesPage() {
               <h3>#{chatrooms.data?.chatrooms.find((c) => c.id === activeRoom)?.name ?? activeRoom}</h3>
               <div className="chat-scroll">
                 {roomMessages.loading && <Spinner />}
+                {roomMessages.data && roomMessages.data.messages.length === 0 && (
+                  <p className="muted small chat-empty">No messages in this room yet.</p>
+                )}
                 {roomMessages.data?.messages.map((m) => (
                   <div key={m.id} className={`chat-bubble${m.is_mine ? ' chat-mine' : ''}`}>
                     <div className="muted small">

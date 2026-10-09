@@ -89,7 +89,11 @@ export default function TasksPage() {
       {list.loading && <Spinner label="Loading tasks…" />}
       {list.error && <ErrorState error={list.error} onRetry={refetch} />}
       {list.data && list.data.tasks.length === 0 && (
-        <EmptyState title="No tasks" hint="Create a task to put it into a role's queue." />
+        <EmptyState
+          title={teamFilter === 'all' && stateFilter === 'all' ? 'No tasks' : 'No tasks match the filters'}
+          hint="Create a task to put it into a role's queue, or clear the filters above."
+          action={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ New task</button>}
+        />
       )}
       {list.data && list.data.tasks.length > 0 && (
         <div className="card">

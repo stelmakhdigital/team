@@ -45,7 +45,13 @@ export default function WorkflowsPage() {
 
       {loading && <Spinner label="Loading workflows…" />}
       {error && <ErrorState error={error} onRetry={refetch} />}
-      {data && data.workflows.length === 0 && <EmptyState title="No workflows" hint="Create a workflow to orchestrate agent tasks." />}
+      {data && data.workflows.length === 0 && (
+        <EmptyState
+          title="No workflows"
+          hint="Create a workflow to orchestrate agent tasks."
+          action={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ New workflow</button>}
+        />
+      )}
       {data && data.workflows.length > 0 && (
         <div className="card">
           <div className="table-wrap"><table className="table">

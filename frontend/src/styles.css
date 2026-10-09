@@ -533,6 +533,7 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 
 .chat-view { border-top: 1px solid var(--border); padding-top: 12px; }
 .chat-scroll { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.chat-empty { padding: 16px 4px; }
 .chat-bubble { background: var(--bg-panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 0.9rem; }
 .chat-mine { border-color: var(--accent); align-self: flex-end; }
 .chat-form { display: flex; gap: 8px; }
