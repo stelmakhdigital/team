@@ -151,7 +151,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Зависимости**: усиливает P1.5 (handover передаёт briefing наследнику);
   проект-часть — после P1.0 (до — из working_dir).
 
-### P1.8 Health/Doctor-панель (ориентир OpenRIG troubleshooting surface) — `in_progress`
+### P1.8 Health/Doctor-панель (ориентир OpenRIG troubleshooting surface) — `done` (T-20261010070318 R2, 1 раунд; DiagnosticsService 7 чек'ов + divergence (БД vs адаптер) + migrations/logs/tmux/git read-only, GET /diagnostics + POST /run, RBAC diagnostics.read operator+ (миграция 0015), UI Health-панель, 88 ops)
 - **Контекст**: у OpenRIG — «the surface that shows the truth»: что daemon/tmux/
   seat/БД думают о состоянии и где расходятся; workspace doctor — 8-check.
 - **Scope**: `GET /diagnostics` (+ `POST /diagnostics/run` для полных проверок):
