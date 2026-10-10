@@ -1109,6 +1109,35 @@ export function createMockAdapter(): Api {
         return { session_id: s.id, runtime_type: s.runtime_type, lines: tail, captured_at: now(), source: 'tmux-pane', saved_path };
       },
 
+      // P2.11: send to session + verify (mock: маркеры в тексте определяют статус)
+      async send(id, text, submit = true) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const s = db.sessions.find((x) => x.id === id);
+        if (!s) throw new ApiClientError(404, 'not_found', `Session ${id} not found`);
+        const t = (text ?? '').trim();
+        if (!t) throw new ApiClientError(400, 'validation', 'text is required');
+        if (t.length > 2000) throw new ApiClientError(400, 'validation', 'text too long');
+        if (s.runtime_type === 'process') {
+          throw new ApiClientError(409, 'conflict', 'process runtime has no terminal to send into');
+        }
+        if (s.state === 'stopped' || s.state === 'failed') {
+          throw new ApiClientError(409, 'conflict', 'screen not available: tmux session not alive');
+        }
+        const submitted = submit;
+        const sent_at = now();
+        // маркеры для демо/тестов: retained (guard) / staged / delivered (default)
+        if (/retain|prompt|password:|y\/n/i.test(t)) {
+          return { session_id: s.id, status: 'retained' as const, sent: false, submitted: false, guard: 'interactive-prompt', verified: false, sent_at };
+        }
+        if (/staged|noreply/i.test(t)) {
+          return { session_id: s.id, status: 'staged' as const, sent: true, submitted, verified: false, sent_at };
+        }
+        const tail = [...(db.transcripts?.[s.id] ?? []).slice(-4), `${s.role_name} $ ${t}`];
+        return { session_id: s.id, status: 'delivered' as const, sent: true, submitted, verified: true, tail, sent_at };
+      },
+
       async create(teamId, req) {
         maybeFail();
         await latency();

@@ -85,6 +85,7 @@ export function createRealAdapter(): Api {
       get: (id) => http(`${B}/sessions/${id}`),
       stop: (id) => http(`${B}/sessions/${id}`, { method: 'DELETE' }),
       capture: (id, lines) => http(`${B}/sessions/${id}/capture${toQuery({ lines })}`), // P2.8
+      send: (id, text, submit) => http(`${B}/sessions/${id}/send`, { method: 'POST', body: { text, submit } }), // P2.11
       getCompactPlan: () => http(`${B}/compact-plan`), // P1.5
       handover: (id, req) => http(`${B}/sessions/${id}/handover`, { method: 'POST', body: req }), // P1.5
       previewBriefing: (teamId, req) => http(`${B}/teams/${teamId}/briefing/preview`, { method: 'POST', body: req }), // P1.7

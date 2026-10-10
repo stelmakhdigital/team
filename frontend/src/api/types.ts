@@ -46,6 +46,7 @@ import type {
   TranscriptSearchParams,
   TranscriptSearchResult,
   CaptureResult,
+  SendToSessionResult,
   EventPage,
   GetEventsParams,
   ListSessionsResponse,
@@ -180,6 +181,7 @@ export interface Api {
     list(params?: ListSessionsParams): Promise<ListSessionsResponse>;
     search(params: TranscriptSearchParams): Promise<TranscriptSearchResult>; // P2.7
     capture(id: number, lines?: number): Promise<CaptureResult>; // P2.8
+    send(id: number, text: string, submit?: boolean): Promise<SendToSessionResult>; // P2.11
     create(teamId: number, req: CreateSessionRequest): Promise<CreateSessionResponse>;
     get(id: number): Promise<SessionDetail>;
     stop(id: number): Promise<StopSessionResponse>;

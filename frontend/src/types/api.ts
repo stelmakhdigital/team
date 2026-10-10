@@ -1033,6 +1033,18 @@ export interface CaptureResult {
   saved_path: string; // путь к сохранённому снапшоту
 }
 
+// P2.11: Send to session + verify
+export interface SendToSessionResult {
+  session_id: number;
+  status: 'delivered' | 'staged' | 'retained';
+  sent: boolean;
+  submitted: boolean;
+  guard?: string; // причина, если не отправлено (например interactive-prompt)
+  verified: boolean;
+  tail?: string[]; // последние строки capture при verified
+  sent_at: string;
+}
+
 // ---- P2.9: Pulse feed (единая лента событий) ----
 
 export interface EventItem {

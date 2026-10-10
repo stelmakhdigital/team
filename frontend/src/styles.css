@@ -1132,3 +1132,42 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   font-size: 0.74rem;
 }
 .palette-loading { color: var(--accent); }
+
+/* P2.11: Send to session + verify */
+.send-card { display: block; }
+.send-warning { font-size: 0.82rem; color: var(--yellow); margin: 4px 0 10px; }
+.send-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: vertical;
+}
+.send-input:focus { outline: none; border-color: var(--accent); }
+.send-input:disabled { opacity: 0.6; }
+.send-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.send-submit { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+.send-status { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid; }
+.send-status-delivered { color: var(--green); border-color: var(--green); }
+.send-status-staged { color: var(--yellow); border-color: var(--yellow); }
+.send-status-retained { color: var(--red); border-color: var(--red); }
+.send-error { font-size: 0.85rem; color: var(--red); margin-top: 8px; }
+.send-result { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.send-result-line { font-size: 0.88rem; margin-bottom: 6px; }
+.send-tail {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 8px;
+}

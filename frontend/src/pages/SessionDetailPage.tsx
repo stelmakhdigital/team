@@ -5,6 +5,7 @@ import { useQuery } from '../hooks/useQuery';
 import { ErrorState, PageSkeleton, Spinner, isNotFoundError } from '../components/ui/States';
 import HandoverModal from '../components/HandoverModal';
 import CaptureModal from '../components/CaptureModal';
+import SendToSession from '../components/SendToSession';
 import { formatRelative } from '../lib/format';
 
 // U4b: session drill-down — session metrics + history + transcript (messages), fetch-by-id.
@@ -91,6 +92,10 @@ export default function SessionDetailPage() {
               )}
             </div>
           ) : null}
+
+          {(s.runtime_type === 'tmux' || s.runtime_type === 'pi') && (
+            <SendToSession sessionId={s.id} />
+          )}
 
           <div className="card">
             <div className="card-head">
