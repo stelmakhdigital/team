@@ -1227,3 +1227,60 @@ RBAC на артефакты) — большая правка, не по тем�
   (sink → лента).
 - **HTTP**: 200 + обогащение, 404-аналог (пусто), 401, **RBAC viewer → 200**.
 - **frontend (vitest)**: рендер ленты (бейджи + EntityLink), фильтр по типу, empty.
+
+## P2.11. Send to session + verify — ввод текста в терминал живой сессии (T-20261010183054)
+
+**Цель**: оператор отправляет текст в терминал живой сессии (tmux/pi) и получает
+честный статус доставки. Отличается от Message (закрытая команда → inbox, read):
+Send — ввод в **живой процесс** (действие на работающий процесс).
+
+### Механика (реальный tmux)
+- `tmux send-keys -t <ref> -l -- <text>` — **`-l` = literal** (без интерпретации
+  спец-символов; `--` = конец опций). `-t <ref>` — tmux-сессионная ссылка.
+- Submit → **отдельный `tmux send-keys -t <ref> Enter`** (не в строку с `-l` —
+  `send-keys -l Enter` ввёл бы литеральный "Enter").
+- **tmux не установлен** → `ErrTmuxUnavailable`; **мёртвый tmux** (no such pane/session) →
+  `ErrTmuxSessionDead` (409 с причиной). `Send` добавлен в `runtime.Adapter` (pi →
+  делегирует TMux; process → `ErrNoScreen`).
+
+### Verify по capture (3 × 300ms, честный статус)
+- После `Send` — `Capture(25)` + поиск **заметной части** отправленного текста
+  (посл. 25 символов, lowercase, без trim). Статусы:
+  - **`delivered`** — часть текста найдена в capture (подтверждено), `verified=true`, `tail`.
+  - **`staged`** — `send-keys` отдал 0 (введён), но capture не подтвердил за 3×300ms.
+  - **`retained`** — не отправлено (guard), `sent=false`, `guard`-причина.
+- 3×300ms — bounded + достаточно для синхронного эхо терминала (cat/shell). LLM-сессия
+  может «поглотить» ввод → `staged` (честно: введено, не подтверждено).
+- `sendVerifySleep` (package var) — в тестах = 0 (быстро).
+
+### Interactive-prompt guard (эвристика)
+- **Capture ~5 строк перед отправкой** (создаёт session как P2.8). Эвристика: строка
+  содержит prompt-фразу (case-insensitive) ИЛИ заканчивается суффиксом (`>`, `#`, `$`).
+- **`false-pos/neg допустимы** (эвристика, не детекция); false-negative безопасен
+  (вводит обычный текст). False-positive → **`retained`** (text НЕ вводится, причина
+  `interactive-prompt`).
+
+### process runtime → 409 (нет экрана/терминала)
+- У process нет терминала, куда «печатать» → всегда 409 «no terminal to send into».
+
+### Эндпоинт
+- `POST /api/v1/sessions/{id}/send` body `{text, submit?}`.
+- **RBAC `sessions.update` (operator+)** — действие на работающий процесс опаснее
+  read-only capture: viewer/operator могут читать сессию, но отправлять в неё могут
+  только operator+. Migration **0018** (`sessions.update` → роль `operator`).
+- `400` (text пустой / >2000), `404` (нет сессии), `409` (process / tmux недоступен/мертв).
+- **Событие `session.send`** (P2.9) → Pulse feed (entity_kind session; status в summary).
+
+### Frontend (Session Detail, tmux/pi)
+- Блок «Send to session»: textarea + «Submit» checkbox + Send + **warning**
+  (действие на живой процесс). Pending-state. Статус-бейдж (delivered=green /
+  staged=yellow / retained=red) + guard-причина. Collapsible capture tail (verified).
+
+### Тесты
+- **runtime**: process → ErrNoScreen; tmux не установлен → ErrTmuxUnavailable;
+  tmux live → text на экране (integration, skip без tmux).
+- **service**: delivered (text на экране), staged (не подтверждён), **guard → retained**
+  (text НЕ введён), process → 409, 404/400, `session.send` в events.
+- **HTTP**: 200 delivered, 200 retained, 404, 400, 409 process, 409 tmux dead, 401,
+  **RBAC viewer → 403 / operator → 200**.
+- **frontend (vitest)**: delivered (badge + tail), staged, retained (guard), pending.

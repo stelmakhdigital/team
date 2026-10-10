@@ -189,12 +189,18 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ### P2.10 Command palette (Cmd+K) — `done` (T-20261010180526; CommandPalette global (Cmd+K/Ctrl+K, Esc), fuzzy (subseq, своя функция lib/fuzzy.ts), разделы Pages/Entities(lazy API)/Actions, клавиатура ↑/↓/Enter + focus-trap + aria, 12 новых тестов (fuzzy unit + палитра + K3 P2.9 live-prepend); OpenAPI не меняется)
 
-### P2.11 Send verify — `in_progress`
+### P2.11 Send verify — `done`
 - **Scope**: при отправке сообщения в сессию (runtime tmux/pi) — подтверждение
   доставки (панель получила текст) + отказ, если адресат на interactive
   prompt; статус в сообщении (`delivered|staged|retained`).
 - **Критерии**: логика по runtime-адаптерам, тесты, UI-статус доставки,
   OpenAPI, docs.
+- **Готово (T-20261010183054)**: `runtime.Adapter.Send` (tmux `send-keys -l --`
+  + отдельный Enter; process → ErrNoScreen); `SessionService.Send` (interactive-prompt
+  guard → retained; **verify по capture** 3×300ms → delivered/staged); `POST
+  /sessions/{id}/send` (RBAC **sessions.update** operator+, миграция 0018); событие
+  `session.send` (P2.9); UI блок в Session Detail (badge + tail) + 4 vitest; OpenAPI
+  92; api-decisions §P2.11 + USAGE §5.2.3. process/мертов tmux → 409.
 
 ### P2.12 CLI-клиент `teamctl` (ориентир OpenRIG «CLI — surface для агентов») — `new`
 - **Контекст**: golden rule OpenRIG: CLI — поверхность для агентов, UI — для

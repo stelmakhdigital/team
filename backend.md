@@ -473,6 +473,26 @@ Persisted-лента событий системы (история + обога�
 - **Решения** (см. `api-decisions.md` §P2.9): EventBus-sink; bounded; без
   session.output; entity_title; отдельный от audit.
 
+### 3o. P2.11 — Send to session + verify (backend, 2026-10-10)
+Ввод текста в терминал живой сессии (tmux/pi) + честный статус доставки.
+- **`runtime.Adapter.Send`** (`runtime.go`, `tmux.go`, `pi.go`, `process.go`):
+  tmux → `send-keys -t <ref> -l -- <text>` (literal) + отдельный `Enter` (submit);
+  не установлен → `ErrTmuxUnavailable`, мертов → `ErrTmuxSessionDead`; pi → delegate
+  tmux; process → `ErrNoScreen`.
+- **`SessionService.Send`** (`service/session_send.go`): interactive-prompt guard
+  (Capture ~5 строк, эвристика, false-pos/neg допустимы) → **retained**; `Send`;
+  **verify по capture** (3×300ms, `sendVerifySleep`) → **delivered/staged** (заметная
+  часть текста, lowercase). `400` (text пустой/>2000), `404`, `409` (process/недоступен).
+  Событие **`session.send`** (P2.9) → Pulse.
+- **Миграция 0018** (`sessions_update`): permission `sessions.update` → роль `operator`.
+- **HTTP**: `SendSession` (`session_handlers.go`); route `POST /api/v1/sessions/{id}/send`;
+  **RBAC `sessions.update` (operator+)** (middleware `case "send"` в sessions).
+- **Тесты**: runtime (process/tmux dead/tmux live); service (delivered/staged/guard →
+  retained/process/404/400/event); HTTP (200 delivered/retained, 404/400/409, 401, RBAC
+  viewer→403/operator→200).
+- **Решения** (см. `api-decisions.md` §P2.11): send-keys `-l --`; Enter отдельно;
+  verify 3×300ms; guard эвристика; process → 409; `sessions.update` (operator+).
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

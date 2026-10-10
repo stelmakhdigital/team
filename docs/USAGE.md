@@ -354,6 +354,33 @@ runtime `pi`/`tmux`/`process`.
 
 **Preview API**: `POST /api/v1/teams/{id}/briefing/preview` (dry-run, без мутаций).
 
+#### 5.2.3. Send to session + verify (P2.11)
+Оператор может **отправить текст в терминал живой сессии** (tmux/pi) — ввод через
+`tmux send-keys` + **честная верификация доставки** capture-м. Это действие на
+работающий процесс (не read-only), поэтому требует **operator+** (`sessions.update`).
+
+```bash
+curl -X POST localhost:8080/api/v1/sessions/<id>/send \
+  -d '{"text": "продолжай с миграцией", "submit": true}'
+```
+
+**Статусы** (честно, как есть):
+- **`delivered`** — текст подтверждён capture-м (на экране), `verified=true`, `tail`.
+- **`staged`** — `send-keys` отдал 0 (введён), но capture не подтвердил (напр. LLM
+  «поглотил» ввод).
+- **`retained`** — не отправлено: **interactive-prompt guard** (эвристика — сессия,
+  похоже, ждёт ответа на вопрос; текст НЕ вводится, чтобы не сломать ввод).
+
+**Ограничения**:
+- `process` runtime → **409** (нет терминала, куда печатать).
+- tmux не установлен / сессия мертва → **409** (с причиной).
+- `text` ≤ 2000 символов (400 иначе).
+
+**UI** (Session Detail, tmux/pi): блок «Send to session» — textarea + «Submit»
+checkbox + Send + warning (действие на живой процесс). Статус-бейдж (delivered /
+staged / retained) + guard-причина + collapsible capture tail. Событие `session.send`
+попадает в **Pulse** (P2.9).
+
 ### 5.3. Workflow engine (close-step → next task, P1.4)
 
 Воркфлоу можно **исполнять**: каждый шаг становится задачей, и закрытие задачи

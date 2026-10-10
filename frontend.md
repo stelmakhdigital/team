@@ -586,6 +586,22 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 
 Скриншот @2560: `command-palette-2560x1440.png` (открыта, запрос «team», 3 раздела, highlight).
 
+### 3r. Send to session + verify (P2.11, 2026-10-10)
+Блок «Send to session» в Session Detail (tmux/pi): ввод текста в терминал живой сессии
++ честный статус доставки. Dangerous-действие → warning + RBAC operator+.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/components/SendToSession.tsx` (NEW) | Блок: textarea + «Submit» checkbox + Send + **warning** (действие на живой процесс); pending-state; статус-бейдж (delivered=green / staged=yellow / retained=red) + guard-причина; collapsible capture tail (verified) |
+| `frontend/src/pages/SessionDetailPage.tsx` | `<SendToSession />` (только для tmux/pi) |
+| `frontend/src/types/api.ts` | `SendToSessionResult` (status/sent/submitted/guard/verified/tail/sent_at) |
+| `frontend/src/api/{types,real}.ts` | `sessions.send(id, text, submit?)` |
+| `frontend/src/api/mock/adapter.ts` | mock `send`: маркеры → delivered/staged/retained; process/мёртв → 409; 400 |
+| `frontend/src/styles.css` | `.send-*` (реиспользует токены) |
+| `frontend/tests/send.test.tsx` (NEW) | 4: delivered (badge + tail), staged, retained (guard), pending |
+
+Скриншот @2560: `session-send-2560x1440.png` (блок + delivered + раскрытый tail).
+
 ## 5. Команды
 ```bash
 cd frontend
