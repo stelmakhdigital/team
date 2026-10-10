@@ -37,6 +37,8 @@ type handlers struct {
 	briefing *service.BriefingService
 	// P1.8 — Health/Doctor-панель (diagnostics)
 	diagnostics *service.DiagnosticsService
+	// P2.9 — Pulse feed (events)
+	evs *service.EventService
 }
 
 func limitOffset(q url.Values) (int, int) {

@@ -35,16 +35,38 @@ func newEvent(typ string, data any, channels ...string) WSEvent {
 type EventBus struct {
 	mu   sync.RWMutex
 	subs map[chan WSEvent]struct{}
+	sink SinkFunc // P2.9: optional, called synchronously on Publish (events-таблица)
 }
+
+// SinkFunc — P2.9: синхронный hook на каждое событие (additive, additive к WS).
+type SinkFunc func(e WSEvent)
 
 func NewEventBus() *EventBus {
 	return &EventBus{subs: make(map[chan WSEvent]struct{})}
+}
+
+// SetSink — P2.9: подключить sink (запись в events). Вызывается синхронно в Publish.
+// nil — sink выключен (поведение как раньше).
+func (b *EventBus) SetSink(s SinkFunc) {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	b.sink = s
+	b.mu.Unlock()
 }
 
 // Publish рассылает событие всем подписчикам (не блокируется).
 func (b *EventBus) Publish(e WSEvent) {
 	if b == nil {
 		return
+	}
+	// P2.9: sink (запись в events) — синхронно, до broadcast (additive; WS как есть).
+	b.mu.RLock()
+	sink := b.sink
+	b.mu.RUnlock()
+	if sink != nil {
+		sink(e)
 	}
 	b.mu.RLock()
 	defer b.mu.RUnlock()

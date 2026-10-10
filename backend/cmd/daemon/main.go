@@ -122,6 +122,10 @@ func run() error {
 	diagnostics := service.NewDiagnosticsService(db, stores, rtRegistry, cfg.Dialect(), cfg.LogsDir, "0.1.0")
 	alerts := &service.AlertStoreRef{Events: stores.Watchdog, Teams: stores.Teams, DB: db}
 
+	// P2.9 — Pulse feed (events): sink → каждое событие шины пишется в events (bounded).
+	eventsSvc := service.NewEventService(db, stores)
+	eventsSvc.SetSink(bus)
+
 	// P0.1 — Attention view ("Что требует меня")
 	attention := service.NewAttentionService(db, stores)
 
@@ -178,7 +182,7 @@ func run() error {
 		Library: lservice, Audit: aservice, Metrics: msvcMetrics,
 		Auth: authSvc, Config: cvc, Attention: attention, Projects: projSvc, Engine: engine,
 		WatchdogJobs: wdjobs, Briefing: briefing,
-		Diagnostics: diagnostics,
+		Diagnostics: diagnostics, EventsSvc: eventsSvc,
 	})
 
 	server := &http.Server{

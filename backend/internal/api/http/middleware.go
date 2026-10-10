@@ -141,6 +141,8 @@ func requiredPermission(method, path string) string {
 		switch res {
 		case "dashboard", "watchdog":
 			return "dashboard.read"
+		case "events": // P2.9: Pulse feed — GET /events = dashboard.read (viewer-ok)
+			return "dashboard.read"
 		case "attention": // P0.1: read-only operator view; viewer имеет dashboard.read
 			return "dashboard.read"
 		case "tasks": // P0.2: GET /tasks/overdue = operator view (dashboard.read); остальное — tasks.read

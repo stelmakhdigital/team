@@ -86,6 +86,9 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 	ssvc.BriefingFunc = briefing.Build
 	// P1.8: Health/Doctor-панель (diagnostics)
 	diagnostics := service.NewDiagnosticsService(db, repository.NewStores(db), rtRegistry, "sqlite", ssvc.LogsDir, "test")
+	// P2.9: Pulse feed (events) — sink подключён: каждое событие → events-таблица
+	eventsSvc := service.NewEventService(db, repository.NewStores(db))
+	eventsSvc.SetSink(bus)
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger:       slog.New(slog.NewTextHandler(os.Stderr, nil)),
 		DB:           db,
@@ -104,6 +107,7 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 		WatchdogJobs: wdjobs,
 		Briefing:     briefing,
 		Diagnostics:  diagnostics,
+		EventsSvc:    eventsSvc,
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)

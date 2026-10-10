@@ -50,6 +50,8 @@ type Stores struct {
 	ConfigOverrides *ConfigRepo
 	// P1.0 — Projects (мультипроектность)
 	Projects *ProjectRepo
+	// P2.9 — Pulse feed (events: real-time-события шины)
+	Events *EventRepo
 }
 
 func NewStores(db *sql.DB) *Stores {
@@ -79,6 +81,7 @@ func NewStores(db *sql.DB) *Stores {
 		Audit:               &AuditRepo{db: db},
 		ConfigOverrides:     &ConfigRepo{db: db},
 		Projects:            &ProjectRepo{db: db},
+		Events:              NewEventRepo(db),
 	}
 }
 

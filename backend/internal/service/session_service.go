@@ -283,6 +283,7 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 	}
 	s.Bus.Publish(newEvent("session.started", map[string]any{
 		"session_id":   sess.ID,
+		"role_id":      role.ID,
 		"role_name":    role.Name,
 		"runtime_type": rtType,
 	}, fmt.Sprintf("team:%d", sess.TeamID), fmt.Sprintf("session:%d", sess.ID)))
@@ -362,7 +363,7 @@ func (s *SessionService) markSessionState(ctx context.Context, sess *models.Sess
 		if r, err := s.roles.GetByID(ctx, s.db, sess.RoleID); err == nil {
 			roleName = r.Name
 		}
-		data := map[string]any{"session_id": sess.ID, "role_name": roleName, "state": string(to)}
+		data := map[string]any{"session_id": sess.ID, "role_id": sess.RoleID, "role_name": roleName, "state": string(to)}
 		if exitCode != nil {
 			data["exit_code"] = *exitCode
 		}

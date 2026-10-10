@@ -39,6 +39,8 @@ type Options struct {
 	Briefing *service.BriefingService
 	// P1.8 — Health/Doctor-панель (diagnostics, read-only)
 	Diagnostics *service.DiagnosticsService
+	// P2.9 — Pulse feed (events: GET /events)
+	EventsSvc *service.EventService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -51,7 +53,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
 		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention,
 		projects: opts.Projects, engine: opts.Engine, wdjobs: opts.WatchdogJobs,
-		briefing: opts.Briefing, diagnostics: opts.Diagnostics}
+		briefing: opts.Briefing, diagnostics: opts.Diagnostics, evs: opts.EventsSvc}
 
 	mux := http.NewServeMux()
 
@@ -116,6 +118,8 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("GET /api/v1/sessions/{id}/transcript", h.GetTranscript)
 	// P2.8: capture (стл-кадр экрана сессии) — GET, viewer-ok (sessions.read)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/capture", h.CaptureSession)
+	// P2.9: Pulse feed — unified event feed (GET /events, dashboard.read, viewer-ok)
+	mux.HandleFunc("GET /api/v1/events", h.ListEvents)
 	mux.HandleFunc("GET /api/v1/compact-plan", h.CompactPlan)                // P1.5
 	mux.HandleFunc("POST /api/v1/sessions/{id}/handover", h.HandoverSession) // P1.5
 	mux.HandleFunc("GET /api/v1/dashboard/sessions", h.DashboardSessions)
