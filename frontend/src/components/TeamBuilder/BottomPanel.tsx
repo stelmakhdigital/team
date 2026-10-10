@@ -28,7 +28,7 @@ export default function BottomPanel(props: BottomPanelProps) {
     roles,
     selectedRole,
   } = props;
-  const [briefingRole, setBriefingRole] = useState<Role | null>(null);
+  const [briefingOpen, setBriefingOpen] = useState(false);
   const previewRole = selectedRole ?? roles[0];
 
   return (
@@ -65,7 +65,7 @@ export default function BottomPanel(props: BottomPanelProps) {
             Delete {selectionLabel}
           </button>
         )}
-        <button className="btn" onClick={() => previewRole && setBriefingRole(previewRole)} disabled={!previewRole} title="П1.7: предпросмотр брифинга при запуске роли">
+        <button className="btn" onClick={() => setBriefingOpen(true)} disabled={!previewRole} title="P1.7: предпросмотр брифинга + запуск сессии с ним">
           📋 Брифинг
         </button>
         <button className="btn" onClick={onValidate} disabled={validating}>
@@ -76,7 +76,14 @@ export default function BottomPanel(props: BottomPanelProps) {
         </button>
       </div>
 
-      {briefingRole ? <BriefingPreviewModal teamId={teamId} role={briefingRole} onClose={() => setBriefingRole(null)} /> : null}
+      {briefingOpen && roles.length > 0 ? (
+        <BriefingPreviewModal
+          teamId={teamId}
+          roles={roles}
+          initialRole={previewRole}
+          onClose={() => setBriefingOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

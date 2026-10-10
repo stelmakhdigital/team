@@ -495,20 +495,22 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 (без изменений в AttentionPage).
 
 ### 3l. Session briefing (P1.7, 2026-10-10, T-20261010070318)
-«Входящий контекст при запуске»: предпросмотр брифинга в TeamBuilder + блок в Session Detail.
+«Входящий контекст при запуске»: **launch-панель** (предпросмотр + запуск) в TeamBuilder +
+блок в Session Detail.
 
 | Файл | Что |
 |------|-----|
-| `frontend/src/components/BriefingPreviewModal.tsx` (NEW) | Modal «Предпросмотр брифинга»: dry-run (без запуска), override/append-поля, delivery-режим (pi → system_prompt / файл+env), canonical-текст |
-| `frontend/src/components/TeamBuilder/BottomPanel.tsx` | Кнопка «📋 Брифинг» (выбранная/первая роль) → открывает modal |
+| `frontend/src/components/BriefingPreviewModal.tsx` (NEW) | Modal «Брифинг сессии» = **launch-панель**: role-селект, task-селект (опц.), override/append, dry-run-предпросмотр (delivery-режим + canonical-текст) + **«🚀 Запустить с этим брифингом»** → `POST /sessions` (config.briefing_override/append) → per-result (applied + link на new session) |
+| `frontend/src/components/TeamBuilder/BottomPanel.tsx` | Кнопка «📋 Брифинг» (выбранная/первая роль) → открывает launch-модалку |
 | `frontend/src/pages/TeamBuilderPage.tsx` | Передаёт teamId/roles/selectedRole в BottomPanel |
 | `frontend/src/pages/SessionDetailPage.tsx` | Блок «Briefing (startup context)»: applied-badge + path + canonical-текст |
-| `frontend/src/types/api.ts` | BriefingPreviewRequest/Response/Data/Task/Git; Session + SessionDetail +briefing_applied/path/text |
-| `frontend/src/api/{types,real}.ts` + `api/mock/{adapter,data}.ts` | `sessions.previewBriefing(teamId, req)`; mock-предпросмотр + briefing у seed-сессии 1 |
-| `frontend/src/styles.css` | briefing-modal/text/delivery/opts/card CSS |
-| `frontend/tests/briefing.test.tsx` (NEW) | 3 теста: Session Detail-блок (есть/нет), TeamBuilder-предпросмотр (modal + текст + delivery) |
+| `frontend/src/types/api.ts` | BriefingPreviewRequest/Response/Data/Task/Git; Session + SessionDetail +briefing_applied/path/text; CreateSessionResponse +briefing_applied/path |
+| `frontend/src/api/{types,real}.ts` + `api/mock/{adapter,data}.ts` | `sessions.previewBriefing(teamId, req)`; mock-предпросмотр + `create` учитывает config.briefing_override/none → applied; briefing у seed-сессии 1 |
+| `frontend/src/styles.css` | briefing-modal/launch/text/delivery/opts/card CSS |
+| `frontend/tests/briefing.test.tsx` (NEW) | 4 теста: Session Detail-блок (есть/нет), TeamBuilder-предпросмотр (role/task-селекты + delivery), **launch с override → result (applied=override + link)** |
 
-Скриншоты @2560: `briefing-session-detail-2560x1440.png`, `briefing-preview-modal-2560x1440.png`.
+Скриншоты @2560: `briefing-session-detail`, `briefing-preview-modal`,
+`briefing-launch-panel`, `briefing-launch-result`.
 
 ## 5. Команды
 ```bash

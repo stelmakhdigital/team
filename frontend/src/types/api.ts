@@ -814,6 +814,8 @@ export interface CreateSessionResponse {
   id: number;
   state: SessionState;
   status: 'started';
+  briefing_applied?: string; // P1.7: builtin | override | none
+  briefing_path?: string; // P1.7: путь к briefing-файлу (process/tmux)
 }
 
 export interface SessionDetail {

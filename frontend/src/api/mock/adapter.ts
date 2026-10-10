@@ -1003,6 +1003,9 @@ export function createMockAdapter(): Api {
         const id = nextId();
         const at = now();
         const task = req.queue_task_id != null ? db.tasks.find((t) => t.id === req.queue_task_id) : undefined;
+        // P1.7: briefing-доставка (mock): disable > override > builtin
+        const cfg = req.config ?? {};
+        const applied = cfg.briefing === 'none' ? 'none' : cfg.briefing_override ? 'override' : 'builtin';
         db.sessions.unshift({
           id,
           team_id: teamId,
@@ -1021,13 +1024,13 @@ export function createMockAdapter(): Api {
           context_total_output_tokens: 1_200,
           log_path: `mock/logs/session-${id}.log`,
           // P1.7: session briefing (mock)
-          briefing_applied: 'builtin',
-          briefing_path: `mock/briefings/session-${id}.md`,
+          briefing_applied: applied,
+          briefing_path: applied === 'none' ? undefined : `mock/briefings/session-${id}.md`,
           briefing_text:
             `# Session briefing\n\n## Task\n- ${task ? task.title : '— (нет задачи)'} (state: ${task?.state ?? '—'})\n\n## Team\n- команда: ${team.name}\n- адрес: core.${role.name}\n\n## Project\n- git: branch main @ 3fa9c21 (mock)\n\n## Recent\n- сообщение от lead: «продолжаем по плану»`,
         });
         db.audit.unshift({ id: nextId(), timestamp: at, action: 'session.create', resource: `session:${id}` });
-        return { id, state: 'running', status: 'started', briefing_applied: 'builtin', briefing_path: `mock/briefings/session-${id}.md` };
+        return { id, state: 'running', status: 'started', briefing_applied: applied, briefing_path: applied === 'none' ? undefined : `mock/briefings/session-${id}.md` };
       },
 
       async get(id) {

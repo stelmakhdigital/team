@@ -37,7 +37,7 @@ describe('P1.7: Session briefing', () => {
     expect(screen.queryByText('Briefing (startup context)')).not.toBeInTheDocument();
   }, 25_000);
 
-  it('TeamBuilder: «Брифинг» opens the preview modal with the briefing text', async () => {
+  it('TeamBuilder: «Брифинг» opens the modal with the briefing preview', async () => {
     renderAt('/teams/1');
     // wait for the team builder to load
     await screen.findByText(/Validate/, {}, { timeout: 15_000 });
@@ -45,9 +45,29 @@ describe('P1.7: Session briefing', () => {
     fireEvent.click(btn);
     // modal opens
     const modal = await screen.findByRole('dialog', {}, { timeout: 15_000 });
-    expect(within(modal).getByText('Предпросмотр брифинга')).toBeInTheDocument();
-    // briefing text (mock preview) + delivery
+    expect(within(modal).getByText('Брифинг сессии')).toBeInTheDocument();
+    // role/task selects present (launch panel)
+    expect(within(modal).getByLabelText(/Роль/)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/Задача/)).toBeInTheDocument();
+    // briefing text (mock preview) + delivery + launch button
     expect(await within(modal).findByText(/# Session briefing/, {}, { timeout: 15_000 })).toBeInTheDocument();
     expect(within(modal).getByText(/pi → system_prompt/)).toBeInTheDocument();
+    expect(within(modal).getByRole('button', { name: /Запустить с этим брифингом/ })).toBeInTheDocument();
+  }, 30_000);
+
+  it('TeamBuilder: launch a session with an override briefing → result (applied=override + link)', async () => {
+    renderAt('/teams/1');
+    await screen.findByText(/Validate/, {}, { timeout: 15_000 });
+    fireEvent.click(await screen.findByRole('button', { name: /Брифинг/ }, { timeout: 15_000 }));
+    const modal = await screen.findByRole('dialog', {}, { timeout: 15_000 });
+    // вводим override
+    fireEvent.change(within(modal).getByLabelText(/Override/), { target: { value: 'МОЙ CUSTOM BRIEFING' } });
+    // запускаем с этим брифингом
+    fireEvent.click(await within(modal).findByRole('button', { name: /Запустить с этим брифингом/ }, { timeout: 15_000 }));
+    // результат: сессия запущена + applied=override + link на сессию
+    expect(await within(modal).findByText(/Сессия #\d+ запущена/, {}, { timeout: 15_000 })).toBeInTheDocument();
+    expect(within(modal).getByText('override')).toBeInTheDocument();
+    // link на новую сессию
+    expect(within(modal).getByText(/^\/sessions\/\d+$/)).toBeInTheDocument();
   }, 30_000);
 });
