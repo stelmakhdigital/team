@@ -521,6 +521,15 @@ WS. Каждая запись: **type-бейдж** (цвет по категор
 (per-entity/аудит). **API**: `GET /api/v1/events` (RBAC dashboard.read, viewer-ok).
 Ссылка: `docs/contracts/api-decisions.md` §P2.9.
 
+### 6.4. Command palette — быстрый переход (P2.10)
+
+**`Cmd+K` / `Ctrl+K`** открывает глобальную палитру (fuzzy-переход). Закрыть: `Esc`
+или клик мимо. Стрелки ↑/↓ — выбор, `Enter` — переход/действие. Разделы:
+**Страницы** (все маршруты), **Действия** (New team/task/project/workflow, Run
+diagnostics, Go to Attention), **Сущности** (команды, задачи, сессии, воркфлоу,
+проекты — lazy-поиск по name/title). Совпавшие символы подсвечены. Работает с
+клавиатуры, с aria-разметкой. Ссылка: `frontend.md` §3q.
+
 ---
 
 ## 7. Безопасность (ключи и RBAC)

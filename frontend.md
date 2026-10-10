@@ -571,6 +571,21 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 
 Скриншот @2560: `pulse-feed-2560x1440.png` (лента с бейджами, фильтрами, EntityLink).
 
+### 3q. Command palette (Cmd+K) (P2.10, 2026-10-10)
+Глобальная палитра (Cmd+K / Ctrl+K): fuzzy-переход по страницам + сущностям + быстрым
+действиям. Собственный компонент (без UI-библиотек); fuzzy — чистая функция.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/lib/fuzzy.ts` (NEW) | Чистый fuzzy: `fuzzyMatch` (subseq, case-insensitive, score: consecutive + word-boundary + короче-цель), `fuzzyRank`, `isSubstring`, `highlightParts` — unit-тестируемо |
+| `frontend/src/components/CommandPalette.tsx` (NEW) | Палитра: Cmd+K/Ctrl+K (global listener), Esc/клик-мимо, autofocus; **разделы** Pages (14 маршрутов) / Entities (lazy API) / Actions; **lazy entity-поиск** (debounce 200ms, `Promise.allSettled`: tasks/sessions/workflows/projects/teams); подсветка совпавших символов; клавиатура ↑/↓/Enter/Esc + focus-trap; aria (combobox/listbox/option/aria-activedescendant); `navigate(path)` (pages/entities) + callback (actions) |
+| `frontend/src/components/layout/AppShell.tsx` | `<CommandPalette />` (global) |
+| `frontend/src/styles.css` | `.palette-*` (реиспользует токены; `--accent` для подсветки) |
+| `frontend/tests/fuzzy.test.ts` (NEW) | 7 unit: подстрока/subseq, case-insensitive, null, ranking (tighter/word-boundary), fuzzyRank, isSubstring |
+| `frontend/tests/commandPalette.test.tsx` (NEW) | 4: open Cmd+K/close Esc, разделы (pages/actions) + aria, Enter→navigate, ArrowDown→aria-activedescendant |
+
+Скриншот @2560: `command-palette-2560x1440.png` (открыта, запрос «team», 3 раздела, highlight).
+
 ## 5. Команды
 ```bash
 cd frontend
