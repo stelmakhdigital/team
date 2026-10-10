@@ -747,6 +747,7 @@ export type AttentionKind =
   | 'alert_unread'
   | 'workflow_attention'
   | 'session_context_wall'
+  | 'diagnostics_fail'
   | 'session_failed';
 export type AttentionSeverity = 'critical' | 'high' | 'normal';
 export interface AttentionLink {
