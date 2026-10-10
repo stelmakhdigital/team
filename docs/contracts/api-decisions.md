@@ -1284,3 +1284,75 @@ Send — ввод в **живой процесс** (действие на раб
 - **HTTP**: 200 delivered, 200 retained, 404, 400, 409 process, 409 tmux dead, 401,
   **RBAC viewer → 403 / operator → 200**.
 - **frontend (vitest)**: delivered (badge + tail), staged, retained (guard), pending.
+
+## P2.15. Whoami — «кто я и что мне делать» (T-20261010193009)
+
+**Цель**: компактный срез агента (для `teamctl whoami` / API): кто я, у кого я, что
+мне делать, кто ждёт от меня, кто передаёт/получает от меня.
+
+### Идентификация (auth vs query)
+- **API-ключ (auth)** определяет, *кто запрашивает* (RBAC).
+- **Query** определяет, *какого агента описать*:
+  - `session_id` → резолвится в role+team+статус сессии (**предпочтительно** —
+    агент знает свой session id).
+  - либо `role_id` (+опц. `team_id`).
+  - **без параметров → 400**; нет сессии/роли/команды → **404**;
+    role/team не совпадают → **400** (честность).
+
+### Ответ (bounded)
+- `agent` (role_id/role_name/team_id/team_name/address), `session` (только если
+  session_id: id/state/model/context_used_pct).
+- `my_tasks`: **pending / in_progress / blocked** (`destination_role_id = role`),
+  blocked с `wake?` (kind/ref). Bounded ≤20/список (задокументировано).
+- `waiting_for_me`: **unread** входящие к роли (`MessageFilter.UnreadOnly`, ≤20) —
+  `{id, from_role_name, type, summary}` (summary = обрезка тела ≤120).
+- `upstream` / `downstream`: relatives in/out (`{role_name, via}`, ≤20).
+
+### RBAC
+- `GET /api/v1/whoami` → **`dashboard.read`** (viewer-ok; читает задачи/сессии/
+  сообщения/команду — все `*.read`).
+
+### Тесты
+- **service**: by session (полный: agent/session/tasks/waiting/upstream), by role
+  (session=nil), 400 no-params, 404 (session/role), role-team mismatch (400),
+  bounded (25→20), разные роли (разные my_tasks).
+- **HTTP**: 200 by-session/by-role, 400, 404, **RBAC viewer-200**.
+
+## P2.12. teamctl — агентский CLI поверх REST (T-20261010193009)
+
+**Цель**: агент (pi-сессия, pipeline-воркер) работает с системой из shell без
+curl-магии: `teamctl <cmd> [--json]` поверх существующих HTTP-эндпоинтов.
+
+### Принципы
+- **Клиент, не обход**: teamctl не содержит бизнес-логики — только парсинг flags +
+  HTTP + печать. Все правила (RBAC, переходы, валидация) — на стороне демона.
+- **Минимализм**: std `flag` + `net/http`, без внешних зависимостей.
+- **Две поверхности**: `--json` (machine-parable, агенты парсят) / human (человеку).
+
+### Конфигурация
+- base URL: `--server` / `TEAMCTL_SERVER` (default `http://localhost:8080`).
+- auth: `--api-key` / `TEAMCTL_API_KEY` → header `X-API-Key`.
+- `--json` на все команды.
+
+### UX / ошибки
+- **Exit code**: `0` успех, `1` HTTP/сеть, `2` usage (bad flags / unknown cmd).
+- Ошибки → **stderr** (человекочитаемые); при `--json` — **error envelope в stdout**
+  (агент парсит и stdout). `teamctl help` + per-cmd справка.
+
+### Команды (поверх существующих эндпоинтов)
+whoami, task list/claim/update/handoff/block, session list/transcript/capture/stop,
+attention list, config get/set/reset. `config set <key> <value>` — value парсится
+как JSON (number/bool/obj), иначе строка (передать в `PUT /config/{key}`).
+
+### Реализация (структура)
+- `cmd/teamctl/main.go` → `cli.Run(args, stdout, stderr) int` (testable).
+- `internal/cli/client.go` (HTTP + X-API-Key + resolve env/flag), `output.go`
+  (--json/human + error envelope), `commands.go` (dispatch + команды + human).
+- **`reorderFlagsFirst`**: std `flag` останавливается на первом non-flag, поэтому
+  флаги после positional (`task handoff <id> --to-role-id M`) переупорядочиваются
+  вперёд (известные value-флаги + их значения).
+
+### Тесты (httptest)
+- Для каждой команды: mock-демон → команда → assertion на **request** (method/path/
+  body/`X-API-Key`) + **parse ответа** (`--json` и human).
+- Auth-header presence; exit code на 404/403 (не нулевой); help + usage (exit 2).

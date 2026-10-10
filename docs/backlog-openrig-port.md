@@ -202,7 +202,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   `session.send` (P2.9); UI блок в Session Detail (badge + tail) + 4 vitest; OpenAPI
   92; api-decisions §P2.11 + USAGE §5.2.3. process/мертов tmux → 409.
 
-### P2.12 CLI-клиент `teamctl` (ориентир OpenRIG «CLI — surface для агентов») — `in_progress` (с P2.15)
+### P2.12 CLI-клиент `teamctl` (ориентир OpenRIG «CLI — surface для агентов») — `done`
 - **Контекст**: golden rule OpenRIG: CLI — поверхность для агентов, UI — для
   людей; оба читают те же записи. У нас — только REST (curl-магия).
 - **Scope**: CLI (`backend/cmd/teamctl`, отдельный бинарь): `task list/claim/
@@ -212,6 +212,11 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Критерии**: покрытие главных сценариев агента, `--json` на всё, тесты
   (httptest), README-секция «Для агентов» + USAGE.md, без дублирования
   бизнес-логики.
+- **Готово (T-20261010193009)**: `backend/cmd/teamctl` + `internal/cli/` (std flag,
+  без внешних зависимостей); команды whoami/task/session/attention/config; `--json`
+  + human; auth `X-API-Key` (`--api-key`/`$TEAMCTL_API_KEY`); exit 0/1/2; help;
+  `reorderFlagsFirst` (флаги после positional); httptest-тесты (15: request + parse
+  + auth + exit codes); README «Для агентов» + USAGE §6.5; OpenAPI 93.
 
 ### P2.13 Starter bundles (ориентир OpenRIG RigBundle) — `new`
 - **Scope**: готовые стартеры как pin'нутые library-предметы: напр. «dev-team:
@@ -231,13 +236,18 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Критерии**: расчёт в service + тесты (нет usage → «нет данных», не 0),
   UI + скриншоты, конфиг-ключи в Settings, OpenAPI, docs.
 
-### P2.15 `whoami` для агентов — `new`
+### P2.15 `whoami` для агентов — `done`
 - **Scope**: `GET /whoami` (по API-ключу/роли сессии): моя роль+команда, мои
   pending/in-progress/blocked задачи, что ждёт меня (входящие), кто мой
   upstream/downstream (relatives), статус моей сессии. Компактный JSON для
   агента (используется `teamctl whoami`, P2.12).
 - **Критерии**: эндпоинт + тесты (разные роли/ключи), OpenAPI, docs;
   реализуется совместно с P2.12 (одна итерация).
+- **Готово (T-20261010193009)**: `GET /api/v1/whoami?session_id=&role_id=&team_id=`
+  (RBAC dashboard.read, viewer-ok); identity через query (session_id предпочтительно);
+  agent/session/my_tasks(waiting/blocked+wake)/waiting_for_me(unread)/upstream/
+  downstream; bounded ≤20; 400/404; `MessageFilter.UnreadOnly`; service-тесты (6) +
+  HTTP-тесты (by-session/by-role, 400, 404, RBAC viewer-200); OpenAPI 93.
 
 ---
 

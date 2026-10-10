@@ -70,6 +70,65 @@ go vet ./...
 go build ./...
 ```
 
+## Для агентов: teamctl (агентский CLI, P2.12)
+
+`teamctl` — отдельный бинарь-клиент REST-эндпоинтов демона. **CLI — поверхность для
+агентов, UI — для людей** (ориентир OpenRIG): pi-сессия / pipeline-воркер работает с
+системой из shell без curl-магии. teamctl — **клиент** (не обход, не дублирование
+бизнес-логики): парсит flags, ходит в демон (HTTP + `X-API-Key`), печатает результат.
+
+### Сборка
+
+```bash
+cd backend && export PATH=$PATH:~/sdk/go/bin
+go build -o bin/teamctl ./cmd/teamctl
+```
+
+### Конфигурация
+
+| Исток | Что |
+|---|---|
+| `--server` / `TEAMCTL_SERVER` | base URL демона (default `http://localhost:8080`) |
+| `--api-key` / `TEAMCTL_API_KEY` | API-ключ → header `X-API-Key` |
+| `--json` | machine-parable JSON (иначе — человекочитаемо) |
+
+Exit code: `0` успех, `1` HTTP/сеть, `2` usage. Ошибки — в stderr (при `--json` —
+error envelope в stdout). `teamctl help` / `teamctl <cmd>` (без args) — справка.
+
+### Команды (поверх существующих эндпоинтов)
+
+```bash
+teamctl whoami [--session-id N | --role-id M] [--team-id T] [--json]   # «кто я и что мне делать»
+teamctl task list [--state=] [--team-id=] [--json]
+teamctl task claim <id> [--json]                       # → in_progress
+teamctl task update <id> --state=... [--closure-reason=] [--note=] [--json]
+teamctl task handoff <id> --to-role-id M [--note=] [--json]
+teamctl task block <id> [--reason=] [--json]           # → blocked
+teamctl session list [--team-id=] [--state=] [--json]
+teamctl session transcript <id> [--lines=] [--json]
+teamctl session capture <id> [--lines=] [--json]
+teamctl session stop <id> [--json]
+teamctl attention list [--json]
+teamctl config get <key> [--json]
+teamctl config set <key> <value> [--json]
+teamctl config reset <key> [--json]
+```
+
+### Примеры
+
+```bash
+export TEAMCTL_SERVER=http://localhost:8080 TEAMCTL_API_KEY=sk_...
+
+teamctl whoami --session-id 7 --json        # агент описывает себя
+teamctl task list --state=pending --json   # очередь по адресу
+teamctl task claim 42                        # взял задачу в работу
+teamctl task update 42 --state=done --closure-reason=no_follow_on
+teamctl session transcript 7 --lines 50      # что делает сессия
+teamctl attention list                        # что требует внимания
+```
+
+`teamctl whoami` — см. `docs/USAGE.md` (шпаргалка) + `docs/contracts/api-decisions.md` §P2.15.
+
 ## Postgres (опционально)
 
 SQLite — дефолт. PostgreSQL — опциональная цель (ADR-002, B3):

@@ -557,6 +557,39 @@ diagnostics, Go to Attention), **Сущности** (команды, задач�
 проекты — lazy-поиск по name/title). Совпавшие символы подсвечены. Работает с
 клавиатуры, с aria-разметкой. Ссылка: `frontend.md` §3q.
 
+### 6.5. teamctl — агентский CLI + whoami (P2.12 / P2.15)
+
+Агент (pi-сессия, pipeline-воркер) работает с системой из shell **без curl-магии**:
+`teamctl <cmd> [--json]` поверх REST-эндпоинтов. **CLI — для агентов, UI — для людей**
+(ориентир OpenRIG). Сборка: `cd backend && go build -o bin/teamctl ./cmd/teamctl`.
+
+```bash
+export TEAMCTL_SERVER=http://localhost:8080
+export TEAMCTL_API_KEY=sk_...        # → header X-API-Key
+```
+
+| Команда | Что |
+|---|---|
+| `teamctl whoami [--session-id N \| --role-id M]` | **«кто я и что мне делать»** — agent + session + my_tasks + waiting_for_me + upstream/downstream |
+| `teamctl task list [--state=] [--team-id=]` | очередь задач |
+| `teamctl task claim <id>` | взял в работу (→ in_progress) |
+| `teamctl task update <id> --state=... [--closure-reason=] [--note=]` | сменить состояние |
+| `teamctl task handoff <id> --to-role-id M [--note=]` | передать роли |
+| `teamctl task block <id> [--reason=]` | заблокировать |
+| `teamctl session list/transcript/capture/stop <id>` | сессии (вывод/стл-кадр/стоп) |
+| `teamctl attention list` | что требует внимания |
+| `teamctl config get/set/reset <key> [value]` | конфигурация |
+
+**`--json`** — на все команды (machine-parable; агенты парсят). Без `--json` —
+компактный человекочитаемый вывод. Exit: `0` успех, `1` HTTP/сеть, `2` usage; ошибки
+— в stderr (при `--json` — error envelope в stdout).
+
+**whoami** — «я и контекст» для агента: кто я (роль/команда/адрес), моя сессия
+(state/context%), мои задачи (pending/in_progress/blocked), кто ждёт от меня
+(unread входящие), кто передаёт (upstream) / кому передаю (downstream). Bounded ≤20
+на список. По `session_id` (предпочтительно) или `role_id`. `GET /api/v1/whoami`
+(RBAC `dashboard.read`, viewer-ok).
+
 ---
 
 ## 7. Безопасность (ключи и RBAC)
@@ -613,7 +646,8 @@ batch, cast'ы); повтор — только с `--force` (TRUNCATE).
 | Получить результат | task done + transcript + артефакты в working_dir (§6) |
 | Кто и что менял | UI **History** (audit) |
 | Что не так (зависания) | Dashboard **Alerts** (watchdog) |
-| Полный API | `docs/contracts/openapi.yaml` (63 операции, сверяется `scripts/check_openapi.py`) |
+| Полный API | `docs/contracts/openapi.yaml` (93 операции, сверяется `scripts/check_openapi.py`) |
+| Работать с системой из shell (агенту) | `teamctl` (§6.5) + `whoami` |
 
 ## 10. Полезные ссылки
 

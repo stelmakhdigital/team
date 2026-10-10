@@ -493,6 +493,39 @@ Persisted-лента событий системы (история + обога�
 - **Решения** (см. `api-decisions.md` §P2.11): send-keys `-l --`; Enter отдельно;
   verify 3×300ms; guard эвристика; process → 409; `sessions.update` (operator+).
 
+### 3p. P2.15 — whoami, «кто я и что мне делать» (backend, 2026-10-10)
+Компактный срез агента (для `teamctl whoami` / API).
+- **`WhoamiService`** (`service/whoami_service.go`): identity через query
+  (`session_id` предпочтительно → role+team+статус сессии; либо `role_id`+`team_id`;
+  без параметров → 400; нет сессии/роли/команды → 404; role-team mismatch → 400).
+  `agent` + `session` (state/model/context_used_pct) + `my_tasks` (pending/
+  in_progress/blocked + wake; `destination_role_id=role`) + `waiting_for_me`
+  (unread входящие к роли) + `upstream`/`downstream` (relatives in/out). Bounded ≤20.
+- **`MessageFilter.UnreadOnly`** (`repository/message_repo.go`) — только непрочитанные.
+- **HTTP**: `GetWhoami` (`whoami_handlers.go`); route `GET /api/v1/whoami`;
+  **RBAC `dashboard.read`** (viewer-ok, middleware `case "whoami"`).
+- **Тесты**: service (by session/role, 400 no-params, 404, role-team mismatch,
+  bounded 25→20, разные роли); HTTP (200 by-session/by-role, 400, 404, RBAC viewer-200).
+- **Решения** (см. `api-decisions.md` §P2.15): identity через query (auth — кто
+  запрашивает); bounded; честность (404/400); viewer-ok.
+
+### 3q. P2.12 — teamctl, агентский CLI (backend, 2026-10-10)
+Отдельный бинарь `backend/cmd/teamctl` — клиент REST (не обход, не дублирование логики).
+- **Структура**: `cmd/teamctl/main.go` → `cli.Run(args, stdout, stderr) int` (testable);
+  `internal/cli/{client,output,commands}.go`. std `flag` + `net/http`, без внешних
+  зависимостей.
+- **Команды**: whoami, task list/claim/update/handoff/block, session list/transcript/
+  capture/stop, attention list, config get/set/reset. `--json` + human.
+- **Конфиг**: `--server`/`$TEAMCTL_SERVER` (default localhost:8080);
+  `--api-key`/`$TEAMCTL_API_KEY` → `X-API-Key`. Exit 0/1/2; ошибки → stderr
+  (при `--json` — error envelope в stdout).
+- **`reorderFlagsFirst`**: std `flag` останавливается на первом non-flag → флаги после
+  positional (`task handoff <id> --to-role-id M`) переупорядочиваются вперёд.
+- **Тесты** (httptest, 15): каждая команда → assertion на request (method/path/body/
+  X-API-Key) + parse ответа; auth-header; exit code на 404/403; help + usage.
+- **Решения** (см. `api-decisions.md` §P2.12): клиент, не обход; минимализм; две
+  поверхности (--json/human).
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

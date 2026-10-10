@@ -1648,6 +1648,33 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/whoami:
+    get:
+      operationId: whoami
+      summary: Whoami — «кто я и что мне делать» (компактный срез для агента, P2.15)
+      description: >-
+        Идентифицирует агента по query: session_id (предпочтительно — резолвится в
+        role+team+статус сессии) либо role_id (+опц. team_id). Без параметров → 400.
+        Ответ: agent (role/team/address) + session (если session_id) + my_tasks
+        (pending/in_progress/blocked + wake; destination_role_id=role) +
+        waiting_for_me (unread входящие к роли) + upstream/downstream (relatives).
+        Bounded ≤20/список.
+      tags: [attention]
+      parameters:
+        - { name: session_id, in: query, schema: { type: integer, format: int64 }, description: session id (предпочтительно) }
+        - { name: role_id, in: query, schema: { type: integer, format: int64 }, description: role id }
+        - { name: team_id, in: query, schema: { type: integer, format: int64 }, description: team id (проверка совпадения) }
+      responses:
+        '200':
+          description: Компактный срез агента
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WhoamiResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/events:
     get:
       operationId: listEvents
@@ -3479,6 +3506,94 @@ components:
         created_at: { type: string, format: date-time }
         suggested_action: { type: string }
         link: { $ref: '#/components/schemas/AttentionLink' }
+    WhoamiResponse:
+      type: object
+      required: [agent, my_tasks, waiting_for_me, upstream, downstream]
+      properties:
+        agent:
+          type: object
+          required: [role_id, role_name, team_id, team_name]
+          properties:
+            role_id: { type: integer, format: int64 }
+            role_name: { type: string }
+            team_id: { type: integer, format: int64 }
+            team_name: { type: string }
+            address: { type: string, description: адрес роли (если есть модель) }
+        session:
+          type: object
+          description: Если запрошено по session_id
+          required: [id, state]
+          properties:
+            id: { type: integer, format: int64 }
+            state: { type: string }
+            model: { type: string }
+            context_used_pct: { type: number, format: double }
+        my_tasks:
+          type: object
+          required: [pending, in_progress, blocked]
+          properties:
+            pending:
+              type: array
+              items:
+                type: object
+                required: [id, title, priority]
+                properties:
+                  id: { type: integer, format: int64 }
+                  title: { type: string }
+                  priority: { type: integer }
+                  project_id: { type: integer, format: int64 }
+            in_progress:
+              type: array
+              items:
+                type: object
+                required: [id, title, is_overdue]
+                properties:
+                  id: { type: integer, format: int64 }
+                  title: { type: string }
+                  closure_required_at: { type: string, format: date-time }
+                  is_overdue: { type: boolean }
+            blocked:
+              type: array
+              items:
+                type: object
+                required: [id, title]
+                properties:
+                  id: { type: integer, format: int64 }
+                  title: { type: string }
+                  wake:
+                    type: object
+                    properties:
+                      kind: { type: string, enum: [timer, task, watchdog] }
+                      ref: { type: string }
+        waiting_for_me:
+          type: array
+          description: Unread входящие к роли (bounded ≤20)
+          items:
+            type: object
+            required: [id, type, summary]
+            properties:
+              id: { type: integer, format: int64 }
+              from_role_name: { type: string }
+              type: { type: string }
+              summary: { type: string }
+        upstream:
+          type: array
+          description: Кто мне передаёт (relatives in, bounded ≤20)
+          items:
+            type: object
+            required: [role_name, via]
+            properties:
+              role_name: { type: string }
+              via: { type: string }
+        downstream:
+          type: array
+          description: Кому я передаю (relatives out, bounded ≤20)
+          items:
+            type: object
+            required: [role_name, via]
+            properties:
+              role_name: { type: string }
+              via: { type: string }
     EventPage:
       type: object
       required: [events, total, has_more]
