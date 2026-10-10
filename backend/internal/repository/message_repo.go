@@ -21,6 +21,7 @@ type MessageFilter struct {
 	FromRoleID  *int64
 	ToRoleID    *int64
 	Type        *models.MessageType
+	UnreadOnly  bool // P2.15 whoami: только непрочитанные (waiting_for_me)
 	Limit       int
 	Offset      int
 }
@@ -84,6 +85,9 @@ func (r *MessageRepo) List(ctx context.Context, tx DBTX, f MessageFilter) ([]*Me
 	if f.Type != nil {
 		conds = append(conds, "m.type = ?")
 		args = append(args, string(*f.Type))
+	}
+	if f.UnreadOnly { // P2.15 whoami: только непрочитанные
+		conds = append(conds, "m.is_read = 0")
 	}
 	where := ""
 	if len(conds) > 0 {

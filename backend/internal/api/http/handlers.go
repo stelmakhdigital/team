@@ -39,6 +39,8 @@ type handlers struct {
 	diagnostics *service.DiagnosticsService
 	// P2.9 — Pulse feed (events)
 	evs *service.EventService
+	// P2.15 — whoami
+	whoami *service.WhoamiService
 }
 
 func limitOffset(q url.Values) (int, int) {

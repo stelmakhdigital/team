@@ -41,6 +41,8 @@ type Options struct {
 	Diagnostics *service.DiagnosticsService
 	// P2.9 — Pulse feed (events: GET /events)
 	EventsSvc *service.EventService
+	// P2.15 — whoami («кто я и что мне делать», компактный срез для агента)
+	Whoami *service.WhoamiService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -53,13 +55,15 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
 		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention,
 		projects: opts.Projects, engine: opts.Engine, wdjobs: opts.WatchdogJobs,
-		briefing: opts.Briefing, diagnostics: opts.Diagnostics, evs: opts.EventsSvc}
+		briefing: opts.Briefing, diagnostics: opts.Diagnostics, evs: opts.EventsSvc, whoami: opts.Whoami}
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+	// P2.15 — whoami («кто я и что мне делать», компактный срез для агента; read, viewer-ok)
+	mux.HandleFunc("GET /api/v1/whoami", h.GetWhoami)
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		if opts.DB != nil && opts.DB.Ping() != nil {
 			writeError(w, r, &service.AppError{Code: "internal", Status: 503, Message: "database unavailable"})
