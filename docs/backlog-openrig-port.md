@@ -112,7 +112,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - Замечание: существующие статические воркфлоу не должны ломаться (миграция
   additive; воркфлоу без engine-привязки работают как раньше).
 
-### P1.5 Session handover + compact-plan — `in_progress`
+### P1.5 Session handover + compact-plan — `done` (T-20261009233009, 1 раунд; context_wall_pct, GET /compact-plan, handover c dry-run + per-step отчётом, attention-вид, 80 ops; порядок context→stop→task→successor задокументирован)
 - **Scope**: (a) `GET /compact-plan` (или раздел Dashboard): сессии у
   «стены контекста» (порог — config-key `sessions.context_wall_pct`, напр. 80)
   — у нас уже парсится `context_used_percentage`; (b) **handover**: для
@@ -126,7 +126,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   UI (баннер на Session Detail при >порога: «стена контекста — handover?»,
   форма с причиной; список compact-plan на Dashboard), OpenAPI, docs.
 
-### P1.6 Watchdog-джобы: context-usage-threshold + register — `new`
+### P1.6 Watchdog-джобы: context-usage-threshold + register — `in_progress`
 - **Scope**: регистрируемые watchdog-джобы (хранилище, переживают рестарт):
   минимум policy `context-usage-threshold` (сессия + порог + сообщение) →
   алерт в Dashboard/Alerts + Attention; `list/show/status/stop`; при P0.3 —
