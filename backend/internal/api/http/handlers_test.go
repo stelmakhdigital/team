@@ -26,6 +26,10 @@ type testEnv struct {
 }
 
 func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
+	return newTestServerSeeded(t, apiKeys, false)
+}
+
+func newTestServerSeeded(t *testing.T, apiKeys []string, seedStarters bool) *httptest.Server {
 	t.Helper()
 	db, err := database.Open("sqlite::memory:")
 	if err != nil {
@@ -35,6 +39,11 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 	t.Cleanup(func() { _ = db.Close() })
 	if err := database.Migrate(context.Background(), db, "sqlite"); err != nil {
 		t.Fatalf("migrate: %v", err)
+	}
+	if seedStarters {
+		if err := service.SeedStarters(context.Background(), db); err != nil {
+			t.Fatalf("seed starters: %v", err)
+		}
 	}
 	svc := service.NewTeamService(db, repository.NewStores(db))
 	svc.SpecsDir = t.TempDir()
@@ -89,6 +98,8 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 	// P2.9: Pulse feed (events) — sink подключён: каждое событие → events-таблица
 	eventsSvc := service.NewEventService(db, repository.NewStores(db))
 	eventsSvc.SetSink(bus)
+	// P1.0: projects (для /api/v1/projects + apply-with-project)
+	pvc := service.NewProjectService(db, repository.NewStores(db))
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger:       slog.New(slog.NewTextHandler(os.Stderr, nil)),
 		DB:           db,
@@ -105,6 +116,7 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 		Attention:    attention,
 		Engine:       engine,
 		WatchdogJobs: wdjobs,
+		Projects:     pvc,
 		Briefing:     briefing,
 		Diagnostics:  diagnostics,
 		EventsSvc:    eventsSvc,

@@ -81,6 +81,12 @@ func run() error {
 		}
 	}
 
+	// P2.13 — Starter bundles: детерминированный + идемпотентный seed стартеров
+	// (ON CONFLICT DO NOTHING; повторный вызов при каждом старте не дублирует).
+	if err := service.SeedStarters(ctx, db); err != nil {
+		return err
+	}
+
 	logger.Info("starting daemon",
 		"listen", cfg.ListenAddr, "db_dialect", cfg.Dialect(),
 		"auth", authSvc.Enabled(), "secrets", secretsMgr != nil)

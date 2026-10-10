@@ -16,7 +16,7 @@ type LibraryRepo struct{ db *sql.DB }
 
 const libraryItemSelect = `
 	SELECT id, type, name, description, group_name, version, author, is_public,
-	       downloads_count, tags, thumbnail, source_type, source_id, spec, created_at, updated_at
+	       downloads_count, tags, thumbnail, source_type, source_id, spec, created_at, updated_at, is_starter
 	FROM library_items`
 
 func (r *LibraryRepo) Create(ctx context.Context, tx DBTX, it *models.LibraryItem) error {
@@ -38,10 +38,10 @@ func (r *LibraryRepo) Create(ctx context.Context, tx DBTX, it *models.LibraryIte
 	it.CreatedAt, it.UpdatedAt = ts, ts
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO library_items (type, name, description, group_name, version, author,
-			is_public, tags, thumbnail, source_type, source_id, spec, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			is_public, tags, thumbnail, source_type, source_id, spec, created_at, updated_at, is_starter)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		string(it.Type), it.Name, it.Description, it.Group, it.Version, it.Author,
-		it.IsPublic, string(tags), it.Thumbnail, it.SourceType, it.SourceID, spec, tsStr, tsStr)
+		it.IsPublic, string(tags), it.Thumbnail, it.SourceType, it.SourceID, spec, tsStr, tsStr, it.IsStarter)
 	if err != nil {
 		return err
 	}
@@ -188,6 +188,7 @@ func scanLibraryItem(s teamScanner) (*models.LibraryItem, error) {
 		desc    sql.NullString
 		author  sql.NullString
 		pub     int
+		starter int
 		tags    string
 		thumb   sql.NullString
 		srcType sql.NullString
@@ -196,7 +197,7 @@ func scanLibraryItem(s teamScanner) (*models.LibraryItem, error) {
 		ca, ua  string
 	)
 	err := s.Scan(&it.ID, &it.Type, &it.Name, &desc, &it.Group, &it.Version, &author, &pub,
-		&it.DownloadsCount, &tags, &thumb, &srcType, &srcID, &spec, &ca, &ua)
+		&it.DownloadsCount, &tags, &thumb, &srcType, &srcID, &spec, &ca, &ua, &starter)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -210,6 +211,7 @@ func scanLibraryItem(s teamScanner) (*models.LibraryItem, error) {
 		it.Author = &author.String
 	}
 	it.IsPublic = pub != 0
+	it.IsStarter = starter != 0
 	if err := json.Unmarshal([]byte(tags), &it.Tags); err != nil || it.Tags == nil {
 		it.Tags = []string{}
 	}

@@ -53,6 +53,7 @@ type LibraryItemView struct {
 	Version        string   `json:"version"`
 	Author         *string  `json:"author,omitempty"`
 	IsPublic       bool     `json:"is_public"`
+	IsStarter      bool     `json:"is_starter"` // P2.13: pin-стартер
 	DownloadsCount int      `json:"downloads_count"`
 	Tags           []string `json:"tags,omitempty"`
 	Thumbnail      *string  `json:"thumbnail,omitempty"`
@@ -72,7 +73,7 @@ func libraryItemView(it *models.LibraryItem) *LibraryItemView {
 	return &LibraryItemView{
 		ID: it.ID, Type: string(it.Type), Name: it.Name, Description: it.Description,
 		Group: groupPtr, Version: it.Version, Author: it.Author,
-		IsPublic: it.IsPublic, DownloadsCount: it.DownloadsCount, Tags: it.Tags,
+		IsPublic: it.IsPublic, IsStarter: it.IsStarter, DownloadsCount: it.DownloadsCount, Tags: it.Tags,
 		Thumbnail: it.Thumbnail,
 		CreatedAt: it.CreatedAt.Format(rfc3339), UpdatedAt: it.UpdatedAt.Format(rfc3339),
 	}
@@ -105,7 +106,8 @@ type SaveToLibraryRequest struct {
 
 type ApplyLibraryItemRequest struct {
 	TargetTeamID *int64         `json:"target_team_id"`
-	Overrides    map[string]any `json:"overrides"` // опц.: name для новой команды
+	ProjectID    *int64         `json:"project_id,omitempty"` // P2.13/P1.0: привязка проекта (apply team)
+	Overrides    map[string]any `json:"overrides"`            // опц.: name для новой команды
 }
 
 type ApplyResult struct {
@@ -183,6 +185,10 @@ func (s *LibraryService) Update(ctx context.Context, req UpdateLibraryRequest) (
 	it, err := s.items.GetByID(ctx, s.db, req.ID)
 	if err != nil {
 		return nil, wrapRepositoryNotFound(err, "library item")
+	}
+	// P2.13: стартеры (pin) неизменяемы — rename/описание не трогаются.
+	if it.IsStarter {
+		return nil, NewConflict(fmt.Sprintf("library item %q is a pinned starter and cannot be modified", it.Name))
 	}
 	desc := it.Description // omit → сохраняем текущий
 	if req.Description != nil {
@@ -503,7 +509,7 @@ func (s *LibraryService) applyTeam(ctx context.Context, it *models.LibraryItem, 
 	}
 
 	if req.TargetTeamID == nil {
-		team, err := s.teamSvc.CreateTeam(ctx, CreateTeamRequest{Name: withName.Name, Description: desc, Spec: spec})
+		team, err := s.teamSvc.CreateTeam(ctx, CreateTeamRequest{Name: withName.Name, Description: desc, ProjectID: req.ProjectID, Spec: spec})
 		if err != nil {
 			return nil, err
 		}

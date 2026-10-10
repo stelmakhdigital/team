@@ -30,6 +30,7 @@ type LibraryItem struct {
 	Version        string
 	Author         *string
 	IsPublic       bool
+	IsStarter      bool // P2.13: pin-стартер (готовый набор, apply в один клик)
 	DownloadsCount int
 	Tags           []string
 	Thumbnail      *string
