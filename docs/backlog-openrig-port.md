@@ -134,7 +134,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Критерии**: миграция, loop-тесты (trigger + dедуп), UI-список джобов
   (Settings или отдельная панель) + тесты, OpenAPI, docs.
 
-### P1.7 Session briefing (startup context, ориентир OpenRIG «what a seat knows when it arrives») — `in_progress`
+### P1.7 Session briefing (startup context, ориентир OpenRIG «what a seat knows when it arrives») — `done` (T-20261010070318, 1 раунд; BriefingService: task/team/project-git/messages/alerts, bounded+omit, pi→system_prompt / file+env, preview endpoint (86 ops), TeamBuilder-предпросмотр + Session Detail-блок, handover-наследник получает briefing)
 - **Контекст**: агент не должен стартовать «в пустоту»: у OpenRIG сид получает
   собранный context pack при запуске/возобновлении (позиция в очереди, интент,
   последние решения, статус соседей).
@@ -151,7 +151,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Зависимости**: усиливает P1.5 (handover передаёт briefing наследнику);
   проект-часть — после P1.0 (до — из working_dir).
 
-### P1.8 Health/Doctor-панель (ориентир OpenRIG troubleshooting surface) — `new`
+### P1.8 Health/Doctor-панель (ориентир OpenRIG troubleshooting surface) — `in_progress`
 - **Контекст**: у OpenRIG — «the surface that shows the truth»: что daemon/tmux/
   seat/БД думают о состоянии и где расходятся; workspace doctor — 8-check.
 - **Scope**: `GET /diagnostics` (+ `POST /diagnostics/run` для полных проверок):
