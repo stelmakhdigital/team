@@ -109,6 +109,7 @@ func TestConfigRegistryCompleteness(t *testing.T) {
 		"tasks.closure_required_secs": "duration",
 		// sessions
 		"sessions.poll_interval": "duration", "sessions.configs_dir": "path",
+		"sessions.context_wall_pct": "integer", // P1.5
 		// watchdog
 		"watchdog.enabled": "boolean", "watchdog.scan_interval": "duration",
 		"watchdog.stale_after": "duration", "watchdog.blocked_after": "duration",
@@ -133,10 +134,11 @@ func TestConfigRegistryCompleteness(t *testing.T) {
 			t.Errorf("key %s: type = %q, want %q", k, got[k], typ)
 		}
 	}
-	// все ключи: requires_restart (дефолт true; P0.2 tasks.closure_required_secs = false,
-	// т.к. читается на момент перехода в in_progress, а не на старте), editable/secret-флаги
+	// все ключи: requires_restart (дефолт true; P0.2 tasks.closure_required_secs +
+	// P1.5 sessions.context_wall_pct = false, т.к. читаются в рантайме, а не на старте),
+	// editable/secret-флаги
 	for _, spec := range svc.Registry() {
-		if !spec.RequiresRestart && spec.Key != "tasks.closure_required_secs" {
+		if !spec.RequiresRestart && spec.Key != "tasks.closure_required_secs" && spec.Key != "sessions.context_wall_pct" {
 			t.Errorf("key %s: requires_restart = false, want true", spec.Key)
 		}
 		if spec.Key == "tasks.closure_required_secs" && spec.RequiresRestart {

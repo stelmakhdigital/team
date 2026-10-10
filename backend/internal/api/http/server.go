@@ -101,6 +101,8 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("DELETE /api/v1/sessions/{id}", h.StopSession)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/history", h.GetSessionHistory)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/transcript", h.GetTranscript)
+	mux.HandleFunc("GET /api/v1/compact-plan", h.CompactPlan)                // P1.5
+	mux.HandleFunc("POST /api/v1/sessions/{id}/handover", h.HandoverSession) // P1.5
 	mux.HandleFunc("GET /api/v1/dashboard/sessions", h.DashboardSessions)
 	mux.HandleFunc("GET /api/v1/dashboard/alerts", h.DashboardAlerts)
 	mux.HandleFunc("GET /api/v1/watchdog/events", h.WatchdogEvents)

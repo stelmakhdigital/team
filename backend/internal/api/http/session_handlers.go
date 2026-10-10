@@ -168,6 +168,46 @@ func (h *handlers) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"transcript": entries, "total": total, "has_more": hasMore})
 }
 
+// ---------- P1.5: compact-plan + handover ----------
+
+// CompactPlan — GET /api/v1/compact-plan (живые сессии у контекст-стены, desc).
+func (h *handlers) CompactPlan(w http.ResponseWriter, r *http.Request) {
+	entries, wall, err := h.ssvc.CompactPlan(r.Context())
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sessions": entries, "total": len(entries), "wall_pct": wall})
+}
+
+// HandoverSession — POST /api/v1/sessions/{id}/handover (body: reason, target_working_dir?, dry_run).
+type handoverBody struct {
+	Reason           string `json:"reason"`
+	TargetWorkingDir string `json:"target_working_dir"`
+	DryRun           bool   `json:"dry_run"`
+}
+
+func (h *handlers) HandoverSession(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body handoverBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	res, err := h.ssvc.Handover(r.Context(), id, service.HandoverRequest{
+		Reason: body.Reason, TargetWorkingDir: body.TargetWorkingDir, DryRun: body.DryRun,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
 // ---------- Dashboard: sessions & alerts (slice 3) ----------
 
 // DashboardSessions — GET /api/v1/dashboard/sessions (активные сессии)

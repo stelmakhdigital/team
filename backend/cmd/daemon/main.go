@@ -146,6 +146,20 @@ func run() error {
 		return cvc.ResolveDuration(ctx, "tasks.closure_required_secs")
 	}
 
+	// P1.5 — compact-plan + handover:
+	//   context_wall_pct читается в рантайме (layered, restart=false);
+	//   handover переиспользует TaskService.HandoffTask; attention получает compact-plan.
+	ssvc.ContextWallPctFunc = func(ctx context.Context) (int, error) {
+		return cvc.ResolveInt(ctx, "sessions.context_wall_pct")
+	}
+	ssvc.TaskHandoffFunc = func(ctx context.Context, req service.HandoffTaskRequest) (*service.HandoffTaskResult, error) {
+		return tsvc.HandoffTask(ctx, req)
+	}
+	attention.SetContextWallFunc(func(ctx context.Context) ([]*service.CompactPlanEntry, error) {
+		entries, _, err := ssvc.CompactPlan(ctx)
+		return entries, err
+	})
+
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger: logger, DB: db,
 		Sessions: ssvc, Alerts: alerts, Messages: msvc,

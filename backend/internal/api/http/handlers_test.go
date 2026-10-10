@@ -71,6 +71,13 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 	engine.Bus = bus
 	tsvc.ProjectionHook = engine.ProjectStepClose
 	ssvc.Bus = bus
+	// P1.5: compact-plan + handover wiring
+	ssvc.ContextWallPctFunc = func(ctx context.Context) (int, error) { return 80, nil }
+	ssvc.TaskHandoffFunc = tsvc.HandoffTask
+	attention.SetContextWallFunc(func(ctx context.Context) ([]*service.CompactPlanEntry, error) {
+		entries, _, err := ssvc.CompactPlan(ctx)
+		return entries, err
+	})
 	msvc.Bus = bus
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger:    slog.New(slog.NewTextHandler(os.Stderr, nil)),

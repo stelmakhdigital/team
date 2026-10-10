@@ -95,6 +95,9 @@ func configRegistry() []KeySpec {
 		{Key: "sessions.configs_dir", Section: "sessions", Type: PathType,
 			Description: "Каталог конфигов pi-сессий", Default: "configs/sessions",
 			RequiresRestart: true, Editable: true, EnvVar: "DAEMON_SESSION_CONFIGS_DIR"},
+		{Key: "sessions.context_wall_pct", Section: "sessions", Type: IntType,
+			Description: "Порог context_used_percentage (%), при котором сессия попадает в compact-plan (P1.5); читается в рантайме",
+			Default:     "80", RequiresRestart: false, Editable: true, EnvVar: "DAEMON_SESSION_CONTEXT_WALL_PCT"},
 		{Key: "watchdog.enabled", Section: "watchdog", Type: BoolType,
 			Description: "Включён ли watchdog (stale/blocked)", Default: "true",
 			RequiresRestart: true, Editable: true, EnvVar: "DAEMON_WATCHDOG_ENABLED"},
@@ -291,6 +294,30 @@ func (s *ConfigService) ResolveDuration(ctx context.Context, key string) (time.D
 		return 0, NewInternal(fmt.Errorf("config key %q: unexpected duration value", key))
 	}
 	return time.ParseDuration(d)
+}
+
+// ResolveInt — layered value (default < file < env < override) as int (P1.5).
+func (s *ConfigService) ResolveInt(ctx context.Context, key string) (int, error) {
+	spec, ok := s.byKey[key]
+	if !ok {
+		return 0, NewNotFound("config key " + key)
+	}
+	if spec.Type != IntType {
+		return 0, NewValidation(fmt.Sprintf("config key %q is not an integer", key))
+	}
+	overrides, err := s.repo.All(ctx, s.db)
+	if err != nil {
+		return 0, NewInternal(err)
+	}
+	r, err := s.resolve(spec, overrides)
+	if err != nil {
+		return 0, err
+	}
+	n, ok := r.Value.(int64)
+	if !ok {
+		return 0, NewInternal(fmt.Errorf("config key %q: unexpected integer value", key))
+	}
+	return int(n), nil
 }
 
 // ---------- Layered resolution: default < file < env < override ----------

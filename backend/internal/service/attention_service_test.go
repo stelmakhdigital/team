@@ -259,3 +259,31 @@ type AttentionItemView struct {
 	Severity string
 	LinkPath string
 }
+
+// P1.5: session_context_wall (high) — сессии у контекст-стены из compact-plan.
+func TestAttentionSessionContextWall(t *testing.T) {
+	_, _, _, att, _, ctx := setupAttentionEnv(t)
+	att.SetContextWallFunc(func(ctx context.Context) ([]*service.CompactPlanEntry, error) {
+		pct := func(p float64) *float64 { return &p }
+		return []*service.CompactPlanEntry{
+			{SessionID: 101, TeamID: 1, TeamName: "t", RoleID: 1, RoleName: "lead", RuntimeType: "pi", State: "idle", Model: "m", WorkingDir: "/w", ContextUsedPercentage: pct(92)},
+			{SessionID: 102, TeamID: 1, TeamName: "t", RoleID: 2, RoleName: "worker", RuntimeType: "pi", State: "running", Model: "m", WorkingDir: "/w", ContextUsedPercentage: pct(85)},
+		}, nil
+	})
+	res, err := att.List(ctx, 50, 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	byID := map[string]AttentionItemView{}
+	for _, it := range res.Items {
+		if it.Kind == "session_context_wall" {
+			byID[it.ID] = AttentionItemView{Severity: it.Severity, LinkPath: it.Link.Path}
+		}
+	}
+	if v, ok := byID["ctxwall-101"]; !ok || v.Severity != "high" || v.LinkPath != "/sessions/101" {
+		t.Fatalf("session 101 item wrong: %+v (want high + /sessions/101)", v)
+	}
+	if v, ok := byID["ctxwall-102"]; !ok || v.Severity != "high" {
+		t.Fatalf("session 102 item wrong: %+v (want high)", v)
+	}
+}

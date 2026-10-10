@@ -28,12 +28,13 @@ import (
 
 // Кинды attention-элементов (контракт).
 const (
-	AttentionKindTaskBlocked       = "task_blocked"
-	AttentionKindTaskEscalated     = "task_escalated"
-	AttentionKindTaskOverdue       = "task_overdue" // P0.2: closure_required_at просрочен
-	AttentionKindAlertUnread       = "alert_unread"
-	AttentionKindWorkflowAttention = "workflow_attention"
-	AttentionKindSessionFailed     = "session_failed"
+	AttentionKindTaskBlocked        = "task_blocked"
+	AttentionKindTaskEscalated      = "task_escalated"
+	AttentionKindTaskOverdue        = "task_overdue" // P0.2: closure_required_at просрочен
+	AttentionKindAlertUnread        = "alert_unread"
+	AttentionKindWorkflowAttention  = "workflow_attention"
+	AttentionKindSessionFailed      = "session_failed"
+	AttentionKindSessionContextWall = "session_context_wall" // P1.5: сессия у контекст-стены
 )
 
 // AttentionLink — целевая деталка для UI-CTA (EntityLink → path).
@@ -80,12 +81,19 @@ type AttentionService struct {
 	alerts    attentionAlertStore
 	instances *repository.WorkflowInstanceRepo // P1.4: workflow_attention
 	wf        *repository.WorkflowRepo         // P1.4: workflow name
-	now       func() time.Time
+	// P1.5: compact-plan (session_context_wall); nil = без источника.
+	contextWallFunc func(ctx context.Context) ([]*CompactPlanEntry, error)
+	now             func() time.Time
 }
 
 func NewAttentionService(db *sql.DB, s *repository.Stores) *AttentionService {
 	return &AttentionService{db: db, teams: s.Teams, tasks: s.Tasks, alerts: s.Watchdog,
 		instances: s.WorkflowInstances, wf: s.Workflows, now: time.Now}
+}
+
+// SetContextWallFunc — P1.5: подвязка compact-plan (session_context_wall).
+func (s *AttentionService) SetContextWallFunc(f func(ctx context.Context) ([]*CompactPlanEntry, error)) {
+	s.contextWallFunc = f
 }
 
 // attentionFetchCap — защита от неограниченной выборки (attention-срез мал по
@@ -185,6 +193,17 @@ func (s *AttentionService) List(ctx context.Context, limit, offset int) (*Attent
 		}
 	}
 
+	// 6) session_context_wall (P1.5) — сессии у контекст-стены (high).
+	if s.contextWallFunc != nil {
+		wallEntries, err := s.contextWallFunc(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("attention: compact-plan: %w", err)
+		}
+		for _, e := range wallEntries {
+			entries = append(entries, entry{item: s.contextWallItem(e), since: now})
+		}
+	}
+
 	// Сортировка: severity desc (critical>high>normal) → created_at asc (старое дольше ждёт).
 	sort.SliceStable(entries, func(i, j int) bool {
 		ri, rj := severityRank(entries[i].item.Severity), severityRank(entries[j].item.Severity)
@@ -276,6 +295,36 @@ func (s *AttentionService) teamName(ctx context.Context, teamID int64) string {
 		return "#" + strconv.FormatInt(teamID, 10)
 	}
 	return team.Name
+}
+
+// contextWallItem — P1.5: session_context_wall (high) — сессия у контекст-стены.
+func (s *AttentionService) contextWallItem(e *CompactPlanEntry) AttentionItem {
+	pct := "?"
+	if e.ContextUsedPercentage != nil {
+		pct = strconv.FormatInt(int64(*e.ContextUsedPercentage), 10) + "%"
+	}
+	title := "Context wall: " + e.RoleName
+	if e.Model != "" {
+		title += " (" + e.Model + ")"
+	}
+	action := "Handover"
+	if e.SuggestedAction == "wait_for_turn" {
+		action = "Дождаться конца хода"
+	}
+	detail := "context " + pct
+	if e.WorkingDir != "" {
+		detail += " · " + e.WorkingDir
+	}
+	return AttentionItem{
+		Kind:            AttentionKindSessionContextWall,
+		ID:              "ctxwall-" + strconv.FormatInt(e.SessionID, 10),
+		Severity:        "high",
+		Title:           title,
+		Detail:          detail,
+		CreatedAt:       time.Now().UTC().Format(rfc3339),
+		SuggestedAction: action,
+		Link:            AttentionLink{Path: fmt.Sprintf("/sessions/%d", e.SessionID), Label: title},
+	}
 }
 
 // workflowItem — P1.4: workflow_attention (failed → critical; waiting → high).

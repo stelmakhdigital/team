@@ -46,6 +46,12 @@ type SessionService struct {
 	ConfigsDir string
 	// Bus — real-time события (session.started/session.stopped); nil = без событий.
 	Bus *EventBus
+	// P1.5 — compact-plan: sessions.context_wall_pct в рантайме (layered config).
+	// nil = дефолт 80.
+	ContextWallPctFunc func(ctx context.Context) (int, error)
+	// P1.5 — handover: переиспользуем существующую механику handoff задачи
+	// (TaskService.HandoffTask). nil = task-шаг handover skipped.
+	TaskHandoffFunc func(ctx context.Context, req HandoffTaskRequest) (*HandoffTaskResult, error)
 	// tails — tailer'ы session.output (live-терминал, slice 7); tailMu — защита.
 	tailMu sync.Mutex
 	tails  map[int64]*tailState
@@ -194,6 +200,7 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 		WorkingDir: sess.WorkingDir,
 		Command:    command,
 		Args:       req.Args,
+		Env:        configEnv(req.Config), // P1.5: env из config (handover-контекст для process/tmux)
 		OutputFile: outFile,
 		ConfigFile: configFile,
 		ConfigsDir: s.ConfigsDir,

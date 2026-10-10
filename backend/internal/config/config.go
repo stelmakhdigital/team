@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -26,6 +27,10 @@ type Config struct {
 	WatchdogBlockedAfter time.Duration // blocked дольше
 	LogsDir              string        // transcript-файлы
 	ConfigsDir           string        // конфиги pi-сессий
+
+	// P1.5 — контекст-стена (compact-plan): порог context_used_percentage (deфолт 80).
+	// Читается в рантайме через ConfigService (requires_restart=false), дефолт из env.
+	ContextWallPct int
 
 	// Slice 6 — Security
 	SecretKey string // AES-256-GCM ключ для secrets (64 hex-символа, пусто = выключен)
@@ -59,6 +64,7 @@ func Load() (*Config, error) {
 		WatchdogBlockedAfter: envDuration("DAEMON_WATCHDOG_BLOCKED_SECS", 1*time.Hour),
 		LogsDir:              envStr("DAEMON_LOGS_DIR", "logs/sessions"),
 		ConfigsDir:           envStr("DAEMON_SESSION_CONFIGS_DIR", "configs/sessions"),
+		ContextWallPct:       envInt("DAEMON_SESSION_CONTEXT_WALL_PCT", 80),
 
 		SecretKey: envStr("DAEMON_SECRET_KEY", ""),
 
@@ -100,6 +106,18 @@ func envStr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func envInt(key string, def int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return def
+	}
+	return n
 }
 
 func envDuration(key string, def time.Duration) time.Duration {
