@@ -299,6 +299,39 @@ curl "localhost:8080/api/v1/sessions/<id>/transcript?limit=200"  # вывод (s
 curl -X DELETE localhost:8080/api/v1/sessions/<id>            # stop (SIGTERM)
 ```
 
+#### 5.2.1. Контекст-стена и handover (P1.5)
+
+Когда сессия «упирается» в контекст (context_used_percentage >= порога), её
+переводят в **новую сессию той же роли с переданным контекстом** (handover).
+
+- **Порог** — config-ключ `sessions.context_wall_pct` (default `80`, можно менять
+  в Settings без рестарта; env `DAEMON_SESSION_CONTEXT_WALL_PCT`).
+- **Компактный план** — `GET /compact-plan`: живые сессии у контекст-стены
+  (sort desc по %), `suggested_action` = `handover` / `wait_for_turn`.
+
+```bash
+curl "localhost:8080/api/v1/compact-plan"                          # кто у контекст-стены
+curl -X POST localhost:8080/api/v1/sessions/<id>/handover \
+  -d '{"reason": "context wall 88%"}'                               # handover
+```
+
+| Поле | Смысл |
+|---|---|
+| `reason` | **обязательная** причинa (попадает в комментарий handoff задачи) |
+| `dry_run` | `true` — только план (без мутаций) |
+| `target_working_dir` | опц. рабочая директория наследника (по умолчанию как у предшественника) |
+
+Результат — честный **per-step отчёт**: `context_prepared` / `successor_started` /
+`task_reassigned` / `old_stopped` (каждый `ok`/`failed`/`skipped`/`would`) +
+`new_session_id`. Наследник получает контекст-пакет (хвост transcript + путь к
+полному файлу + задача): `pi` — в `system_prompt`, `process`/`tmux` — через env
+`HANDOVER_CONTEXT_FILE`. Задача (если есть) уходит существующим handoff → новая
+задача той же роли. Ограничения: только живая сессия (из stopped/повторный → 409),
+runtime `pi`/`tmux`/`process`.
+
+**UI**: панель «Context wall» в Dashboard + контекст-стенa banner на сессии с
+кнопкой «Продолжить в новой сессии» (модалка: reason → Показать план → Выполнить).
+
 ### 5.3. Workflow engine (close-step → next task, P1.4)
 
 Воркфлоу можно **исполнять**: каждый шаг становится задачей, и закрытие задачи
@@ -341,7 +374,10 @@ curl -X PATCH localhost:8080/api/v1/workflows/1 \
    `GET /tasks/{id}/history` (вся цепочка переходов и handoff'ов).
 2. **Live-терминал сессии** — UI Session Detail: live-транскрипт
    (WS-событие `session.output`, батчи ≤500 мс), метрики контекста
-   (модель, % контекста, токены), `log_path`.
+   (модель, % контекста, токены), `log_path`. При **контекст-стене**
+   (>= порога `sessions.context_wall_pct`) — banner + кнопка
+   «Продолжить в новой сессии» (handover, §5.2.1); такие сессии
+   видны в Dashboard-панели «Context wall» и в Attention (`session_context_wall`).
 3. **Файл-транскрипт** — `GET /sessions/{id}/transcript` (последние строки)
    + полный файл в `DAEMON_LOGS_DIR` (`logs/sessions/...`).
 4. **Сообщения** — агенты пишут друг другу и оператору:

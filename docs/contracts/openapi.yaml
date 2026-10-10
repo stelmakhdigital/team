@@ -716,6 +716,24 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/compact-plan:
+    get:
+      operationId: getCompactPlan
+      summary: Компактный план — сессии у контекст-стены
+      description: >
+        P1.5. Живые сессии с context_used_percentage >= порога (sessions.context_wall_pct,
+        default 80), sort desc по %; без usage — omit. suggested_action: handover /
+        wait_for_turn. Читаемый (RBAC sessions.read).
+      tags: [sessions]
+      responses:
+        '200':
+          description: Список сессий у контекст-стены
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompactPlanResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/sessions/{id}:
     get:
       operationId: getSession
@@ -745,6 +763,35 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StopSessionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/sessions/{id}/handover:
+    post:
+      operationId: handoverSession
+      summary: Продолжить сессию в новой (handover + компактный контекст-пакет)
+      description: >
+        P1.5. Сессия у контекст-стены → новая сессия той же роли с переданным
+        контекстом. dry_run: план без мутаций; иначе полный прогон с честным
+        per-step отчётом (context_prepared / successor_started / task_reassigned /
+        old_stopped). Только живая сессия (из stopped/повторный → 409).
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HandoverRequest' }
+      responses:
+        '200':
+          description: Результат handover (per-step отчёт + new_session_id)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HandoverResult' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -2258,6 +2305,87 @@ components:
         id: { type: integer, format: int64 }
         state: { type: string, enum: [stopped] }
         status: { type: string, enum: [stopped] }
+    # ---- P1.5: session handover + compact-plan ----
+    HandoverRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, description: Причинa handover (обязательная, попадает в комментарий) }
+        target_working_dir: { type: string, description: Опц. рабочая директория наследника (по умолчанию как у предшественника) }
+        dry_run: { type: boolean, description: true — только план, без мутаций }
+    HandoverStep:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok, failed, skipped, would] }
+        reason: { type: string }
+        detail: { type: string }
+    HandoverTaskRef:
+      type: object
+      required: [id, title, state]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        state: { type: string }
+        new_id: { type: integer, format: int64, description: Новая задача (после handoff) }
+    HandoverContextPackage:
+      type: object
+      required: [context_file, lines]
+      properties:
+        context_file: { type: string }
+        transcript_path: { type: string }
+        lines: { type: integer }
+        task: { $ref: '#/components/schemas/HandoverTaskRef' }
+    HandoverPreview:
+      type: object
+      required: [role_id, role_name, team_id, team_name, runtime_type, working_dir]
+      properties:
+        role_id: { type: integer, format: int64 }
+        role_name: { type: string }
+        team_id: { type: integer, format: int64 }
+        team_name: { type: string }
+        runtime_type: { type: string }
+        working_dir: { type: string }
+        handoff_comment: { type: string }
+    HandoverResult:
+      type: object
+      required: [status, dry_run, old_session_id, context_prepared, successor_started, task_reassigned, old_stopped]
+      properties:
+        status: { type: string, enum: [succeeded, partial, failed, planned] }
+        dry_run: { type: boolean }
+        old_session_id: { type: integer, format: int64 }
+        new_session_id: { type: integer, format: int64 }
+        context_prepared: { $ref: '#/components/schemas/HandoverStep' }
+        successor_started: { $ref: '#/components/schemas/HandoverStep' }
+        task_reassigned: { $ref: '#/components/schemas/HandoverStep' }
+        old_stopped: { $ref: '#/components/schemas/HandoverStep' }
+        context_package: { $ref: '#/components/schemas/HandoverContextPackage' }
+        successor_preview: { $ref: '#/components/schemas/HandoverPreview' }
+    CompactPlanEntry:
+      type: object
+      required: [session_id, team_id, team_name, role_id, role_name, runtime_type, state, suggested_action]
+      properties:
+        session_id: { type: integer, format: int64 }
+        team_id: { type: integer, format: int64 }
+        team_name: { type: string }
+        role_id: { type: integer, format: int64 }
+        role_name: { type: string }
+        runtime_type: { type: string }
+        state: { type: string }
+        model: { type: string }
+        working_dir: { type: string }
+        queue_task_id: { type: integer, format: int64 }
+        context_used_percentage: { type: number }
+        suggested_action: { type: string, enum: [handover, wait_for_turn] }
+    CompactPlanResponse:
+      type: object
+      required: [sessions, total, wall_pct]
+      properties:
+        sessions:
+          type: array
+          items: { $ref: '#/components/schemas/CompactPlanEntry' }
+        total: { type: integer }
+        wall_pct: { type: integer }
     SessionHistoryEntry:
       type: object
       required: [id, session_id, to_state, actor_type, created_at]

@@ -457,6 +457,27 @@ Attention view рендерит `workflow_attention` (failed→critical, waiting
 Follow-up: last-instance badge per workflow в списке (сейчас Run открывает instance), WS-события
 инстансов для live-рефетча Attention.
 
+### 3j. Session handover + compact-plan (P1.5, 2026-10-10, T-20261009233009)
+
+Контекст-стена: Dashboard-панель + banner на сессии + Handover-модалка (dry-run план →
+выполнить).
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/components/HandoverModal.tsx` (NEW) | Форма «Продолжить в новой сессии»: reason (required) → Показать план (dry-run) → Выполнить (per-step + link на новую сессию) |
+| `frontend/src/components/Dashboard/ContextWallPanel.tsx` (NEW) | Панель «Context wall»: сессии >= порога + кнопка Handover; пусто — «всё в порядке» |
+| `frontend/src/pages/SessionDetailPage.tsx` | Контекст-стенa banner (>= 80%) + кнопка Handover (для живых) |
+| `frontend/src/pages/DashboardPage.tsx` | ContextWallPanel в отдельной dash-row |
+| `frontend/src/types/api.ts` | CompactPlanEntry/CompactPlanResponse/HandoverRequest/HandoverResult/HandoverStep/HandoverTaskRef/HandoverContextPackage/HandoverPreview + `working_dir?` в Session |
+| `frontend/src/api/{types,real}.ts` + `api/mock/{adapter,data}.ts` | `sessions.getCompactPlan()` + `sessions.handover(id, req)`; mock-симуляция + seed (сессия 5, 88%) |
+| `frontend/tests/handover.test.tsx` (NEW) | 4 теста: banner / no-banner / dashboard-панель / модалка (dry-run→выполнить) |
+
+Attention view рендерит `session_context_wall` (high) через generic `link.path` →
+`/sessions/{id}` (без изменений в AttentionPage).
+
+Follow-up: live-рефетч контекст-стены по WS (сейчас по навигации), авто-подсказка порога
+из config в UI.
+
 ## 5. Команды
 ```bash
 cd frontend

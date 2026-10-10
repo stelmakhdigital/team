@@ -98,6 +98,10 @@ import type {
   WorkflowInstanceDetail,
   WorkflowStep,
   ListWorkflowInstancesResponse,
+  // P1.5: handover + compact-plan
+  CompactPlanResponse,
+  HandoverRequest,
+  HandoverResult,
 } from '../types/api';
 
 export interface DeleteRelativeResponse {
@@ -162,6 +166,8 @@ export interface Api {
     create(teamId: number, req: CreateSessionRequest): Promise<CreateSessionResponse>;
     get(id: number): Promise<SessionDetail>;
     stop(id: number): Promise<StopSessionResponse>;
+    getCompactPlan(): Promise<CompactPlanResponse>; // P1.5
+    handover(id: number, req: HandoverRequest): Promise<HandoverResult>; // P1.5
   };
   tasks: {
     list(params?: ListTasksParams): Promise<GetTasksResponse>;

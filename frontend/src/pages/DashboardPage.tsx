@@ -6,6 +6,7 @@ import SummaryCards from '../components/Dashboard/SummaryCards';
 import TaskList from '../components/Dashboard/TaskList';
 import SessionGrid from '../components/Dashboard/SessionGrid';
 import AlertsPanel from '../components/Dashboard/AlertsPanel';
+import ContextWallPanel from '../components/Dashboard/ContextWallPanel';
 import MetricsChart from '../components/Dashboard/MetricsChart';
 import { useToast } from '../components/ui/Toast';
 
@@ -76,6 +77,9 @@ export default function DashboardPage() {
           ) : (
             <MetricsChart metrics={metrics.data!} />
           )}</div>
+        </div>
+        <div className="dash-row">
+          <div className="full-width"><ContextWallPanel /></div>
         </div>
       </div>
     </div>

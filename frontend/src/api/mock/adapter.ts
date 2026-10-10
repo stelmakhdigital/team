@@ -15,6 +15,7 @@ import type {
   Segment,
   Session,
   SessionDetail,
+  HandoverStep,
   Task,
   TaskWake,
   UpdateRoleConfigRequest,
@@ -1040,6 +1041,98 @@ export function createMockAdapter(): Api {
         s.state = 'stopped';
         db.audit.unshift({ id: nextId(), timestamp: now(), action: 'session.stop', resource: `session:${id}` });
         return { id, state: 'stopped', status: 'stopped' };
+      },
+
+      // P1.5: compact-plan — живые сессии с context_used_percentage >= 80 (desc)
+      async getCompactPlan() {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const wall = 80;
+        const active = db.sessions.filter((s) => ['running', 'starting', 'idle', 'stopping'].includes(s.state));
+        const sessions = active
+          .filter((s) => typeof s.context_used_percentage === 'number' && s.context_used_percentage >= wall)
+          .map((s) => ({
+            session_id: s.id, team_id: s.team_id, team_name: s.team_name,
+            role_id: s.role_id, role_name: s.role_name, runtime_type: s.runtime_type,
+            state: s.state, model: s.model, working_dir: s.working_dir,
+            queue_task_id: s.queue_task_id,
+            context_used_percentage: s.context_used_percentage,
+            suggested_action: (s.state === 'running' ? 'wait_for_turn' : 'handover') as 'handover' | 'wait_for_turn',
+          }))
+          .sort((a, b) => (b.context_used_percentage ?? 0) - (a.context_used_percentage ?? 0));
+        return { sessions: clone(sessions), total: sessions.length, wall_pct: wall };
+      },
+
+      // P1.5: handover (dry-run: план; full: per-step отчёт + мутации)
+      async handover(id, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const s = db.sessions.find((x) => x.id === id);
+        if (!s) throw new ApiClientError(404, 'not_found', `Session ${id} not found`);
+        if (!req.reason || req.reason.trim() === '') throw new ApiClientError(400, 'validation_failed', 'reason is required');
+        if (!['running', 'starting', 'idle', 'stopping'].includes(s.state)) {
+          throw new ApiClientError(409, 'conflict', `Session ${id} is ${s.state}, cannot handover`);
+        }
+        const comment = `handover from session ${id} — ${req.reason.trim()}`;
+        const task = s.queue_task_id != null ? db.tasks.find((t) => t.id === s.queue_task_id) : undefined;
+        if (req.dry_run) {
+          return {
+            status: 'planned' as const, dry_run: true, old_session_id: id,
+            context_prepared: { status: 'would' as const, detail: `${s.context_used_percentage ?? 0}% контекста` },
+            successor_started: { status: 'would' as const, detail: `role=${s.role_name} team=${s.team_name} runtime=${s.runtime_type}` },
+            task_reassigned: task ? { status: 'would' as const, detail: `task ${task.id}` } : { status: 'would' as const, reason: 'no task attached' },
+            old_stopped: { status: 'would' as const },
+            context_package: {
+              context_file: `mock/handovers/handover-${id}.md`, transcript_path: s.log_path, lines: 200,
+              task: task ? { id: task.id, title: task.title, state: task.state } : undefined,
+            },
+            successor_preview: {
+              role_id: s.role_id, role_name: s.role_name, team_id: s.team_id, team_name: s.team_name,
+              runtime_type: s.runtime_type, working_dir: s.working_dir ?? '', handoff_comment: comment,
+            },
+          };
+        }
+        // полный прогон: stop → task-handoff → successor
+        s.state = 'stopped';
+        db.audit.unshift({ id: nextId(), timestamp: now(), action: 'session.handover', resource: `session:${id}` });
+        // test-only backdoor: reason «[fail]» → failed, «[partial]» → partial
+        if (comment.includes('[fail]')) {
+          s.state = 'stopped';
+          return {
+            status: 'failed' as const, dry_run: false, old_session_id: id,
+            context_prepared: { status: 'ok' as const, detail: `mock/handovers/handover-${id}.md` },
+            successor_started: { status: 'failed' as const, reason: 'runtime error (mock backdoor)' },
+            task_reassigned: { status: 'skipped' as const, reason: 'successor не создан' },
+            old_stopped: { status: 'ok' as const },
+          };
+        }
+        let newTaskId: number | undefined;
+        let taskStep: HandoverStep = { status: 'skipped', reason: 'no task attached' };
+        if (task && task.state !== 'done' && task.state !== 'canceled') {
+          const nid = nextId();
+          db.tasks.unshift({ ...task, id: nid, state: 'pending' } as typeof task);
+          task.state = 'done';
+          newTaskId = nid;
+          taskStep = { status: 'ok', detail: `task ${task.id} → ${nid}` };
+        } else if (task) {
+          taskStep = { status: 'skipped', reason: `task ${task.id} is ${task.state}` };
+        }
+        const nid = nextId();
+        db.sessions.unshift({ ...s, id: nid, state: 'running', queue_task_id: newTaskId ?? s.queue_task_id, started_at: now() });
+        const partial = comment.includes('[partial]');
+        return {
+          status: (partial ? 'partial' : 'succeeded') as 'succeeded' | 'partial', dry_run: false, old_session_id: id, new_session_id: nid,
+          context_prepared: { status: 'ok' as const, detail: `mock/handovers/handover-${id}.md` },
+          successor_started: { status: 'ok' as const, detail: `session ${nid} started` },
+          task_reassigned: taskStep,
+          old_stopped: partial ? { status: 'failed' as const, reason: 'процесс не ответил (mock backdoor)' } : { status: 'ok' as const },
+          context_package: {
+            context_file: `mock/handovers/handover-${id}.md`, transcript_path: s.log_path, lines: 200,
+            task: task ? { id: task.id, title: task.title, state: 'in_progress', new_id: newTaskId } : undefined,
+          },
+        };
       },
     },
 

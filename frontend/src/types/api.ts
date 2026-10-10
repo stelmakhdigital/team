@@ -686,6 +686,7 @@ export interface Session {
   role_name: string;
   runtime_type: RuntimeType;
   state: SessionState;
+  working_dir?: string; // P1.5: handover/compact-plan
   queue_task_id?: number;
   queue_task_title?: string;
   started_at?: string;
@@ -835,6 +836,77 @@ export interface ListSessionsParams {
   role_id?: number;
   project_id?: number; // P1.0: фильтр по проекту
   state?: SessionState;
+}
+
+// ---- P1.5: Session handover + compact-plan ----
+export interface CompactPlanEntry {
+  session_id: number;
+  team_id: number;
+  team_name: string;
+  role_id: number;
+  role_name: string;
+  runtime_type: string;
+  state: SessionState;
+  model?: string;
+  working_dir?: string;
+  queue_task_id?: number;
+  context_used_percentage?: number;
+  suggested_action: 'handover' | 'wait_for_turn';
+}
+
+export interface CompactPlanResponse {
+  sessions: CompactPlanEntry[];
+  total: number;
+  wall_pct: number;
+}
+
+export interface HandoverRequest {
+  reason: string;
+  target_working_dir?: string;
+  dry_run?: boolean;
+}
+
+export interface HandoverStep {
+  status: 'ok' | 'failed' | 'skipped' | 'would';
+  reason?: string;
+  detail?: string;
+}
+
+export interface HandoverTaskRef {
+  id: number;
+  title: string;
+  state: string;
+  new_id?: number;
+}
+
+export interface HandoverContextPackage {
+  context_file: string;
+  transcript_path?: string;
+  lines: number;
+  task?: HandoverTaskRef;
+}
+
+export interface HandoverPreview {
+  role_id: number;
+  role_name: string;
+  team_id: number;
+  team_name: string;
+  runtime_type: string;
+  working_dir: string;
+  handoff_comment?: string;
+}
+
+export interface HandoverResult {
+  status: 'succeeded' | 'partial' | 'failed' | 'planned';
+  dry_run: boolean;
+  old_session_id: number;
+  new_session_id?: number;
+  context_prepared: HandoverStep;
+  successor_started: HandoverStep;
+  task_reassigned: HandoverStep;
+  old_stopped: HandoverStep;
+  context_package?: HandoverContextPackage;
+  successor_preview?: HandoverPreview;
 }
 
 export interface ListSessionsResponse {

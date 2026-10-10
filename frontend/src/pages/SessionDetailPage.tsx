@@ -1,7 +1,9 @@
 import { Link, useParams } from 'react-router-dom';
+import { useState } from 'react';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { ErrorState, PageSkeleton, Spinner, isNotFoundError } from '../components/ui/States';
+import HandoverModal from '../components/HandoverModal';
 import { formatRelative } from '../lib/format';
 
 // U4b: session drill-down — session metrics + history + transcript (messages), fetch-by-id.
@@ -17,6 +19,7 @@ export default function SessionDetailPage() {
   const sess = useQuery(`session.${id}`, () => api.sessions.get(id));
   const hist = useQuery(`session.history.${id}`, () => api.history.getSessionHistory(id));
   const trans = useQuery(`session.transcript.${id}`, () => api.history.getTranscript(id));
+  const [handover, setHandover] = useState(false);
 
   if (sess.loading) return <div className="page"><PageSkeleton label="Loading session…" /></div>;
   if (sess.error) return <div className="page"><ErrorState error={sess.error} onRetry={sess.refetch} /></div>;
@@ -24,6 +27,9 @@ export default function SessionDetailPage() {
   const s = sess.data!;
   const history = hist.data?.history ?? [];
   const transcript = trans.data?.transcript ?? [];
+
+  const contextAtWall = s.context_used_percentage !== undefined && s.context_used_percentage >= 80;
+  const canHandover = ['running', 'starting', 'idle', 'stopping'].includes(s.state);
 
   const metrics: Array<[string, string]> = [
     ['State', s.state],
@@ -43,6 +49,20 @@ export default function SessionDetailPage() {
         </h1>
         <span className="badge">{s.state}</span>
       </div>
+
+      {contextAtWall && (
+        <div className="context-wall-banner">
+          <div>
+            <strong>Сессия у контекст-стены ({Math.round(s.context_used_percentage!)}%).</strong>{' '}
+            Продолжите работу в новой сессии той же роли с переданным контекстом.
+          </div>
+          {canHandover && (
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setHandover(true)}>
+              Продолжить в новой сессии
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="detail-layout">
         <div className="detail-main">
@@ -103,6 +123,8 @@ export default function SessionDetailPage() {
           )}
         </aside>
       </div>
+
+      {handover && <HandoverModal sessionId={s.id} onClose={() => { setHandover(false); sess.refetch(); }} />}
     </div>
   );
 }

@@ -431,6 +431,25 @@ function seed(): DB {
       started_at: iso(60 * 12),
       uptime_seconds: 0,
     },
+    {
+      id: 5,
+      team_id: 1,
+      team_name: 'Dev Team',
+      role_id: 3,
+      role_name: 'Worker2',
+      runtime_type: 'pi',
+      state: 'running',
+      queue_task_id: 2,
+      queue_task_title: 'Write integration tests',
+      started_at: iso(30),
+      uptime_seconds: 1800,
+      model: 'anthropic/claude-sonnet',
+      context_used_percentage: 88, // P1.5: у контекст-стены (>= 80)
+      context_total_input_tokens: 176_000,
+      context_total_output_tokens: 8_000,
+      log_path: 'mock/logs/session-5.log',
+      working_dir: '/home/user/CODE/PROJECTS/data-pipeline',
+    },
   ];
 
   t.alerts = [

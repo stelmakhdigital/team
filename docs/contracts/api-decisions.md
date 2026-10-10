@@ -826,3 +826,51 @@ wake закрыт, `TestBlockWakeValidation`) + HTTP (`TestResolveTaskEndpoint`
   transactionality, run-validation, compat-old-workflow.
 - HTTP (`workflow_engine_handlers_test.go`): `TestWorkflowEngineVertical` (run/list/get/
   trace/route/abort + 409), `TestWorkflowEngineRBAC` (viewer read-200/run-403, operator run-201).
+
+## P1.5. Session handover + compact-plan (T-20261009233009)
+
+Сессия, упершаяся в «контекст-стену» (context_used_percentage >= порога), переводится
+в новую сессию той же роли с переданным контекстом. Конфиг-ключ порога:
+`sessions.context_wall_pct` (int, default 80, `requires_restart=false`, env
+`DAEMON_SESSION_CONTEXT_WALL_PCT`), читается слоённо (ResolveInt).
+
+### Эндпоинты (2, tag `sessions`)
+- `GET /compact-plan` → `200 {sessions[], total, wall_pct}`. Живые сессии с
+  context_used_percentage >= wall, sort desc; без usage — omit. `suggested_action`:
+  `handover` / `wait_for_turn` (running-сессия — подождать завершения хода).
+  RBAC: `sessions.read` (viewer+).
+- `POST /sessions/{id}/handover` → `200 HandoverResult`. `dry_run=true` — план без
+  мутаций (status `planned`); иначе полный прогон. RBAC: `sessions.update`
+  (operator+). Ошибки: 400 (нет reason), 404 (нет сессии), 409 (stopped / повторный).
+
+### Модель (HandoverResult)
+`{status: succeeded|partial|failed|planned, dry_run, old_session_id, new_session_id?,
+context_prepared, successor_started, task_reassigned, old_stopped, context_package?,
+successor_preview?}` — каждый `*_step` = `{status: ok|failed|skipped|would, reason?,
+detail?}` (честный per-step отчёт: partial — не скрываем, а показываем).
+
+### Решения
+- **Порядок выполнения**: `context_prepared` → `old_stopped` → `task_reassigned` →
+  `successor_started`. Предшественник стопится ДО создания наследника — инвариант
+  «одна активная сессия на роль» (иначе CreateSession → 409 conflict).
+- **Контекст-пакет**: последние N=200 строк transcript (путь к полному файлу +
+  working_dir + модель + задача). **Без LLM-summary** (out-of-scope; raw-хвост
+  transcript + файл).
+- **Инжекция контекста в наследника**: `pi` → `system_prompt` в pi-конфиг;
+  `process`/`tmux` → env `HANDOVER_CONTEXT_FILE` (CreateSession теперь передаёт
+  `adapter.Start` из `config.Env`).
+- **Задача**: существующий `TaskService.HandoffTask` (та же роль, new task,
+  old closed + comment `handover from session N — <reason>`); неприменим → `skipped`.
+  Ограничение: args не персистятся в модели сессии → для process/tmux наследник
+  получает только контекст-файл (pi — валиден, т.к. pi-конфиг несёт детали).
+- **Ограничения**: только живая сессия (из stopped/повторный → 409); runtime
+  `pi|tmux|process`; одна роль-наследник = та же роль.
+- **Attention**: 6-й источник `session_context_wall` (severity high), из compact-plan,
+  link → `/sessions/{id}`.
+
+### Тесты
+- service (`session_handover_test.go`, 7): compact-plan (порог/omit/сортировка),
+  handover (dry-run без мутаций, полный, 409 stopped, 409 повторный, task skipped).
+- HTTP (`session_handover_handlers_test.go`, 4): compact-plan + RBAC; handover
+  dry-run/full/409; 400 (нет reason) + RBAC (viewer 403).
+- attention: `TestAttentionSessionContextWall`.

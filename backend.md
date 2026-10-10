@@ -293,6 +293,33 @@ OpenAPI: +3 операции (всего 63); `check_openapi.py` PASS.
   (идемпотентно); backward-compat (без project_id — как раньше, absence без 400);
   ре-ассайнмент команды не поддерживается (create-only).
 
+### 3h. P1.5 — Session handover + compact-plan (backend, 2026-10-09)
+Сессия у контекст-стены → новая сессия той же роли с переданным контекстом.
+
+- **Конфиг**: ключ `sessions.context_wall_pct` (IntType, default 80, `requires_restart=false`,
+  env `DAEMON_SESSION_CONTEXT_WALL_PCT`) + `ConfigService.ResolveInt` (слоённо). Registry
+  теперь 22 ключа.
+- **Compact-plan** (`service.SessionService.CompactPlan`): живые сессии с
+  `context_used_percentage >= wall`, sort desc; без usage — omit; `suggested_action`
+  `handover`/`wait_for_turn`. `GET /compact-plan` (RBAC sessions.read).
+- **Handover** (`service/session_handover.go`, `SessionService.Handover`): dry-run (план
+  без мутаций) / полный прогон с честным per-step отчётом. Порядок: context → stop old →
+  task-handoff → successor (инвариант «одна активная на роль»). Контекст-пакет: хвост
+  transcript (N=200) + путь к файлу + задача; `pi` → system_prompt, process/tmux → env
+  `HANDOVER_CONTEXT_FILE`. Task: существующий `HandoffTask` (та же роль) или skipped.
+- **HTTP** (`session_handlers.go`): `GET /compact-plan`, `POST /sessions/{id}/handover`
+  (RBAC sessions.update). 400 (нет reason) / 404 / 409 (stopped/повторный).
+- **Attention**: 6-й источник `session_context_wall` (high), из compact-plan.
+- **CreateSession**: теперь передаёт `adapter.Start` из `config.Env` (process/tmux
+  handover-контекст).
+- **OpenAPI**: +2 ops (`getCompactPlan`, `handoverSession`) → **80 ops**; схемы
+  `HandoverRequest`/`HandoverResult`/`HandoverStep`/`HandoverTaskRef`/`HandoverContextPackage`/
+  `HandoverPreview`/`CompactPlanEntry`/`CompactPlanResponse`; `check_openapi.py` PASS.
+- **Тесты**: service (`session_handover_test.go`, 7) + HTTP (`session_handover_handlers_test.go`,
+  4) + `TestAttentionSessionContextWall`.
+- **Решения** (см. `api-decisions.md` §P1.5): порядок context→stop→task→successor;
+  без LLM-summary (raw-хвост); одна роль-наследник; только живая сессия (409).
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin
