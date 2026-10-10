@@ -151,7 +151,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Зависимости**: усиливает P1.5 (handover передаёт briefing наследнику);
   проект-часть — после P1.0 (до — из working_dir).
 
-### P1.8 Health/Doctor-панель (ориентир OpenRIG troubleshooting surface) — `done` (T-20261010070318 R2, 1 раунд; DiagnosticsService 7 чек'ов + divergence (БД vs адаптер) + migrations/logs/tmux/git read-only, GET /diagnostics + POST /run, RBAC diagnostics.read operator+ (миграция 0015), UI Health-панель, 88 ops)
+### P1.8 Health/Doctor-панель (ориентир OpenRIG troubleshooting surface) — `done` (реализован внутри T-20261010070318; верификация+fail→Attention T-20261010133944, 1 раунд; 7 чек'ов per-check-тесты + divergence stale/zombie, GET /diagnostics + POST /run, RBAC diagnostics.read, fail→Attention diagnostics_fail (миграция 0016), UI Health, 88 ops; минор типа-паритета закрыт aec2904)
 - **Контекст**: у OpenRIG — «the surface that shows the truth»: что daemon/tmux/
   seat/БД думают о состоянии и где расходятся; workspace doctor — 8-check.
 - **Scope**: `GET /diagnostics` (+ `POST /diagnostics/run` для полных проверок):
@@ -171,7 +171,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ## P2 — удобства
 
-### P2.7 Поиск по транскриптам — `new`
+### P2.7 Поиск по транскриптам — `in_progress`
 - **Scope**: поиск по истории всех сессий (`GET /sessions/search?q=&role_id=`)
   с контекстными окнами (±N строк), фильтр по роли/команде/дате; UI — поиск
   на странице Sessions (результаты → EntityLink на сессию со скроллом к
