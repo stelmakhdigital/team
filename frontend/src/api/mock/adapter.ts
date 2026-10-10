@@ -88,7 +88,12 @@ function mockDiagnostics(): DiagnosticsResult {
     {
       name: 'sessions.divergence', status: 'fail',
       detail: '1 session(s) active in DB but not alive in adapter: #5(process)',
-      evidence: { active: 3, checked: 3, stale: ['#5(process)'] },
+      evidence: {
+        active: 3, checked: 3, stale: ['#5(process)'],
+        stale_sessions: [{ id: 5, runtime: 'process', label: 'Сессия #5' }],
+        zombie: ['#8(tmux)'],
+        zombie_sessions: [{ id: 8, runtime: 'tmux', label: 'Сессия #8' }],
+      },
     },
     { name: 'logs.dir', status: 'ok', detail: 'logs dir writable', evidence: { path: 'logs/sessions', writable: true, entries: 12 } },
     { name: 'git', status: 'ok', detail: 'checked 1 git project(s): 1 ok, 0 not-a-repo', evidence: { checked: 1, detail: ['…/team: main @ 3fa9c21'] } },

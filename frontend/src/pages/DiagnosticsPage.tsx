@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { useMutation } from '../hooks/useMutation';
-import type { DiagnosticsResult } from '../types/api';
+import type { DiagnosticsResult, CheckResult } from '../types/api';
 import { EmptyState, ErrorState, PageSkeleton, errorMessage } from '../components/ui/States';
+import EntityLink from '../components/ui/EntityLink';
 
 const STATUS_LABEL: Record<string, string> = {
   ok: 'ok',
@@ -16,6 +17,16 @@ const OVERALL_LABEL: Record<string, string> = {
   warn: '⚠ Есть предупреждения',
   fail: '✖ Требуют внимания (расхождения)',
 };
+
+// P1.8 drill-down: сессии-расхождения (stale/zombie) → EntityLink на деталку.
+type SessionRef = { id: number; runtime?: string; label?: string };
+
+// sessionRefs — извлекает stale_sessions / zombie_sessions из evidence (drill-down).
+function sessionRefs(c: CheckResult): { stale: SessionRef[]; zombie: SessionRef[] } {
+  const ev = (c.evidence ?? {}) as Record<string, any>;
+  const asArr = (v: any): SessionRef[] => (Array.isArray(v) ? v : []);
+  return { stale: asArr(ev.stale_sessions), zombie: asArr(ev.zombie_sessions) };
+}
 
 // P1.8 — Health/Doctor-панель: «the surface that shows the truth».
 export default function DiagnosticsPage() {
@@ -61,18 +72,34 @@ export default function DiagnosticsPage() {
       {run.error ? <div className="error-banner">{errorMessage(run.error)}</div> : null}
 
       <div className="doctor-list">
-        {result.checks.map((c) => (
-          <div key={c.name} className={`doctor-item doctor-item--${c.status}`}>
-            <div className="doctor-item-head">
-              <span className={`doctor-status doctor-status--${c.status}`}>{STATUS_LABEL[c.status]}</span>
-              <code className="doctor-name">{c.name}</code>
-              <span className="doctor-detail">{c.detail}</span>
+        {result.checks.map((c) => {
+          const refs = c.name === 'sessions.divergence' ? sessionRefs(c) : { stale: [], zombie: [] };
+          const links = [
+            ...refs.stale.map((s) => ({ ...s, tag: 'stale' as const })),
+            ...refs.zombie.map((s) => ({ ...s, tag: 'zombie' as const })),
+          ];
+          return (
+            <div key={c.name} className={`doctor-item doctor-item--${c.status}`}>
+              <div className="doctor-item-head">
+                <span className={`doctor-status doctor-status--${c.status}`}>{STATUS_LABEL[c.status]}</span>
+                <code className="doctor-name">{c.name}</code>
+                <span className="doctor-detail">{c.detail}</span>
+              </div>
+              {links.length > 0 ? (
+                <div className="doctor-links">
+                  {links.map((s) => (
+                    <EntityLink key={`${s.tag}-${s.id}`} to={`/sessions/${s.id}`} title={`Открыть сессию #${s.id}`} className={`doctor-link doctor-link--${s.tag}`}>
+                      {s.tag === 'zombie' ? '🧟' : '👻'} {s.label ?? `Сессия #${s.id}`}
+                    </EntityLink>
+                  ))}
+                </div>
+              ) : null}
+              {c.evidence && Object.keys(c.evidence).length > 0 ? (
+                <pre className="doctor-evidence">{JSON.stringify(c.evidence, null, 2)}</pre>
+              ) : null}
             </div>
-            {c.evidence && Object.keys(c.evidence).length > 0 ? (
-              <pre className="doctor-evidence">{JSON.stringify(c.evidence, null, 2)}</pre>
-            ) : null}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

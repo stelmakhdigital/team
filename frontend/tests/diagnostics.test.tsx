@@ -46,4 +46,14 @@ describe('P1.8: Health/Doctor panel', () => {
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute('href', '/diagnostics');
   }, 30_000);
+
+  it('drill-down: EntityLink на сессию-расхождение (stale) + zombie', async () => {
+    renderAt('/diagnostics');
+    expect(await screen.findByRole('heading', { name: 'Health / Doctor' }, { timeout: 15_000 })).toBeInTheDocument();
+    // drill-down: ссылка на stale-сессию #5 (→ /sessions/5)
+    const staleLink = await screen.findByRole('link', { name: /Сессия #5/ }, { timeout: 15_000 });
+    expect(staleLink).toHaveAttribute('href', '/sessions/5');
+    // zombie-ссылка на #8 (→ /sessions/8)
+    expect(screen.getByRole('link', { name: /Сессия #8/ })).toHaveAttribute('href', '/sessions/8');
+  }, 30_000);
 });
