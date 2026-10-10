@@ -927,3 +927,13 @@ detail?}` (честный per-step отчёт: partial — не скрываем
 - HTTP (`watchdog_job_handlers_test.go`, 3): CRUD вертикаль, delete 409 (fired>0),
   RBAC (viewer read 200 / register 403, operator 201).
 - migration 0014 (sqlite recreate + postgres alter) — watchdog_job в CHECK.
+
+### Отложенные политики (follow-up, вне v1)
+- **`stale-no-output`** — сессия не выдаёт output N минут (нужен parser
+  transcript-активности; у OpenRIG — idle-gate).
+- **`token-budget` / cost-порог** — сжигание токенов/денег (реализуется вместе
+  с P2.14 Cost tracking).
+- **`artifact-pool-ready`** — ждать появления артефактов (n файлов/условие) —
+  нужен механизм проверки диска по project-path.
+- **`periodic-reminder`** — периодический reminder (у OpenRIG есть; нам —
+  низкий приоритет, покрывается timer-wake P0.3).

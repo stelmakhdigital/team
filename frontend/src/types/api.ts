@@ -742,6 +742,7 @@ export type AttentionKind =
   | 'task_overdue'
   | 'alert_unread'
   | 'workflow_attention'
+  | 'session_context_wall'
   | 'session_failed';
 export type AttentionSeverity = 'critical' | 'high' | 'normal';
 export interface AttentionLink {

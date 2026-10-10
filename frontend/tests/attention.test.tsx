@@ -60,4 +60,25 @@ describe('P0.1: Attention view «Что требует меня»', () => {
     expect(Number.isFinite(n)).toBe(true);
     expect(n).toBeGreaterThanOrEqual(1);
   }, 20_000);
+
+  it('renders a watchdog_job alert (P1.6) as an unread attention item', async () => {
+    resetMockDb();
+    const db = getDb();
+    db.alerts.push({
+      id: 99,
+      team_id: 1,
+      team_name: 'Dev Team',
+      event_type: 'watchdog_job',
+      severity: 'high',
+      description: 'Context threshold 85% hit',
+      session_id: 3,
+      created_at: new Date().toISOString(),
+      is_read: false,
+      requires_action: true,
+    } as any);
+    renderAt('/attention');
+    await screen.findByRole('heading', { name: 'Внимание' }, { timeout: 10_000 });
+    // alert renders under its 'Watchdog: <event_type>' title + link on the session
+    expect(await screen.findByText('Watchdog: watchdog_job', {}, { timeout: 10_000 })).toBeInTheDocument();
+  }, 20_000);
 });
