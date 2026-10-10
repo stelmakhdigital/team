@@ -15,6 +15,7 @@ export default function LibraryPage() {
   const [libRename, setLibRename] = useState<string | null>(null);
   const [saveTeamId, setSaveTeamId] = useState<number | null>(null);
   const [applyTargetId, setApplyTargetId] = useState<number | null>(null);
+  const [starterProjectId, setStarterProjectId] = useState<number | null>(null);
   const list = useQuery(`library.list.${type}.${search}`, () =>
     api.library.getLibrary({ type: (type || undefined) as never, search: search || undefined }),
     [type, search],
@@ -24,6 +25,11 @@ export default function LibraryPage() {
     [detailId],
   );
   const teams = useQuery('library.teams', () => api.teams.getTeams(), []);
+  const projects = useQuery('library.projects', () => api.projects.list(), []);
+  // P2.13: стартеры первыми (стабильная сортировка в пределах)
+  const items = list.data
+    ? [...list.data.items].sort((a, b) => Number(!!b.is_starter) - Number(!!a.is_starter))
+    : [];
   const save = useMutation((sourceId: number, teamName: string) =>
     api.library.saveToLibrary({
       type: 'team',
@@ -32,7 +38,7 @@ export default function LibraryPage() {
       group: 'Teams',
     }),
   );
-  const apply = useMutation((itemId: number, req: { target_team_id?: number; overrides?: Record<string, unknown> }) =>
+  const apply = useMutation((itemId: number, req: { target_team_id?: number; project_id?: number; overrides?: Record<string, unknown> }) =>
     api.library.applyLibrary(itemId, req),
   );
   const { toast } = useToast();
@@ -140,11 +146,18 @@ export default function LibraryPage() {
           ) : (
             <ErrorState error={list.error} onRetry={list.refetch} />
           ))}
-          {list.data && list.data.items.length === 0 && <EmptyState title="Nothing here" hint="Try a different search or type." />}
+          {list.data && items.length === 0 && <EmptyState title="Nothing here" hint="Try a different search or type." />}
+          {items.some((i) => i.is_starter) && (
+            <div className="library-starters-banner">
+              <span className="library-starters-title">Starters</span>
+              <span className="muted small">— ready-made bundles, apply in one click (not editable)</span>
+            </div>
+          )}
           <div className="library-grid">
-            {list.data?.items.map((item) => (
-              <button key={item.id} className="card library-card" onClick={() => setDetailId(item.id)}>
+            {items.map((item) => (
+              <button key={item.id} className={`card library-card${item.is_starter ? ' library-card--starter' : ''}`} onClick={() => setDetailId(item.id)}>
                 <div className="library-card-head">
+                  {item.is_starter && <span className="badge starter-badge" title="Ready-made starter (not editable)">STARTER</span>}
                   <Badge kind="type" value={item.type} />
                   <span className="muted small">v{item.version}</span>
                 </div>
@@ -176,12 +189,22 @@ export default function LibraryPage() {
             <div>
               <h3>
                 {detail.data.item.name} <span className="badge">v{detail.data.item.version}</span>
+                {detail.data.item.is_starter && <span className="badge starter-badge" title="Ready-made starter">STARTER</span>}
                 {libRename === null ? (
-                  <button className="btn btn-small lib-rename-btn" title="Rename item" aria-label="Rename item" onClick={() => setLibRename(detail.data!.item.name)}>
-                    ✎
-                  </button>
+                  detail.data.item.is_starter ? (
+                    <button className="btn btn-small lib-rename-btn" title="Starters are pinned (not editable)" aria-label="Rename disabled (starter)" disabled>
+                      🔒
+                    </button>
+                  ) : (
+                    <button className="btn btn-small lib-rename-btn" title="Rename item" aria-label="Rename item" onClick={() => setLibRename(detail.data!.item.name)}>
+                      ✎
+                    </button>
+                  )
                 ) : null}
               </h3>
+              {detail.data.item.is_starter && (
+                <p className="muted small starter-note">Ready-made starter — apply it to get a fresh copy. Starters cannot be renamed or edited.</p>
+              )}
               {libRename !== null && (
                 <form
                   className="lib-rename"
@@ -214,12 +237,31 @@ export default function LibraryPage() {
               {detail.data.item.type === 'team' && (
                 <div className="library-apply">
                   <h4>Apply</h4>
+                  {detail.data.item.is_starter && (
+                    <div className="library-apply-row">
+                      <select
+                        value={starterProjectId ?? ''}
+                        onChange={(e) => setStarterProjectId(e.target.value ? Number(e.target.value) : null)}
+                        aria-label="Apply starter to project"
+                        className="input"
+                      >
+                        <option value="">No project</option>
+                        {projects.data?.projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <button
-                    className="btn btn-small"
+                    className={detail.data.item.is_starter ? 'btn btn-primary' : 'btn btn-small'}
                     disabled={apply.pending}
                     onClick={async () => {
                       try {
-                        const res = await apply.mutate(detail.data!.item.id, {});
+                        const res = await apply.mutate(detail.data!.item.id, {
+                          project_id: starterProjectId ?? undefined,
+                        });
                         const newId = res.created_resources?.teams?.[0];
                         toast('success', `Applied as new team (id ${newId ?? '?'})`);
                         await openResult(detail.data!.item, undefined, newId);
@@ -228,7 +270,7 @@ export default function LibraryPage() {
                       }
                     }}
                   >
-                    Apply as new team
+                    {detail.data.item.is_starter ? 'Apply this starter' : 'Apply as new team'}
                   </button>
                   <div className="library-apply-row">
                     <select

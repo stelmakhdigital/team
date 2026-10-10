@@ -1184,6 +1184,7 @@ export interface LibraryItem {
   version: string;
   author?: string;
   is_public: boolean;
+  is_starter?: boolean; // P2.13: pin-стартер (неизменяемый, apply в один клик)
   downloads_count: number;
   created_at: string;
   updated_at: string;
@@ -1242,6 +1243,7 @@ export interface SaveToLibraryResponse {
 
 export interface ApplyLibraryItemRequest {
   target_team_id?: number; // если применяем к существующей команде
+  project_id?: number; // P2.13/P1.0: привязка проекта (apply team-starter)
   overrides?: Record<string, unknown>;
 }
 

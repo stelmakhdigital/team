@@ -109,7 +109,9 @@ describe('App smoke', () => {
     // открыть item (team) → Apply-секция
     const card = await screen.findByText('Standard Dev Team', {}, { timeout: 10_000 });
     card.closest('button')!.click();
-    expect(await screen.findByRole('button', { name: /apply as new team/i }, { timeout: 10_000 })).toBeInTheDocument();
+    // P2.13: item is a starter → one-click apply button + project select
+    expect(await screen.findByRole('button', { name: /apply this starter/i }, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Apply starter to project', {}, { timeout: 10_000 })).toBeInTheDocument();
     expect(await screen.findByLabelText('Merge into team', {}, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Merge' })).toBeInTheDocument();
     expect(screen.getByText('Versions')).toBeInTheDocument();

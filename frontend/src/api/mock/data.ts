@@ -610,6 +610,7 @@ function seed(): DB {
       version: '1.0.0',
       author: 'lead',
       is_public: true,
+      is_starter: true,
       downloads_count: 12,
       created_at: iso(60 * 24 * 30),
       updated_at: iso(60 * 24 * 3),
