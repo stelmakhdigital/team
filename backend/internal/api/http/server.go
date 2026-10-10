@@ -33,6 +33,8 @@ type Options struct {
 	Projects *service.ProjectService
 	// P1.4 — Workflow engine (исполняемые воркфлоу)
 	Engine *service.WorkflowEngine
+	// P1.6 — Watchdog-джобы (register, context-usage-threshold)
+	WatchdogJobs *service.WatchdogJobService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -44,7 +46,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	h := &handlers{svc: svc, tsvc: tsvc, ssvc: opts.Sessions, msvc: opts.Messages,
 		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
 		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention,
-		projects: opts.Projects, engine: opts.Engine}
+		projects: opts.Projects, engine: opts.Engine, wdjobs: opts.WatchdogJobs}
 
 	mux := http.NewServeMux()
 
@@ -107,6 +109,12 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("GET /api/v1/dashboard/alerts", h.DashboardAlerts)
 	mux.HandleFunc("GET /api/v1/watchdog/events", h.WatchdogEvents)
 	mux.HandleFunc("POST /api/v1/watchdog/events/{id}/read", h.MarkAlertRead)
+	// P1.6 — Watchdog-джобы (register, context-usage-threshold)
+	mux.HandleFunc("POST /api/v1/watchdog/jobs", h.RegisterWatchdogJob)
+	mux.HandleFunc("GET /api/v1/watchdog/jobs", h.ListWatchdogJobs)
+	mux.HandleFunc("GET /api/v1/watchdog/jobs/{id}", h.GetWatchdogJob)
+	mux.HandleFunc("POST /api/v1/watchdog/jobs/{id}/stop", h.StopWatchdogJob)
+	mux.HandleFunc("DELETE /api/v1/watchdog/jobs/{id}", h.DeleteWatchdogJob)
 
 	// Slice 4 — Message Center
 	mux.HandleFunc("GET /api/v1/messages", h.ListMessages)

@@ -28,6 +28,9 @@ type Stores struct {
 	Sessions       *SessionRepo
 	SessionHistory *SessionHistoryRepo
 	Watchdog       *WatchdogRepo
+	// P1.6 — Watchdog-джобы (register, context-usage-threshold)
+	WatchdogJobs      *WatchdogJobRepo
+	WatchdogJobEvents *WatchdogJobEventRepo
 	// Slice 4 — Message Center
 	Messages         *MessageRepo
 	Chatrooms        *ChatroomRepo
@@ -61,6 +64,8 @@ func NewStores(db *sql.DB) *Stores {
 		Sessions:            &SessionRepo{db: db},
 		SessionHistory:      &SessionHistoryRepo{db: db},
 		Watchdog:            &WatchdogRepo{db: db},
+		WatchdogJobs:        &WatchdogJobRepo{db: db},
+		WatchdogJobEvents:   &WatchdogJobEventRepo{db: db},
 		Messages:            &MessageRepo{db: db},
 		Chatrooms:           &ChatroomRepo{db: db},
 		ChatroomMessages:    &ChatroomMessageRepo{db: db},
@@ -84,6 +89,30 @@ var (
 
 // nullableInt64 — *int64 → any (nil = NULL) для nullable FK-колонн (P1.0).
 func nullableInt64(p *int64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+// nullableInt — *int → any (nil = NULL) (P1.6: threshold_pct).
+func nullableInt(p *int) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+// boolToInt — bool → int (0/1) (ADR-002: bool — INTEGER).
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// nullableFloat64 — *float64 → any (nil = NULL) (P1.6: last_fired_pct).
+func nullableFloat64(p *float64) any {
 	if p == nil {
 		return nil
 	}

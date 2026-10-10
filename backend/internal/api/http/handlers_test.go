@@ -79,21 +79,24 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 		return entries, err
 	})
 	msvc.Bus = bus
+	// P1.6: watchdog-джобы
+	wdjobs := service.NewWatchdogJobService(db, repository.NewStores(db))
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
-		Logger:    slog.New(slog.NewTextHandler(os.Stderr, nil)),
-		DB:        db,
-		Sessions:  ssvc,
-		Alerts:    alerts,
-		Messages:  msvc,
-		Workflows: wsvc,
-		Events:    bus,
-		Library:   lservice,
-		Audit:     aservice,
-		Metrics:   msvcMetrics,
-		Auth:      authSvc,
-		Config:    cvc,
-		Attention: attention,
-		Engine:    engine,
+		Logger:       slog.New(slog.NewTextHandler(os.Stderr, nil)),
+		DB:           db,
+		Sessions:     ssvc,
+		Alerts:       alerts,
+		Messages:     msvc,
+		Workflows:    wsvc,
+		Events:       bus,
+		Library:      lservice,
+		Audit:        aservice,
+		Metrics:      msvcMetrics,
+		Auth:         authSvc,
+		Config:       cvc,
+		Attention:    attention,
+		Engine:       engine,
+		WatchdogJobs: wdjobs,
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)

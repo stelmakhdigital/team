@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,6 +24,8 @@ type sessionEnv struct {
 	wd     *service.WatchdogService
 	ctx    context.Context
 	logDir string
+	db     *sql.DB
+	stores *repository.Stores
 }
 
 func setupSessionEnv(t *testing.T) *sessionEnv {
@@ -59,7 +62,7 @@ func setupSessionEnv(t *testing.T) *sessionEnv {
 		ScanInterval:     time.Hour,
 		Enabled:          false,
 	})
-	return &sessionEnv{svc: svc, tsvc: tsvc, ssvc: ssvc, wd: wd, ctx: context.Background(), logDir: logDir}
+	return &sessionEnv{svc: svc, tsvc: tsvc, ssvc: ssvc, wd: wd, ctx: context.Background(), logDir: logDir, db: db, stores: stores}
 }
 
 func (e *sessionEnv) teamWithRole(t *testing.T, name string) (teamID, roleID int64) {

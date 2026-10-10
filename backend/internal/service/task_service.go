@@ -41,6 +41,7 @@ type wakeStore interface {
 	GetActiveByTask(ctx context.Context, tx repository.DBTX, taskID int64) (*models.TaskWake, error)
 	ListArmedTimers(ctx context.Context, tx repository.DBTX, now time.Time) ([]*models.TaskWake, error)
 	ListArmedByRef(ctx context.Context, tx repository.DBTX, ref string) ([]*models.TaskWake, error)
+	ListArmedWatchdogByJob(ctx context.Context, tx repository.DBTX, jobID string) ([]*models.TaskWake, error) // P1.6
 	MarkFired(ctx context.Context, tx repository.DBTX, id int64, at time.Time) error
 }
 
@@ -195,9 +196,10 @@ type UpdateTaskStateRequest struct {
 // WakeSpec — P0.3: причина-триггер для разблокировки (block with wake).
 // kind=timer: After (duration, e.g. "30m"); kind=task: TaskID (referenced-задача).
 type WakeSpec struct {
-	Kind         string `json:"kind"` // timer | task
+	Kind         string `json:"kind"` // timer | task | watchdog (P1.6)
 	After        string `json:"after,omitempty"`
 	TaskID       *int64 `json:"task_id,omitempty"`
+	JobID        *int64 `json:"job_id,omitempty"` // P1.6: kind=watchdog — id watchdog-джоба
 	Continuation string `json:"continuation,omitempty"`
 }
 
@@ -511,9 +513,15 @@ func (s *TaskService) createWake(ctx context.Context, tx repository.DBTX, taskID
 				[]FieldError{{Field: "wake.task_id", Reason: "required"}})
 		}
 		w.Ref = strconv.FormatInt(*spec.TaskID, 10)
+	case models.WakeKindWatchdog: // P1.6: будит, когда сработал watchdog-джоб (ref = job id)
+		if spec.JobID == nil || *spec.JobID <= 0 {
+			return NewValidation("wake.job_id is required for kind=watchdog",
+				[]FieldError{{Field: "wake.job_id", Reason: "required"}})
+		}
+		w.Ref = strconv.FormatInt(*spec.JobID, 10)
 	default:
 		return NewValidation(fmt.Sprintf("invalid wake kind %q", spec.Kind),
-			[]FieldError{{Field: "wake.kind", Reason: "must be timer|task"}})
+			[]FieldError{{Field: "wake.kind", Reason: "must be timer|task|watchdog"}})
 	}
 	return s.wakes.Create(ctx, tx, w)
 }
@@ -628,6 +636,22 @@ func (s *TaskService) FireArmedTimerWakes(ctx context.Context) int {
 	n := 0
 	for _, w := range wakes {
 		if err := s.fireWake(ctx, w, "wake timer fired"); err == nil {
+			n++
+		}
+	}
+	return n
+}
+
+// FireArmedWatchdogWakes — P1.6: watchdog-джоб сработал → будит parked-задачи, чей
+// wake.kind=watchdog и ref = job id (разблокировка как timer-fire). Возвращает число.
+func (s *TaskService) FireArmedWatchdogWakes(ctx context.Context, jobID string) int {
+	wakes, err := s.wakes.ListArmedWatchdogByJob(ctx, s.db, jobID)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, w := range wakes {
+		if err := s.fireWake(ctx, w, "watchdog job fired"); err == nil {
 			n++
 		}
 	}

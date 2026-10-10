@@ -109,6 +109,12 @@ func run() error {
 	wd.Bus = bus
 	// P0.3: timer-wakes срабатывают в watchdog-loop (task → pending).
 	wd.FireTimerWakes = tsvc.FireArmedTimerWakes
+	// P1.6 — Watchdog-джобы (context-usage-threshold): loop проверяет enabled джобы.
+	wdjobs := service.NewWatchdogJobService(db, stores)
+	wd.Jobs = stores.WatchdogJobs
+	wd.JobEvents = stores.WatchdogJobEvents
+	wd.LiveSession = ssvc.GetSessionView
+	wd.FireWatchdogWakes = tsvc.FireArmedWatchdogWakes
 	alerts := &service.AlertStoreRef{Events: stores.Watchdog, Teams: stores.Teams, DB: db}
 
 	// P0.1 — Attention view ("Что требует меня")
@@ -166,6 +172,7 @@ func run() error {
 		Workflows: wsvc, Events: bus,
 		Library: lservice, Audit: aservice, Metrics: msvcMetrics,
 		Auth: authSvc, Config: cvc, Attention: attention, Projects: projSvc, Engine: engine,
+		WatchdogJobs: wdjobs,
 	})
 
 	server := &http.Server{

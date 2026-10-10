@@ -31,6 +31,7 @@ var AllPermissions = []string{
 	"workflows.read", "workflows.create", "workflows.update",
 	"library.read", "library.create", "library.apply",
 	"dashboard.read",
+	"watchdog.update", // P1.6: register/stop/delete watchdog jobs (operator+)
 	"audit.read",
 	"config.read",
 	"config.update",

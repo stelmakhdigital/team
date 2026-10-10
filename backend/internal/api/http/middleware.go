@@ -171,6 +171,8 @@ func requiredPermission(method, path string) string {
 			return "workflows.update" // P1.4: actions = workflows.update
 		case res == "library" && id != "" && sub == "apply":
 			return "library.apply"
+		case res == "watchdog" && id == "jobs": // P1.6: register/stop джобов = watchdog.update
+			return "watchdog.update"
 		case res == "watchdog":
 			return "dashboard.read" // mark alert read
 		case res == "teams" && id != "" && (sub == "segments" || sub == "relatives" || sub == "save" || sub == "validate"):

@@ -31,6 +31,8 @@ type handlers struct {
 	projects *service.ProjectService
 	// P1.4 — Workflow engine (исполняемые воркфлоу)
 	engine *service.WorkflowEngine
+	// P1.6 — Watchdog-джобы (register, context-usage-threshold)
+	wdjobs *service.WatchdogJobService
 }
 
 func limitOffset(q url.Values) (int, int) {

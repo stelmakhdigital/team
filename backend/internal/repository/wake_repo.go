@@ -71,6 +71,19 @@ func (r *WakeRepo) ListArmedByRef(ctx context.Context, tx DBTX, ref string) ([]*
 	return scanWakes(rows)
 }
 
+// ListArmedWatchdogByJob — P1.6: арм. watchdog-wakes на джоб (ref = job id).
+func (r *WakeRepo) ListArmedWatchdogByJob(ctx context.Context, tx DBTX, jobID string) ([]*models.TaskWake, error) {
+	rows, err := tx.QueryContext(ctx,
+		`SELECT `+wakeColumns+` FROM task_wakes
+		 WHERE kind = 'watchdog' AND ref = ? AND fired_at IS NULL
+		 ORDER BY created_at ASC, id ASC LIMIT 200`, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanWakes(rows)
+}
+
 // MarkFired — закрытие wake (fired ИЛИ resolve) — идемпотентность.
 func (r *WakeRepo) MarkFired(ctx context.Context, tx DBTX, id int64, at time.Time) error {
 	res, err := tx.ExecContext(ctx,

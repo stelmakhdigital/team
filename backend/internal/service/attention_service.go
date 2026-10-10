@@ -368,6 +368,8 @@ func alertSeverityAndAction(eventType string) (severity, action string) {
 	switch eventType {
 	case "blocked":
 		return "critical", "Разобрать блокировку"
+	case "watchdog_job": // P1.6: сработал watchdog-джоб (context-threshold)
+		return "high", "Посмотреть сессию"
 	case "stale":
 		return "high", "Проверить сессию"
 	default:

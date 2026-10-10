@@ -119,6 +119,7 @@ type TaskWake struct {
 }
 
 const (
-	WakeKindTimer = "timer"
-	WakeKindTask  = "task"
+	WakeKindTimer    = "timer"
+	WakeKindTask     = "task"
+	WakeKindWatchdog = "watchdog" // P1.6: будит, когда сработал watchdog-джоб (ref = job id)
 )
