@@ -236,7 +236,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   OpenAPI 93/93 (is_starter + project_id); api-decisions §P2.13; USAGE §3.1;
   backend §3r; frontend §3s.
 
-### P2.14 Cost tracking (токены → деньги) — `in_progress`
+### P2.14 Cost tracking (токены → деньги) — `done`
 - **Scope**: цены моделей в конфиге (config-ключи, напр. `cost.models.<name>.
   in_usd_per_mtok` / `out_usd_per_mtok`); стоимость per session (из уже
   парсящихся usage-токенов), per task (по привязанным сессиям), per project
@@ -245,6 +245,18 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   заявленным ценам», а не факт.
 - **Критерии**: расчёт в service + тесты (нет usage → «нет данных», не 0),
   UI + скриншоты, конфиг-ключи в Settings, OpenAPI, docs.
+- **DONE (T-20261010213901, 2026-10-11)**: config-ключи `cost.model_prices`
+  (JSON-объект цен, `ValidateJSON`) + `cost.budget_alert_cents` (порог, 0=выкл).
+  `CostService` (честная семантика: нет токенов/цены → `null`/`has_data=false`,
+  **не 0**; `estimate=true`); `CostForSession/Task/Project/All` + `CostSeries`
+  (12 точек, bounded 100/50). Поля `estimated_cost` (null=«нет данных»):
+  SessionView/Detail, TaskDetail, GetProjectResponse; metrics `llm_cost_usd`.
+  Бюджет-порог → watchdog-алерт `event_type="budget"` (dedup/cooldown 1ч,
+  migration 0020). UI: Settings (JSON textarea + budget), Dashboard chart
+  «LLM cost (USD)», Session/Task/Project detail (Cost). Тесты: service (6) +
+  watchdog (5) + HTTP (4) + vitest (5). Скриншоты `cost-*.png`. OpenAPI 93/93
+  (CostInfo + estimated_cost + llm_cost_usd + cost секция); api-decisions §P2.14;
+  USAGE §6.6; backend §3s; frontend §3t.
 
 ### P2.15 `whoami` для агентов — `done`
 - **Scope**: `GET /whoami` (по API-ключу/роли сессии): моя роль+команда, мои

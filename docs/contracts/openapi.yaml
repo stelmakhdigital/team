@@ -2399,6 +2399,7 @@ components:
         is_overdue: { type: boolean, description: "P0.2: in_progress/blocked и closure_required_at < now" }
         closure_required_at: { type: string, format: date-time, description: "P0.2: дедлайн закрытия (выставляется в in_progress)" }
         remaining_secs: { type: integer, format: int64, description: "P0.2: closure_required_at - now (отриц. = просрочено)" }
+        estimated_cost: { $ref: '#/components/schemas/CostInfo', description: "P2.14: стоимость задачи (сумма сессий, оценка); null = «нет данных»" }
     TasksListResponse:
       type: object
       required: [tasks, total]
@@ -2567,6 +2568,18 @@ components:
             llm_tokens:
               type: array
               items: { $ref: '#/components/schemas/TimeSeriesPoint' }
+            llm_cost_usd: # P2.14: стоимость LLM (USD, оценка); 0 = нет данных
+              type: array
+              items: { $ref: '#/components/schemas/TimeSeriesPoint' }
+
+    # P2.14: стоимость LLM-сессии (оценка). cost_usd=null / has_data=false = «нет данных» (не 0).
+    CostInfo:
+      type: object
+      required: [cost_usd, has_data, estimate]
+      properties:
+        cost_usd: { type: [number, 'null'], description: 'Стоимость в USD; null = нет данных (нет токенов или не задана цена модели)' }
+        has_data: { type: boolean, description: 'false = «нет данных» (UI показывает «нет данных», не 0)' }
+        estimate: { type: boolean, description: 'true = оценка (UI: «~») — токены × цена, не счётчик биллинга' }
 
     # ---- sessions ----
     Session:
@@ -2603,6 +2616,7 @@ components:
             context_total_input_tokens: { type: integer, format: int64 }
             context_total_output_tokens: { type: integer, format: int64 }
             log_path: { type: string }
+            estimated_cost: { $ref: '#/components/schemas/CostInfo', description: "P2.14: стоимость сессии (оценка); null = «нет данных»" }
             briefing_text: { type: string, description: "P1.7: полный текст брифинга (detail)" }
     SessionsListResponse:
       type: object
@@ -3445,7 +3459,7 @@ components:
         key: { type: string, example: server.listen_addr }
         section:
           type: string
-          enum: [server, storage, sessions, watchdog, security, logging, workspace]
+          enum: [server, storage, tasks, sessions, watchdog, security, logging, cost, workspace]
         type:
           type: string
           enum: [string, integer, duration, boolean, path, string-list]
@@ -3459,6 +3473,7 @@ components:
         default_is_derived: { type: boolean, description: "Дефолт host-derived (cwd/машина), не константа" }
         requires_restart: { type: boolean }
         editable: { type: boolean, description: "false — secret/constant (PUT → 403)" }
+        json_object: { type: boolean, description: "P2.14: значение = JSON-объект (UI: текст-поле; PUT валидирует JSON)" }
     ConfigSection:
       type: object
       required: [name, keys]
@@ -3691,6 +3706,7 @@ components:
       properties:
         project: { $ref: '#/components/schemas/Project' }
         counts: { $ref: '#/components/schemas/ProjectCounts' }
+        estimated_cost: { $ref: '#/components/schemas/CostInfo', description: "P2.14: стоимость проекта (сумма сессий, оценка); null = «нет данных»" }
     UpdateProjectRequest:
       type: object
       properties:

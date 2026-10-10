@@ -615,6 +615,24 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 
 Скриншот @2560: `library-starter-2560x1440.png` (badge + banner + detail apply + lock).
 
+### 3t. Cost tracking, токены → деньги (P2.14, 2026-10-11)
+Оценка стоимости LLM (токены × цена). Честность: «нет данных» (не 0) без токенов/цены.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/lib/format.ts` | **`formatCost(cost)`**: `~$X.XX` (estimate) / `$X.XX` / **«нет данных»** (null/has_data=false); `CostInfo` type |
+| `frontend/src/types/api.ts` | `CostInfo`; `estimated_cost` на `Session`/`SessionDetail`/`Task`/`GetProjectResponse`; `llm_cost_usd` в `GetMetricsResponse.metrics`; `ConfigKeyView.json_object` |
+| `frontend/src/pages/SettingsPage.tsx` | Секция **cost**: `cost.model_prices` как **JSON textarea** (`json_object`), `cost.budget_alert_cents` integer; `fmtJSONValue` (pretty) |
+| `frontend/src/components/Dashboard/MetricsChart.tsx` | серия **«LLM cost (USD)»** (`llm_cost_usd`, teal) в метриках (рядом с llm_tokens) |
+| `frontend/src/pages/SessionDetailPage.tsx` | строка **Cost** в metrics-баре |
+| `frontend/src/pages/TaskDetailPage.tsx` | строка **Cost** |
+| `frontend/src/pages/ProjectDetailPage.tsx` | строка **Estimated cost** |
+| `frontend/src/api/mock/*` | cost секция (registry), `estimated_cost` на сессии 1 + task 1, `llm_cost_usd` в metrics, `toSessionDetail` + `estimated_cost` |
+| `frontend/tests/cost.test.tsx` (NEW) | 5: config cost-секция (json_object), session cost, task cost (estimate + «нет данных»), dashboard LLM cost (USD) |
+
+Скриншоты @2560: `cost-settings-2560x1440.png` (JSON textarea + budget),
+`cost-session-detail-2560x1440.png` (Cost ~$7.52), `cost-dashboard-2560x1440.png` (chart).
+
 ## 5. Команды
 ```bash
 cd frontend

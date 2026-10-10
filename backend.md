@@ -545,6 +545,35 @@ Persisted-лента событий системы (история + обога�
 - **Решения** (см. `api-decisions.md` §P2.13): seed-функция (не миграция); pin-409;
   apply с project_id; без новых RBAC.
 
+### 3s. P2.14 — Cost tracking, токены → деньги (backend, 2026-10-11)
+Оценка стоимости LLM (токены × цена). **Честность**: нет токенов/цены → `null`/
+`has_data=false` (UI «нет данных»), **не 0**. `estimate=true` (оценка, не биллинг).
+- **Config** (`config_service.go`): секция `cost` + 2 ключа: `cost.model_prices`
+  (StrType, `ValidateJSON=true`, default `{}` — JSON-объект цен) + `cost.budget_alert_cents`
+  (IntType, default `0` = выключен). Новый механизм: `KeySpec.ValidateJSON` (JSON-объект
+  валидация в `parseOverrideValue` → 400 на необъект) + `ResolveString` (для JSON-ключей).
+  `ConfigKeyView.JSONObject` (frontend: textarea). `requires_restart=false` (рантайм).
+- **`CostService`** (`cost_service.go`, NEW): `CostInfo{CostUSD *float64, HasData, Estimate}`;
+  `NoDataCost()`; `SessionCost(in,out,model)` (нет токенов → nodata; нет цены → nodata;
+  иначе `in/1e6×in_price + out/1e6×out_price`, estimate); `SumCost` (суммирует только
+  has_data; all-nodata → nodata); `Prices(ctx)` / `BudgetAlertCents(ctx)`.
+- **Агрегация** (`cost_session.go`, NEW): `CostForSession` (log-tail tokens+model),
+  `CostForTask` (limit 100), `CostForProject` (limit 100), `CostForAll` (limit 50 —
+  бюджет), `CostSeries` (12 точек, limit 50, пустые бакеты=0 как llm_tokens).
+- **Поля** (null=«нет данных»): `SessionView.EstimatedCost` + `SessionDetail`,
+  `TaskDetail.EstimatedCost`, GetProject `estimated_cost`; metrics `LLMCostUSD`
+  (nil-safe → все 0). `SessionService.SetCostService` (setter, `cost *CostService`).
+- **Бюджет-алерт** (`watchdog.go`): `checkBudgetAlert` (в `Scan`): `TotalCost` (all)
+  > порога → событие `event_type="budget"`, severity `high`, requires_action. **Dedup**
+  1ч (`ExistsRecentByType`). `team_id` FK → первая команда (sentinel); нет команд → skip.
+- **Migration 0020** (sqlite+postgres): `'budget'` в CHECK `event_type` (sqlite —
+  пересоздание таблицы; pg — DROP/ADD constraint).
+- **Wiring** (`main.go` + `handlers_test.go`): CostService + SetCostService +
+  Metrics.CostSeries + wd.TotalCost/CostSvc.
+- **Тесты**: service (6 CostService + 5 watchdog budget) + HTTP (4: config/metrics/
+  task/project). **Решения** (см. `api-decisions.md` §P2.14): честный nodata (не 0);
+  bounded агрегация; budget → первая команда; без новых RBAC.
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

@@ -1406,3 +1406,52 @@ attention list, config get/set/reset. `config set <key> <value>` — value па�
 - **HTTP** (5): list (2 стартера, is_starter, filter type=team), apply team,
   apply team+project, pin-409 (PATCH), apply workflow. Test helper `newTestServerSeeded`
   (+ Projects wired в Options).
+
+## P2.14. Cost tracking — токены → деньги (T-20261010213901)
+
+Оценка стоимости LLM-сессий/задач/проектов + бюджет-порог. **Честность**: без
+token-данных или без цены модели показываем «нет данных» (`null` / `has_data=false`),
+**никогда не 0** (0 = ложное «бесплатно»). Это оценка (токены × цена), не счётчик
+биллинга → `estimate: true` (UI: «~»).
+
+### Config-ключи (C1)
+- **`cost.model_prices`** (StrType, `ValidateJSON=true`, default `{}`): JSON-объект цен
+  `{"<model>":{"in_usd_per_mtok":N,"out_usd_per_mtok":N}}`. `{}` = цены не заданы →
+  «нет данных». PUT валидирует JSON-объект (необъект → 400). `requires_restart=false`
+  (читается в рантайме).
+- **`cost.budget_alert_cents`** (IntType, default `0`): порог бюджета в ЦЕНТАХ.
+  `0` = watchdog-алерт выключен. `requires_restart=false`.
+- Новый механизм: `KeySpec.ValidateJSON` + `ResolveString` (строка для JSON-ключей).
+
+### CostService (C2) — честная семантика
+`CostInfo{cost_usd *float64, has_data bool, estimate bool}`; `NoDataCost()` = `{nil,false,-}`.
+- `SessionCost(in, out, model)`: нет токенов (оба 0/nil) → «нет данных»; нет цены модели
+  → «нет данных»; иначе `(in/1e6 × in_price) + (out/1e6 × out_price)`, `estimate=true`.
+- `SumCost([]CostInfo)`: суммирует только `has_data` (estimate = ИЛИ); если ни одного
+  с данными → «нет данных». Частичные данные → сумма тех, что есть (documented).
+- `Prices(ctx)` / `BudgetAlertCents(ctx)` — чтение из Config.
+
+### Вычисления + агрегация (bounded)
+- `CostForSession` (log-tail: tokens + model), `CostForTask` (сессии задачи, limit 100),
+  `CostForProject` (сессии проекта, limit 100), `CostForAll` (limit 50 — для бюджета).
+- `CostSeries` (12 точек, dashboard, limit 50 сессий, пустые бакеты = 0 — как `llm_tokens`).
+- Поля `estimated_cost` (null = «нет данных»): SessionView/SessionDetail, TaskDetail,
+  GetProjectResponse. Metrics: `llm_cost_usd` series (nil-safe → все 0).
+
+### Бюджет-порог → watchdog-алерт (C4)
+`WatchdogService.checkBudgetAlert` (в `Scan`): `TotalCost` (all, limit 50) > порога →
+событие `event_type="budget"`, severity `high`, `requires_action=true`. **Dedup**: cooldown
+1ч (`ExistsRecentByType`, не спамит). `watchdog_events.team_id` — FK → привязываем к
+первой команде (sentinel); нет команд → алерт не создаётся. **Migration 0020**: добавление
+`'budget'` в CHECK `event_type` (sqlite — пересоздание таблицы, pg — DROP/ADD constraint).
+
+### RBAC
+Нет новых пермиссий: `estimated_cost` идёт в существующих read-ответах (sessions/tasks/
+projects → их роли), `llm_cost_usd` в `/dashboard/metrics` (viewer-ok), config →
+`config.update` (admin) / read (viewer). Бюджет-алерт — internal (watchdog, не API).
+
+### Тесты
+- **Service** (6 CostService): computed ($7.00), no-usage → null, no-price → null,
+  SumCost, all-nodata → null, budget default/override. **Watchdog** (5): fires, dedup
+  (cooldown), below-threshold, no-data, disabled. **HTTP** (4): config cost-ключи,
+  metrics llm_cost_usd (12 точек), task detail cost, project detail cost.

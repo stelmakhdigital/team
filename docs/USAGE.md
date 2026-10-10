@@ -622,6 +622,28 @@ export TEAMCTL_API_KEY=sk_...        # → header X-API-Key
 на список. По `session_id` (предпочтительно) или `role_id`. `GET /api/v1/whoami`
 (RBAC `dashboard.read`, viewer-ok).
 
+### 6.6. Cost tracking — токены → деньги (P2.14)
+
+Оценка стоимости LLM (токены × цена модели), per сессия/задача/проект + график в
+Dashboard. **Честность**: это **оценка**, не факт биллинга (UI: «~$X.XX»); без
+токенов или без заданной цены модели — **«нет данных»** (не 0, чтобы не
+вводить в заблуждение «бесплатно»).
+
+**Цены моделей** — Settings → секция **Cost** → `cost.model_prices` (JSON-текст):
+
+```json
+{"anthropic/claude-sonnet": {"in_usd_per_mtok": 3, "out_usd_per_mtok": 15}}
+```
+
+Модель берётся из сессии (log-tail); цена — по совпадению `model`. Пусто `{}` =
+цены не заданы → все стоимости «нет данных». Валидация JSON-объекта при save.
+
+**Бюджет-порог** — `cost.budget_alert_cents` (в центах; `0` = выключен). Если
+стоимость всех сессий > порога → watchdog-алерт (dedup: не чаще 1 раза в час).
+
+**Где видно**: Dashboard → Metrics (график «LLM cost (USD)»), Session/Task/Project
+detail (строка **Cost** / **Estimated cost**).
+
 ---
 
 ## 7. Безопасность (ключи и RBAC)
