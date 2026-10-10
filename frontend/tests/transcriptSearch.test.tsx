@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '../src/App';
 
@@ -25,15 +25,28 @@ describe('P2.7: Transcript search', () => {
   it('renders grouped results with context + EntityLink', async () => {
     renderAt('/transcript-search');
     await doSearch('JWT');
-    // результаты: сгруппировано по сессии (role + team + link)
+    // Дожидаемся ПОЛНОГО коммита результатов (все 3 группы + context-окна + подсветка).
+    // Иначе sync-ассерты гоняются за асинхронным рендером (flake). Детерминированно.
+    await waitFor(
+      () => {
+        expect(document.querySelectorAll('.ts-session').length).toBeGreaterThanOrEqual(3);
+        expect(document.querySelectorAll('.ts-context').length).toBeGreaterThanOrEqual(3);
+        expect(document.querySelector('mark.ts-match')).not.toBeNull();
+      },
+      { timeout: 15_000 },
+    );
+    // результаты: сгруппировано по сессии (EntityLink на сессию)
     expect(await screen.findByText('Открыть сессию #1 →', {}, { timeout: 15_000 })).toBeInTheDocument();
-    // context-окно: совпадение «JWT» в строке (session 1); текст может быть разбит <mark>
+    // context-окно: совпадение «JWT» в строке (текст может быть разбит <mark>)
     const ctxs = Array.from(document.querySelectorAll('.ts-context')).map((el) => el.textContent ?? '');
     expect(ctxs.some((c) => c.includes('use JWT with rotation'))).toBe(true);
     expect(ctxs.some((c) => c.includes('JWT secret from env'))).toBe(true);
-    // роль + команда решены
-    expect(screen.getAllByText('Lead').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Dev Team')).toBeInTheDocument();
+    // роль + команда решены — scoped по РЕЗУЛЬТАТАМ (`.ts-role` / `.ts-session-head`),
+    // НЕ по опции team-селекта (она асинхронная + у team в результатах префикс «· »).
+    const roles = Array.from(document.querySelectorAll('.ts-role')).map((el) => el.textContent ?? '');
+    expect(roles.some((r) => r.includes('Lead'))).toBe(true);
+    const heads = Array.from(document.querySelectorAll('.ts-session-head')).map((el) => el.textContent ?? '');
+    expect(heads.some((h) => h.includes('Dev Team'))).toBe(true);
     // подсветка: <mark> с совпадением
     expect(document.querySelector('mark.ts-match')).not.toBeNull();
   }, 30_000);
