@@ -34,10 +34,17 @@ describe('P1.6: Watchdog jobs page', () => {
     // заполняем форму
     fireEvent.change(await screen.findByLabelText(/Name/), { target: { value: 'new job' } });
     const select = await screen.findByLabelText(/Target-сессия/);
+    // sessions.list — отдельный query: дождаться, пока select наполнится опциями
+    // (гонка: form открывается раньше, чем sessions-запрос разрешился → select пуст,
+    // change на несуществующий option не применяет value → Register disabled → флейк).
+    await waitFor(
+      () => expect(Array.from(select.querySelectorAll('option')).some((o) => o.value === '1')).toBe(true),
+      { timeout: 15_000 },
+    );
     fireEvent.change(select, { target: { value: '1' } });
     fireEvent.click(await screen.findByRole('button', { name: 'Register' }));
-    await waitFor(() => expect(screen.getByText('new job')).toBeInTheDocument(), { timeout: 10_000 });
-  }, 20_000);
+    await waitFor(() => expect(screen.getByText('new job')).toBeInTheDocument(), { timeout: 15_000 });
+  }, 30_000);
 
   it('does not register without a name', async () => {
     renderAt('/watchdog/jobs');
