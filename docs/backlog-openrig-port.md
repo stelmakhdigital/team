@@ -236,7 +236,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   OpenAPI 93/93 (is_starter + project_id); api-decisions §P2.13; USAGE §3.1;
   backend §3r; frontend §3s.
 
-### P2.14 Cost tracking (токены → деньги) — `new`
+### P2.14 Cost tracking (токены → деньги) — `in_progress`
 - **Scope**: цены моделей в конфиге (config-ключи, напр. `cost.models.<name>.
   in_usd_per_mtok` / `out_usd_per_mtok`); стоимость per session (из уже
   парсящихся usage-токенов), per task (по привязанным сессиям), per project
