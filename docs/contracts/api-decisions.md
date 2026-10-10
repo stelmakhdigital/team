@@ -995,3 +995,55 @@ detail-UI), `briefing_path` (process/tmux: путь к файлу). `SessionRepo
 ### Follow-up (вне v1)
 - live-refetch briefing через WS; другие политики брифинга (drift, cost);
   LLM-суммаризация (как у handover context wall).
+
+---
+
+## P1.8. Health/Doctor-панель (T-20261010070318 R2)
+
+**Цель**: «the surface that shows the truth» — что daemon/tmux/seat/БД думают о
+состоянии и **где расходятся**. Read-only: не чинит, а показывает расхождения.
+
+### Эндпоинты
+- `GET /api/v1/diagnostics` — быстрый срез (read-only).
+- `POST /api/v1/diagnostics/run` — явный полный прогон (тот же результат).
+- Оба — **RBAC `diagnostics.read`** (operator+; viewer не получает — new перм,
+  не `%.read`). admin — через `AllPermissions`.
+
+### Чек'и (per-check: `name`, `status` ok|warn|fail, `detail`, `evidence`)
+- **daemon** — up + version + uptime (всегда ok, если сервер отвечает).
+- **database.ping** — ping (ok/fail).
+- **database.migrations** — applied vs available (из embedded FS). Расхождение
+  (pending) → **warn**.
+- **tmux.server** — `tmux list-sessions` (ok если сервер; warn если нет —
+  process/pi не зависят).
+- **sessions.divergence** — **КЛЮЧЕВОЙ (R3)**: для каждой active-сессии (БД)
+  проверка живости через `adapter.Status(runtime_ref)`. active в БД, но
+  `!Alive` в адаптере → **fail** (stale-сессия, evidence: список `#id(type)`).
+- **logs.dir** — dir существует + writable (fail если нет/не запись).
+- **git** — по git-проектам (bounded 3, read-only `git -C <path> rev-parse`,
+  timeout 5s, как P1.7). not-a-repo → warn; нет проектов → ok (skipped).
+
+**Overall** = worst(checks): fail > warn > ok.
+
+### Дизайн-решения
+- **Read-only**: внешние вызовы (git/tmux) через `exec.CommandContext` + timeout
+  (5s) — не блокируют/не зависают; ошибки отдельного чека → свой статус, не
+  ломают весь прогон.
+- **Divergence** (R3): `sessions.divergence` использует существующий
+  `Adapter.Status` (process/tmux/pi) — расхождение БД↔реальность → fail.
+- **Без миграции для данных**: чек'и считаются on-the-fly; только RBAC-миграция
+  0015 (перм `diagnostics.read`, operator+).
+- **`database.MigrationStatus`** — helper (applied из `schema_migrations` vs
+  available из embedded FS).
+- **Bounded**: sessions ≤50, git ≤3 проекта.
+
+### Тесты
+- service (`diagnostics_service_test.go`, 5): basic (7 чек'ов, all ok),
+  **divergence-stale** (active+dead-ref → fail), **migration-pending** (→ warn),
+  git-repo (реальное репо → ok), logs-missing (→ fail).
+- HTTP (`diagnostics_handlers_test.go`, 2): GET/POST 200 + checks, RBAC
+  (401 / viewer 403 / operator 200 + run).
+
+### Follow-up (вне v1)
+- disk-space по ключевым путям; fail-findings → Attention (P0.1) как алерт;
+  auto-heal (сейчас read-only).

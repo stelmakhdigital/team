@@ -46,6 +46,7 @@ import type {
   ListSessionsResponse,
   CreateSessionRequest,
   CreateSessionResponse,
+  DiagnosticsResult,
   SessionDetail,
   StopSessionResponse,
   ListTasksParams,
@@ -224,5 +225,9 @@ export interface Api {
     register: (req: WatchdogJobRegisterRequest) => Promise<WatchdogJob>;
     stop: (id: number) => Promise<WatchdogJob>;
     remove: (id: number) => Promise<void>;
+  };
+  diagnostics: { // P1.8: Health/Doctor-панель (read-only)
+    get: () => Promise<DiagnosticsResult>;
+    run: () => Promise<DiagnosticsResult>;
   };
 }

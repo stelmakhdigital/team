@@ -150,5 +150,9 @@ export function createRealAdapter(): Api {
       stop: (id) => http(`${B}/watchdog/jobs/${id}/stop`, { method: 'POST' }),
       remove: (id) => http(`${B}/watchdog/jobs/${id}`, { method: 'DELETE' }),
     },
+    diagnostics: { // P1.8
+      get: () => http(`${B}/diagnostics`),
+      run: () => http(`${B}/diagnostics/run`, { method: 'POST' }),
+    },
   };
 }

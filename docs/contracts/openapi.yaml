@@ -766,6 +766,44 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
+  # ---- P1.8: Health/Doctor-панель (diagnostics, read-only) ----
+  /api/v1/diagnostics:
+    get:
+      operationId: getDiagnostics
+      summary: Health/Doctor — срез состояния (read-only)
+      description: >
+        P1.8. «The surface that shows the truth»: пер-чек'и (name, status ok|warn|fail,
+        detail, evidence): daemon (up/version/uptime), database.ping, database.migrations
+        (applied vs available), tmux.server, **sessions.divergence** (active в БД vs
+        alive в адаптере — расхождение → fail), logs.dir (writable), git (read-only).
+        Read-only (RBAC diagnostics.read, operator+).
+      tags: [diagnostics]
+      responses:
+        '200':
+          description: Срез диагностики
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiagnosticsResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/diagnostics/run:
+    post:
+      operationId: runDiagnostics
+      summary: Health/Doctor — явный полный прогон (read-only)
+      description: >
+        P1.8. Принудительный полный прогон всех чек'ов (тот же результат, что GET
+        /diagnostics). Read-only (RBAC diagnostics.read, operator+).
+      tags: [diagnostics]
+      responses:
+        '200':
+          description: Результат прогона
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiagnosticsResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/sessions/{id}:
     get:
       operationId: getSession
@@ -2683,6 +2721,24 @@ components:
         briefing_data: { $ref: '#/components/schemas/BriefingData' }
         briefing_applied: { type: string, enum: [builtin, override, none] }
         delivery: { $ref: '#/components/schemas/BriefingDelivery' }
+    # P1.8 — Health/Doctor-панель
+    CheckResult:
+      type: object
+      required: [name, status, detail]
+      properties:
+        name: { type: string }
+        status: { type: string, enum: [ok, warn, fail] }
+        detail: { type: string }
+        evidence: { type: object, additionalProperties: true }
+    DiagnosticsResult:
+      type: object
+      required: [generated_at, overall, checks]
+      properties:
+        generated_at: { type: string, format: date-time }
+        overall: { type: string, enum: [ok, warn, fail] }
+        checks:
+          type: array
+          items: { $ref: '#/components/schemas/CheckResult' }
     SessionHistoryEntry:
       type: object
       required: [id, session_id, to_state, actor_type, created_at]

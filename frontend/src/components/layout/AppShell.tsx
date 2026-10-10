@@ -17,6 +17,7 @@ const NAV = [
   { to: '/messages', label: 'Messages', icon: '✉' },
   { to: '/library', label: 'Library', icon: '▤' },
   { to: '/history', label: 'History', icon: '⏱' },
+  { to: '/diagnostics', label: 'Health', icon: '🩺' },
   { to: '/settings', label: 'Settings', icon: '⚙' },
 ];
 

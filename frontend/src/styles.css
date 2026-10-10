@@ -906,6 +906,24 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .briefing-card { border-left: 3px solid var(--accent); }
 .briefing-loading { padding: 16px 0; }
 
+/* ---------- P1.8: Health/Doctor-панель ---------- */
+.doctor-overall { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border); }
+.doctor-overall--ok { background: rgba(63, 185, 80, 0.1); border-color: var(--green); }
+.doctor-overall--warn { background: rgba(210, 153, 34, 0.1); border-color: var(--yellow); }
+.doctor-overall--fail { background: rgba(207, 34, 46, 0.12); border-color: var(--red); }
+.doctor-list { display: flex; flex-direction: column; gap: 10px; }
+.doctor-item { border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 8px; padding: 10px 14px; }
+.doctor-item--warn { border-left-color: var(--yellow); }
+.doctor-item--fail { border-left-color: var(--red); }
+.doctor-item-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.doctor-status { font-weight: 700; font-size: 0.8rem; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; }
+.doctor-status--ok { color: var(--green); background: rgba(63, 185, 80, 0.12); }
+.doctor-status--warn { color: var(--yellow); background: rgba(210, 153, 34, 0.14); }
+.doctor-status--fail { color: var(--red); background: rgba(207, 34, 46, 0.14); }
+.doctor-name { font-size: 0.9rem; }
+.doctor-detail { color: var(--muted); font-size: 0.9rem; }
+.doctor-evidence { background: rgba(0, 0, 0, 0.28); border-radius: 6px; padding: 8px 10px; margin: 8px 0 0; font-size: 0.8rem; white-space: pre-wrap; word-break: break-word; }
+
 /* ---------- P1.6: watchdog-джобы ---------- */
 .watchdog-form { margin-top: 16px; }
 .watchdog-form-grid {

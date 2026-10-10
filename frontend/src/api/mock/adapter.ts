@@ -2,6 +2,9 @@ import type { Api } from '../types';
 import type {
   AgentSpec,
   AttentionItem,
+  CheckResult,
+  CheckStatus,
+  DiagnosticsResult,
   GetAttentionParams,
   GetAttentionResponse,
   CreateRoleRequest,
@@ -73,6 +76,25 @@ function latency(): Promise<void> {
     typeof window !== 'undefined' ? (window as { __MOCK_LATENCY_MS?: number }).__MOCK_LATENCY_MS : undefined;
   const ms = typeof override === 'number' ? override : 120 + Math.random() * 280;
   return new Promise((r) => setTimeout(r, ms));
+}
+
+// P1.8: mock-срез диагностики (с расхождением: sessions.divergence fail — «shows the truth»)
+function mockDiagnostics(): DiagnosticsResult {
+  const checks: CheckResult[] = [
+    { name: 'daemon', status: 'ok', detail: 'daemon running', evidence: { version: '0.1.0', uptime_s: 10_800, dialect: 'sqlite' } },
+    { name: 'database.ping', status: 'ok', detail: 'database reachable' },
+    { name: 'database.migrations', status: 'ok', detail: 'all 15 migrations applied', evidence: { applied: 15, available: 15 } },
+    { name: 'tmux.server', status: 'warn', detail: 'tmux installed, but no server running' },
+    {
+      name: 'sessions.divergence', status: 'fail',
+      detail: '1 session(s) active in DB but not alive in adapter: #5(process)',
+      evidence: { active: 3, checked: 3, stale: ['#5(process)'] },
+    },
+    { name: 'logs.dir', status: 'ok', detail: 'logs dir writable', evidence: { path: 'logs/sessions', writable: true, entries: 12 } },
+    { name: 'git', status: 'ok', detail: 'checked 1 git project(s): 1 ok, 0 not-a-repo', evidence: { checked: 1, detail: ['…/team: main @ 3fa9c21'] } },
+  ];
+  const overall: CheckStatus = checks.some((c) => c.status === 'fail') ? 'fail' : checks.some((c) => c.status === 'warn') ? 'warn' : 'ok';
+  return { generated_at: new Date().toISOString(), overall, checks };
 }
 
 const now = () => new Date().toISOString();
@@ -1897,6 +1919,16 @@ export function createMockAdapter(): Api {
         if (j.fired_count > 0) throw new ApiClientError(409, 'conflict', 'watchdog job has fired history — stop it instead');
         db.watchdogJobs = db.watchdogJobs.filter((x) => x.id !== id);
         db.watchdogJobEvents = (db.watchdogJobEvents ?? []).filter((e) => e.job_id !== id);
+      },
+    },
+    diagnostics: { // P1.8: Health/Doctor-панель (mock: реалистичный срез с расхождением)
+      async get() {
+        await latency();
+        return mockDiagnostics();
+      },
+      async run() {
+        await latency();
+        return mockDiagnostics();
       },
     },
   };

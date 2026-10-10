@@ -417,6 +417,25 @@ Watchdog-джоб — повторяемая проверка по состоя�
 (список + создание + stop/delete) + wake-форма на задаче. Ссылка:
 `docs/contracts/api-decisions.md` §P1.6.
 
+### 5.5. Health / Doctor-панель (P1.8)
+
+«The surface that shows the truth» — что daemon/БД/tmux/сессии/logs/git думают о
+состоянии и **где расходятся**. Read-only: показывает расхождения, не чинит.
+
+**Чек'и** (status ok/warn/fail + detail + evidence):
+- `daemon` — up + version + uptime;
+- `database.ping` — БД отвечает;
+- `database.migrations` — applied vs available (расхождение → warn);
+- `tmux.server` — сервер жив (warn, если нет — process/pi не зависят);
+- **`sessions.divergence`** — active в БД vs живость в адаптере (расхождение → **fail**);
+- `logs.dir` — writable;
+- `git` — read-only статус по git-проектам (branch/head).
+
+**UI**: страница **Health** (nav) — overall-баннер (ok/warn/fail) + список чек'ов +
+кнопка «Run full diagnostics». **API**: `GET /api/v1/diagnostics`, `POST
+/api/v1/diagnostics/run` (RBAC `diagnostics.read`, operator+). Ссылка:
+`docs/contracts/api-decisions.md` §P1.8.
+
 ---
 
 ## 6. Получение результата

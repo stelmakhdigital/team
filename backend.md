@@ -374,6 +374,27 @@ OpenAPI: +3 операции (всего 63); `check_openapi.py` PASS.
 - **Решения** (см. `api-decisions.md` §P1.7): хранение в config (без миграции); git
   read-only; bounded; empty/error→omit; merge с P1.5 handover.
 
+### 3k. P1.8 — Health/Doctor-панель (backend, 2026-10-10)
+Read-only «the surface that shows the truth»: состояние daemon/БД/tmux/сессий/logs/git
++ **расхождения** (БД-статус vs реальная живость).
+- **DiagnosticsService** (`service/diagnostics_service.go`): `Run(ctx)` → 7 чек'ов
+  (name/status ok|warn|fail/detail/evidence): daemon, database.ping, database.migrations
+  (applied vs available), tmux.server, **sessions.divergence** (КЛЮЧ: active в БД vs
+  alive в `adapter.Status` → stale → fail), logs.dir (writable), git (bounded 3,
+  read-only + timeout 5s). Overall = worst. Read-only: ошибки отдельного чека → свой
+  статус, не ломают прогон; внешние вызовы `exec.CommandContext` + timeout.
+- **`database.MigrationStatus`** (`database/migrate.go`): applied (из `schema_migrations`)
+  vs available (из embedded FS).
+- **Миграция 0015** (sqlite+postgres): перм `diagnostics.read` (operator+; viewer не
+  получает — not `%.read`); admin — через `AllPermissions` (`auth_service.go`).
+- **HTTP**: `GET /api/v1/diagnostics` + `POST /api/v1/diagnostics/run` (read-only);
+  RBAC `diagnostics.read` (`middleware.go`: GET default `res.read`, POST `id=="run"`).
+- **Wiring** (`main.go`): `DiagnosticsService` + `Options.Diagnostics`.
+- **Тесты**: service (5: basic, divergence-stale, migration-pending, git-repo,
+  logs-missing) + HTTP (2: GET/POST 200 + checks, RBAC 401/viewer-403/operator-200).
+- **Решения** (см. `api-decisions.md` §P1.8): read-only; divergence через
+  `Adapter.Status`; bounded; RBAC operator+.
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

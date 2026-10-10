@@ -976,6 +976,23 @@ export interface BriefingPreviewResponse {
   delivery: { mode: 'pi-system-prompt' | 'file-env'; detail: string };
 }
 
+// ---- P1.8: Health/Doctor-панель (diagnostics, read-only) ----
+
+export type CheckStatus = 'ok' | 'warn' | 'fail';
+
+export interface CheckResult {
+  name: string;
+  status: CheckStatus;
+  detail: string;
+  evidence?: Record<string, unknown>;
+}
+
+export interface DiagnosticsResult {
+  generated_at: string;
+  overall: CheckStatus;
+  checks: CheckResult[];
+}
+
 // ---- Message Center ----
 
 export type MessageType = 'direct' | 'broadcast' | 'segment' | 'system' | 'watchdog';
