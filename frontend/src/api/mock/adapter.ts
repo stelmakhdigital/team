@@ -21,6 +21,7 @@ import type {
   HandoverStep,
   Task,
   TaskWake,
+  TranscriptMatch,
   UpdateRoleConfigRequest,
   Workflow,
   WatchdogJob,
@@ -1017,6 +1018,52 @@ export function createMockAdapter(): Api {
         if (params?.role_id != null) list = list.filter((s) => s.role_id === params.role_id);
         if (params?.state) list = list.filter((s) => s.state === params.state);
         return { sessions: clone(list.map(toSessionDetail)), total: list.length };
+      },
+
+      // P2.7: поиск по транскриптам (mock: substring + контекст-окно ±3 + merge).
+      async search(params) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const q = (params.q ?? '').trim();
+        if (q.length < 2) throw new ApiClientError(400, 'validation_failed', 'q: min 2 символа');
+        const needle = q.toLowerCase();
+        const CTX = 3;
+        let candidates = db.sessions;
+        if (params.role_id != null) candidates = candidates.filter((s) => s.role_id === params.role_id);
+        if (params.team_id != null) candidates = candidates.filter((s) => s.team_id === params.team_id);
+        if (params.state) candidates = candidates.filter((s) => s.state === params.state);
+        const items: TranscriptMatch[] = [];
+        for (const s of candidates) {
+          const lines = db.transcripts?.[s.id];
+          if (!lines) continue; // файла нет → пропускаем (честность)
+          // окна совпадений (merge близких)
+          type W = { start: number; end: number; primary: number };
+          const wins: W[] = [];
+          lines.forEach((ln, i) => {
+            if (!ln.toLowerCase().includes(needle)) return;
+            const start = Math.max(0, i - CTX);
+            const end = Math.min(lines.length - 1, i + CTX);
+            if (wins.length > 0 && start <= wins[wins.length - 1].end + CTX) {
+              if (end > wins[wins.length - 1].end) wins[wins.length - 1].end = end;
+            } else {
+              wins.push({ start, end, primary: i });
+            }
+          });
+          for (const w of wins) {
+            items.push({
+              session_id: s.id, role_name: s.role_name, team_name: s.team_name, state: s.state,
+              line_number: w.primary + 1, match_line: lines[w.primary],
+              context: lines.slice(w.start, w.end + 1),
+              snippet: lines.slice(w.start, w.end + 1).join('⏎ '),
+            });
+          }
+        }
+        items.sort((a, b) => (a.session_id !== b.session_id ? b.session_id - a.session_id : a.line_number - b.line_number));
+        const limit = Math.max(1, Math.min(params.limit ?? 50, 200));
+        const offset = Math.max(0, params.offset ?? 0);
+        const total = items.length;
+        return { results: items.slice(offset, offset + limit), total, has_more: offset + limit < total };
       },
 
       async create(teamId, req) {

@@ -43,6 +43,8 @@ import type {
   GetWorkflowResponse,
   GetWorkflowsResponse,
   ListSessionsParams,
+  TranscriptSearchParams,
+  TranscriptSearchResult,
   ListSessionsResponse,
   CreateSessionRequest,
   CreateSessionResponse,
@@ -170,6 +172,7 @@ export interface Api {
   };
   sessions: {
     list(params?: ListSessionsParams): Promise<ListSessionsResponse>;
+    search(params: TranscriptSearchParams): Promise<TranscriptSearchResult>; // P2.7
     create(teamId: number, req: CreateSessionRequest): Promise<CreateSessionResponse>;
     get(id: number): Promise<SessionDetail>;
     stop(id: number): Promise<StopSessionResponse>;

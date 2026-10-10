@@ -56,6 +56,17 @@ export function createRealAdapter(): Api {
     },
     sessions: {
       list: (params) => http(`${B}/sessions${toQuery({ team_id: params?.team_id, role_id: params?.role_id, state: params?.state })}`),
+      search: (params) =>
+        http(
+          `${B}/sessions/search${toQuery({
+            q: params.q,
+            role_id: params.role_id,
+            team_id: params.team_id,
+            state: params.state,
+            limit: params.limit,
+            offset: params.offset,
+          })}`,
+        ), // P2.7
       create: (teamId, req) => http(`${B}/sessions?team_id=${teamId}`, { method: 'POST', body: req }),
       get: (id) => http(`${B}/sessions/${id}`),
       stop: (id) => http(`${B}/sessions/${id}`, { method: 'DELETE' }),

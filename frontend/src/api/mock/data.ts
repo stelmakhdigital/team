@@ -53,6 +53,7 @@ interface DB {
   tasks: Task[];
   taskWakes: MockWake[]; // P0.3
   sessions: Session[];
+  transcripts: Record<number, string[]>; // P2.7: транскрипты (session_id → строки) для mock-search
   alerts: WatchdogAlert[];
   watchdogJobs: WatchdogJob[]; // P1.6
   watchdogJobEvents: WatchdogJobEvent[]; // P1.6
@@ -125,6 +126,7 @@ function seed(): DB {
     tasks: [],
     taskWakes: [],
     sessions: [],
+    transcripts: {},
     alerts: [],
     // P1.6: watchdog-джобы (target — сессия 5 у контекст-стены 88% + сессия 1)
     watchdogJobs: [
@@ -163,6 +165,32 @@ function seed(): DB {
   ];
   // Привязка: Dev Team → project 1 (свойство работы) — после заполнения t.teams
   // (см. ниже, после t.teams = [...]).
+
+  t.transcripts = {
+    // P2.7: mock-транскрипты (session_id → строки) — для поиска
+    1: [
+      'starting session for Lead…',
+      'reading auth middleware task',
+      'decided: use JWT with rotation',
+      'writing handler for /api/v1/auth',
+      'JWT rotation interval: 15m',
+      'running go test ./... — ok',
+      'summary: auth middleware done',
+    ],
+    2: [
+      'starting session for Worker…',
+      'implementing auth middleware per lead plan',
+      'JWT token validation added',
+      'edge case: expired token → 401',
+      'tests green',
+    ],
+    3: [
+      'starting session…',
+      'reviewing auth middleware diff',
+      'suggestion: JWT secret from env',
+      'approved with notes',
+    ],
+  };
 
   t.teams = [
     {

@@ -928,6 +928,31 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .doctor-link--stale { border-color: var(--red); color: var(--red); background: rgba(207, 34, 46, 0.1); }
 .doctor-link--zombie { border-color: var(--yellow); color: var(--yellow); background: rgba(210, 153, 34, 0.12); }
 
+/* ---------- P2.7: Поиск по транскриптам ---------- */
+.ts-form-grid { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.ts-field { display: flex; flex-direction: column; gap: 4px; }
+.ts-field--q { flex: 1; min-width: 240px; }
+.ts-field span { font-size: 0.8rem; color: var(--muted); }
+.ts-field input, .ts-field select { padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+.ts-field select:disabled { opacity: 0.5; }
+.ts-results-meta { margin: 8px 0; }
+.ts-results { display: flex; flex-direction: column; gap: 12px; }
+.ts-session { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.ts-session-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: rgba(255, 255, 255, 0.03); border-bottom: 1px solid var(--border); }
+.ts-role { font-size: 0.9rem; }
+.ts-open { margin-left: auto; }
+.ts-state { font-weight: 700; font-size: 0.75rem; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; }
+.ts-state--running, .ts-state--starting { color: var(--green); background: rgba(63, 185, 80, 0.12); }
+.ts-state--idle, .ts-state--stopping { color: var(--yellow); background: rgba(210, 153, 34, 0.14); }
+.ts-state--stopped { color: var(--muted); background: rgba(139, 148, 158, 0.14); }
+.ts-state--failed { color: var(--red); background: rgba(207, 34, 46, 0.14); }
+.ts-matches { display: flex; flex-direction: column; gap: 10px; padding: 10px 14px; }
+.ts-match-block { display: flex; gap: 12px; }
+.ts-line-no { color: var(--accent); font-size: 0.8rem; white-space: nowrap; min-width: 48px; text-align: right; }
+.ts-context { margin: 0; background: rgba(0, 0, 0, 0.28); border-radius: 6px; padding: 8px 12px; font-size: 0.82rem; white-space: pre-wrap; word-break: break-word; }
+.ts-ctx-line { line-height: 1.5; }
+.ts-match { background: rgba(88, 166, 255, 0.35); color: #fff; border-radius: 3px; padding: 0 2px; }
+
 /* ---------- P1.6: watchdog-джобы ---------- */
 .watchdog-form { margin-top: 16px; }
 .watchdog-form-grid {

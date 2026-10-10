@@ -994,6 +994,34 @@ export interface DiagnosticsResult {
   checks: CheckResult[];
 }
 
+// ---- P2.7: Поиск по транскриптам (наивный, bounded, read-only) ----
+
+export interface TranscriptSearchParams {
+  q: string; // обязательный, min 2
+  role_id?: number;
+  team_id?: number;
+  state?: SessionState;
+  limit?: number; // default 50, max 200
+  offset?: number;
+}
+
+export interface TranscriptMatch {
+  session_id: number;
+  role_name: string;
+  team_name: string;
+  state: SessionState;
+  line_number: number; // 1-based: первичное совпадение в окне
+  match_line: string;
+  context: string[]; // строки окна (start..end)
+  snippet: string;
+}
+
+export interface TranscriptSearchResult {
+  results: TranscriptMatch[];
+  total: number;
+  has_more: boolean;
+}
+
 // ---- Message Center ----
 
 export type MessageType = 'direct' | 'broadcast' | 'segment' | 'system' | 'watchdog';
