@@ -202,7 +202,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   `session.send` (P2.9); UI блок в Session Detail (badge + tail) + 4 vitest; OpenAPI
   92; api-decisions §P2.11 + USAGE §5.2.3. process/мертов tmux → 409.
 
-### P2.12 CLI-клиент `teamctl` (ориентир OpenRIG «CLI — surface для агентов») — `new`
+### P2.12 CLI-клиент `teamctl` (ориентир OpenRIG «CLI — surface для агентов») — `in_progress` (с P2.15)
 - **Контекст**: golden rule OpenRIG: CLI — поверхность для агентов, UI — для
   людей; оба читают те же записи. У нас — только REST (curl-магия).
 - **Scope**: CLI (`backend/cmd/teamctl`, отдельный бинарь): `task list/claim/
