@@ -174,6 +174,7 @@ type ConfigKeyView struct {
 	DefaultIsDerived bool   `json:"default_is_derived"`
 	RequiresRestart  bool   `json:"requires_restart"`
 	Editable         bool   `json:"editable"`
+	JSONObject       bool   `json:"json_object,omitempty"` // P2.14: значение = JSON-объект (текст-поле)
 }
 
 // ConfigSection — секция с ключами.
@@ -510,6 +511,7 @@ func (s *ConfigService) ListConfig(ctx context.Context) (*ListConfigResponse, er
 				DefaultIsDerived: spec.DefaultIsDerived,
 				RequiresRestart:  spec.RequiresRestart,
 				Editable:         spec.Editable,
+				JSONObject:       spec.ValidateJSON,
 			})
 		}
 		sections = append(sections, secView)
