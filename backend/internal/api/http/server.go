@@ -114,6 +114,8 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("DELETE /api/v1/sessions/{id}", h.StopSession)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/history", h.GetSessionHistory)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/transcript", h.GetTranscript)
+	// P2.8: capture (стл-кадр экрана сессии) — GET, viewer-ok (sessions.read)
+	mux.HandleFunc("GET /api/v1/sessions/{id}/capture", h.CaptureSession)
 	mux.HandleFunc("GET /api/v1/compact-plan", h.CompactPlan)                // P1.5
 	mux.HandleFunc("POST /api/v1/sessions/{id}/handover", h.HandoverSession) // P1.5
 	mux.HandleFunc("GET /api/v1/dashboard/sessions", h.DashboardSessions)

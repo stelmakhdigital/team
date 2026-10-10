@@ -52,6 +52,11 @@ func (a *PiAdapter) Status(ctx context.Context, runtimeRef string) (*Status, err
 	return a.TMux.Status(ctx, runtimeRef)
 }
 
+// Capture — pi работает в tmux → delegate на tmux capture-pane (стл-кадр экрана).
+func (a *PiAdapter) Capture(ctx context.Context, runtimeRef string, lines int) ([]string, error) {
+	return a.TMux.Capture(ctx, runtimeRef, lines)
+}
+
 // WriteSessionConfig — пишет конфиг сессии для pi (используется session service).
 func WriteSessionConfig(path string, f AgentSpecFields) error {
 	data := formatConfig(f)

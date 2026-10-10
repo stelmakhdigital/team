@@ -6,6 +6,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -41,12 +42,24 @@ type Status struct {
 	State    SessionState
 }
 
+// P2.8 — capture (стл-кадр экрана сессии): sentinel-ошибки (маппинг на 409 в service).
+var (
+	// ErrNoScreen — у адаптера нет «экрана» (process); service использует log-tail.
+	ErrNoScreen = errors.New("runtime has no screen")
+	// ErrTmuxUnavailable — tmux не установлен.
+	ErrTmuxUnavailable = errors.New("tmux is not installed")
+	// ErrTmuxSessionDead — tmux-сессия мертва/отсутствует.
+	ErrTmuxSessionDead = errors.New("tmux session not alive")
+)
+
 // Adapter — интерфейс runtime-адаптера.
 type Adapter interface {
 	Name() string
 	Start(ctx context.Context, spec Spec) (runtimeRef string, err error)
 	Stop(ctx context.Context, runtimeRef string) error
 	Status(ctx context.Context, runtimeRef string) (*Status, error)
+	// Capture — стл-кадр экрана (последние lines строк). process → ErrNoScreen.
+	Capture(ctx context.Context, runtimeRef string, lines int) ([]string, error)
 }
 
 // Registry — фабрика адаптеров.

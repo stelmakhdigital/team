@@ -174,6 +174,34 @@ func (h *handlers) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"transcript": entries, "total": total, "has_more": hasMore})
 }
 
+// ---------- P2.8: capture (стл-кадр экрана сессии) ----------
+
+// CaptureSession — GET /api/v1/sessions/{id}/capture?lines=N (RBAC sessions.read, viewer-ok).
+// lines — default 20, max 200 (clamp). tmux/pi → capture-pane (мертвый tmux → 409);
+// process → log-tail (файла нет → 200, пустые lines). Read-only.
+func (h *handlers) CaptureSession(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	lines := 20
+	if v := r.URL.Query().Get("lines"); v != "" {
+		l, err := strconv.Atoi(v)
+		if err != nil || l < 0 {
+			writeError(w, r, service.NewValidation("invalid lines"))
+			return
+		}
+		lines = l
+	}
+	res, err := h.ssvc.Capture(r.Context(), id, lines)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
 // ---------- P2.7: поиск по транскриптам ----------
 
 // SearchSessions — GET /api/v1/sessions/search?q=&role_id=&team_id=&state=&limit=&offset=

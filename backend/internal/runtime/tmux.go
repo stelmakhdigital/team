@@ -68,6 +68,25 @@ func (a *TMuxAdapter) Status(ctx context.Context, runtimeRef string) (*Status, e
 	return nil, fmt.Errorf("tmux has-session: %s", strings.TrimSpace(string(out)))
 }
 
+// Capture — стл-кадр панели tmux (последние lines строк) через capture-pane.
+// tmux нет → ErrTmuxUnavailable; сессия мертва/отсутствует → ErrTmuxSessionDead.
+func (a *TMuxAdapter) Capture(ctx context.Context, runtimeRef string, lines int) ([]string, error) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		return nil, ErrTmuxUnavailable
+	}
+	cmd := exec.CommandContext(ctx, "tmux", "capture-pane", "-t", runtimeRef, "-p", "-S", fmt.Sprintf("-%d", lines))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		s := strings.TrimSpace(string(out))
+		// tmux: «can't find pane/session» (мертвая/отсутствующая сессия) + «no session» (defensive)
+		if strings.Contains(s, "can't find") || strings.Contains(s, "no session") {
+			return nil, ErrTmuxSessionDead
+		}
+		return nil, fmt.Errorf("tmux capture-pane: %s", s)
+	}
+	return splitLines(strings.TrimRight(string(out), "\n")), nil
+}
+
 func orDash(s string) string {
 	if s == "" {
 		return "."

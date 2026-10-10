@@ -155,4 +155,9 @@ func (a *ProcessAdapter) Status(ctx context.Context, runtimeRef string) (*Status
 	return &Status{Alive: false, State: StateStopped, ExitCode: intPtr(0)}, nil
 }
 
+// Capture — у process нет «экрана» (стл-кадр = лог; service использует log-tail).
+func (a *ProcessAdapter) Capture(ctx context.Context, runtimeRef string, lines int) ([]string, error) {
+	return nil, ErrNoScreen
+}
+
 func intPtr(v int) *int { return &v }
