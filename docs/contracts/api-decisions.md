@@ -1356,3 +1356,53 @@ attention list, config get/set/reset. `config set <key> <value>` — value па�
 - Для каждой команды: mock-демон → команда → assertion на **request** (method/path/
   body/`X-API-Key`) + **parse ответа** (`--json` и human).
 - Auth-header presence; exit code на 404/403 (не нулевой); help + usage (exit 2).
+
+## P2.13. Starter bundles — готовые стартеры в Library (T-20261010203207)
+
+**Цель**: «проект из коробки» — готовый набор (team/workflow), который apply'ится в
+один клик. Стартеры — pin-элементы библиотеки: их нельзя переименовать/изменить,
+но можно apply'ить (копирование в новый объект).
+
+### Механика (migration 0019 + seed)
+- **Колонка `is_starter`** (0019, sqlite+postgres): метка pin-стартера на
+  `library_items`. Стартеры — подмножество обычных элементов (все поля те же).
+- **Seed = `service.SeedStarters(ctx, db)`** (не в миграции): детерминированный набор
+  (2 шт): `dev-team` (type=team, роли lead/worker/reviewer на существующие
+  agent-fixtures) + `review-workflow` (type=workflow, implement→review→done).
+  Идемпотентно: `ON CONFLICT (type, name) DO NOTHING` (рестарт не дублирует).
+  Вызывается в `main` при каждом старте (после миграций).
+- **Почему не в миграции SQL**: seed-функция (Go) testable (идемпотентность проверяется
+  двойным вызовом) + данные в одном месте; миграция только добавляет колонку.
+
+### Pin-защита (неизменяемость)
+- **`PATCH /library/{id}`** (Update): если `is_starter` → **409**
+  ("pinned starter and cannot be modified").
+- **`POST /library`** (Save) с именем, совпадающим со стартером → **409** (UNIQUE
+  `(type, name)` уже ловит дубликат — проверено тестом).
+- Delete стартера не существует (нет DELETE /library/{id}) — стартеры permanent.
+
+### Apply + project_id (P1.0)
+- **`POST /library/{id}/apply`** получает опц. `project_id`: для team-стартера
+  (без `target_team_id`) новая команда привязывается к проекту
+  (`applyTeam` → `CreateTeamRequest.ProjectID`). Workflow-стартер требует
+  `target_team_id` (как и раньше).
+- Ответ apply не меняется (`status` + `created_resources`).
+
+### RBAC
+- Без новых действий: apply/save/read идут через существующие `library.*` (apply =
+  `library.create`, read = `library.read`). Pin-409 не зависит от роли.
+
+### Frontend
+- `LibraryPage`: **STARTER badge** (фиолетовый) + **стартеры первыми** (стабильная
+  сортировка) + **banner «Starters»**; в detail — **no-edit** (lock, rename disabled)
+  + **one-click apply** (для team-стартера — выбор проекта, опц.; кнопка
+  «Apply this starter»). `LibraryItem.is_starter` + `ApplyLibraryItemRequest.project_id`.
+
+### Тесты
+- **Service** (7): seed (2 шт, is_starter=1, group=starters), идемпотентность
+  (двойной seed → не дублирует), apply team-starter (3 роли), apply team-starter
+  с project_id (привязка), apply workflow-starter (3 блока), pin-409 (Update),
+  save-name-409 (дубль имени стартера).
+- **HTTP** (5): list (2 стартера, is_starter, filter type=team), apply team,
+  apply team+project, pin-409 (PATCH), apply workflow. Test helper `newTestServerSeeded`
+  (+ Projects wired в Options).

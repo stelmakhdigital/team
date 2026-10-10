@@ -183,6 +183,38 @@ Builder) — её же можно использовать как «source» д�
 overrides) — это «init-workspace» сервиса: не собирать с нуля, а применить
 проверенный шаблон.
 
+### 3.1. Быстрый старт — starter bundles (P2.13)
+
+В Library есть **стартеры** (бейдж **STARTER**) — готовые наборы, которые
+apply'ятся в один клик и **не редактируются** (pin): переименовать/изменить
+нельзя, но можно применить (создаёт новый объект-копию).
+
+Готовые стартеры (seed'ятся при старте демона, идемпотентно):
+- **`dev-team`** (team): сегмент `core` + роли `lead`/`worker`/`reviewer`
+  (на готовые agent-fixtures `pi-lead`/`pi-worker`/`pi-reviewer`) + связи
+  lead→worker→reviewer.
+- **`review-workflow`** (workflow): блоки implement → review → done (применяется
+  к выбранной команде).
+
+**Как применить:**
+- **UI**: Library → открыть стартер (карточка с бейджем STARTER, сверху в списке)
+  → для team-стартера: выбрать проект (опц.) → **«Apply this starter»** (создаёт
+  новую команду, опц. в выбранном проекте); для workflow-стартера: выбрать
+  команду → **Apply**. Кнопка rename (✎) у стартеров заменена на lock 🔒.
+- **API**:
+  ```bash
+  # найти стартер (is_starter: true)
+  curl -s localhost:8080/api/v1/library?type=team
+  # apply team-стартера (опц. в проект)
+  curl -s -X POST -d '{"project_id":1}' localhost:8080/api/v1/library/<id>/apply
+  # apply workflow-стартера к команде
+  curl -s -X POST -d '{"target_team_id":2}' localhost:8080/api/v1/library/<id>/apply
+  ```
+
+После apply — новая команда/воркфлоу, которую можно свободно менять (стартер
+не трогается). Pin-защита: `PATCH /library/{id}` на стартер → **409**; сохранение
+элемента с именем стартера → **409** (дубликат).
+
 ---
 
 ## 4. Воркфлоу

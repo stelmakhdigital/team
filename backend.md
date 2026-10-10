@@ -526,6 +526,25 @@ Persisted-лента событий системы (история + обога�
 - **Решения** (см. `api-decisions.md` §P2.12): клиент, не обход; минимализм; две
   поверхности (--json/human).
 
+### 3r. P2.13 — Starter bundles, готовые стартеры в Library (backend, 2026-10-10)
+Готовый набор (team/workflow), который apply'ится в один клик. Стартеры — pin-элементы.
+- **Migration 0019** (sqlite+postgres): `ALTER TABLE library_items ADD COLUMN is_starter
+  INTEGER NOT NULL DEFAULT 0` (стартеры — подмножество обычных элементов).
+- **Seed = `service.SeedStarters(ctx, db)`** (`internal/service/library_starters.go`):
+  детерминированный идемпотентный seed (2 шт: `dev-team` team-starter + `review-workflow`
+  workflow-starter) через `ON CONFLICT (type,name) DO NOTHING`. Не в миграции SQL —
+  testable (идемпотентность = двойной вызов). Вызывается в `main` при каждом старте.
+- **Model/repo**: `LibraryItem.IsStarter` (+ select/scan/create в `library_repo.go`).
+- **Pin** (`library_service.go`): `Update` на стартер → **409** (`NewConflict`); `Save`
+  с именем стартера → **409** (UNIQUE `(type,name)` уже ловит).
+- **Apply + project_id** (P1.0): `ApplyLibraryItemRequest.ProjectID` → `applyTeam` →
+  `CreateTeamRequest.ProjectID` (команда привязывается к проекту). `LibraryItemView.IsStarter`.
+- **Test helper**: `newTestServerSeeded(t, keys, seed)` (seed опц.) + `Projects` в Options.
+- **Тесты**: service (7: seed/idempotent/apply-team/apply-team-project/apply-workflow/
+  pin-409/save-name-409) + HTTP (5: list/apply-team/apply-team-project/pin-409/apply-wf).
+- **Решения** (см. `api-decisions.md` §P2.13): seed-функция (не миграция); pin-409;
+  apply с project_id; без новых RBAC.
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

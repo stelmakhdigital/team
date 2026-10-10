@@ -218,13 +218,23 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   `reorderFlagsFirst` (флаги после positional); httptest-тесты (15: request + parse
   + auth + exit codes); README «Для агентов» + USAGE §6.5; OpenAPI 93.
 
-### P2.13 Starter bundles (ориентир OpenRIG RigBundle) — `in_progress`
+### P2.13 Starter bundles (ориентир OpenRIG RigBundle) — `done`
 - **Scope**: готовые стартеры как pin'нутые library-предметы: напр. «dev-team:
   lead+worker+reviewer (pi-* specs)» + связанный workflow; `apply` в один клик
   (селект проекта, если P1.0 готов); метка `starter` в UI Library, защита от
   удаления (pin), версия стартера.
 - **Критерии**: 2–3 стартера (fixture-снапшоты), apply-тесты, UI-метка +
   скриншот, секция «Быстрый старт» в USAGE.md.
+- **DONE (T-20261010203207, 2026-10-10)**: migration 0019 `is_starter`; seed =
+  `service.SeedStarters` (идемпотентный, `ON CONFLICT DO NOTHING`, в `main` при
+  старте) — 2 шт: `dev-team` (team, lead/worker/reviewer на pi-* fixtures) +
+  `review-workflow` (workflow, implement→review→done). Pin: `PATCH /library/{id}`
+  на стартер → 409; save с именем стартера → 409 (UNIQUE). Apply: `project_id`
+  (P1.0) для team-стартера → команда в проект. UI: STARTER badge + стартеры
+  первыми + banner + one-click apply (project-select) + no-edit (lock). Тесты:
+  service (7) + HTTP (5) + vitest (4). Скриншот `library-starter-2560x1440.png`.
+  OpenAPI 93/93 (is_starter + project_id); api-decisions §P2.13; USAGE §3.1;
+  backend §3r; frontend §3s.
 
 ### P2.14 Cost tracking (токены → деньги) — `new`
 - **Scope**: цены моделей в конфиге (config-ключи, напр. `cost.models.<name>.

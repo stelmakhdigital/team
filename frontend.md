@@ -602,6 +602,19 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 
 Скриншот @2560: `session-send-2560x1440.png` (блок + delivered + раскрытый tail).
 
+### 3s. Starter bundles, готовые стартеры в Library (P2.13, 2026-10-10)
+Готовый набор (team/workflow), apply'ится в один клик. Стартеры — pin (не редактируются).
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/pages/LibraryPage.tsx` | **STARTER badge** (фиолетовый) + **стартеры первыми** (стаб. сортировка) + **banner «Starters»**; detail: **no-edit** (lock, rename disabled) + **one-click apply** (для team-стартера — выбор проекта, опц.; «Apply this starter» btn-primary) |
+| `frontend/src/types/api.ts` | `LibraryItem.is_starter` + `ApplyLibraryItemRequest.project_id` |
+| `frontend/src/styles.css` | `.starter-badge` / `.library-card--starter` / `.library-starters-banner` / `.starter-note` (фиолетовый, WCAG ok) |
+| `frontend/src/api/mock/data.ts` | `is_starter: true` на `Standard Dev Team` |
+| `frontend/tests/starters.test.tsx` (NEW) | 4: badge+banner, no-edit+project-select+apply, apply→new team, non-starter rename ok |
+
+Скриншот @2560: `library-starter-2560x1440.png` (badge + banner + detail apply + lock).
+
 ## 5. Команды
 ```bash
 cd frontend
@@ -622,6 +635,6 @@ LD_LIBRARY_PATH=/tmp/chrome-libs/ext/usr/lib/x86_64-linux-gnu node /tmp/shot-*.c
 ## 6. Как восстановить сессию
 1. Прочитать этот файл + `answer_backend.md` (последнее письмо) +
    `_workspace/ui-redesign-plan.md` (статусы R-фаз).
-2. `cd frontend && npm test` — ожидается **106 passed / 21 skipped** (интеграционные — автоскип).
-3. `git log --oneline -5` — HEAD = `90cbec4` (U4 M2+M3) или новее.
+2. `cd frontend && npm test` — ожидается **192 passed / 21 skipped** (интеграционные — автоскип).
+3. `git log --oneline -5` — HEAD = `f744b0c` (P2.13 frontend) или новее.
 4. Дальше: бэклог (§3) — PG e2e при окружении; UI: UX-проход (пустые состояния/лоадеры/ошибки), доступность/мобильные брейкпоинты.

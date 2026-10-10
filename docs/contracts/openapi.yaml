@@ -3322,6 +3322,7 @@ components:
         version: { type: string }
         author: { type: string }
         is_public: { type: boolean }
+        is_starter: { type: boolean, description: 'P2.13: pinned starter (not editable, one-click apply)' }
         downloads_count: { type: integer }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
@@ -3389,6 +3390,7 @@ components:
       type: object
       properties:
         target_team_id: { type: integer, format: int64 }
+        project_id: { type: integer, format: int64, description: 'P2.13/P1.0: link created team to a project (team starter)' }
         overrides: { type: object, additionalProperties: true }
     ApplyLibraryItemResponse:
       type: object
