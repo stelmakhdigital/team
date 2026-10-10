@@ -187,7 +187,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ### P2.9 Pulse feed — единая лента событий — `done` (T-20261010164511; GET /events, EventBus-sink (аддитивно), bounded-таблица ≤5000/≤7дн., без session.output, обогащение entity_title, UI: лента+фильтры type/team/role+EntityLink+live-prepend по WS, 91 ops; полный WS-стрим/FTS — follow-up)
 
-### P2.10 Command palette (Cmd+K) — `new`
+### P2.10 Command palette (Cmd+K) — `in_progress`
 - **Scope**: fuzzy-палитра: навигация по страницам + сущностям (поиск
   команд/задач/сессий/воркфлоу) + быстрые действия (создать команду/задачу).
 - **Критерии**: UX (клавиатура), тесты (fuzzy-матчинг, навигация), скриншот.
