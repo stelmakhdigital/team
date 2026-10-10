@@ -510,6 +510,17 @@ lines default 20, max 200). Механика: **tmux/pi → `tmux capture-pane`*
 — лог; файла нет → пустой снимок). Снимок сохраняется в `<logs>/captures/` (bounded:
 ≤20 на сессию). Read-only. Ссылка: `docs/contracts/api-decisions.md` §P2.8.
 
+### 6.3. Pulse — единая лента событий (P2.9)
+
+На **Pulse** (nav, `/pulse`) — единая лента всего, что происходит в системе
+(задачи, сессии, сообщения, алерты, воркфлоу): история из БД + live-обновление по
+WS. Каждая запись: **type-бейдж** (цвет по категории), **summary**, **ссылка на
+сущность** (EntityLink), команда, relative time. Фильтры: **тип / команда / роль**.
+Лента bounded (≤5000 строк ИЛИ ≤7дн.), `session.output` (live-транскрипт) в неё не
+попадает. Отдельно от **Attention** («что требует меня») и от **History**
+(per-entity/аудит). **API**: `GET /api/v1/events` (RBAC dashboard.read, viewer-ok).
+Ссылка: `docs/contracts/api-decisions.md` §P2.9.
+
 ---
 
 ## 7. Безопасность (ключи и RBAC)

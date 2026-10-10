@@ -454,6 +454,25 @@ Read-only «the surface that shows the truth»: состояние daemon/БД/t
 - **Решения** (см. `api-decisions.md` §P2.8): tmux-pane vs log-tail; 409 на мёртвый
   tmux; сохранение+bounded-cleanup; вложение в сообщение отложено (follow-up).
 
+### 3n. P2.9 — Pulse feed, единая лента событий (backend, 2026-10-10)
+Persisted-лента событий системы (история + обогащение entity_title).
+- **EventBus sink** (`eventbus.go`): `SetSink(SinkFunc)` — вызывается **синхронно в
+  `Publish()`** до WS-броадкаста. Аддитивно: WS-семантика + publish-сайты не тронуты.
+- **`EventService`** (`service/event_service.go`): `SetSink` (sink → `EventRepo.Record`),
+  `ListEvents` (фильтры + обогащение). `event_sink.go` — parseEvent + генераторы
+  summary. `session.output` в ленту **не** попадает.
+- **`EventRepo`** (`repository/event_repo.go`): `Record`, `List` (created_at desc),
+  `Prune`, batch-lookups (TeamNames/RoleNames/TaskTitles).
+- **Миграция 0017** (`events`): `id, type, team_id, role_id, entity_kind, entity_id,
+  summary, payload, created_at`. **Bounded ≤5000 строк ИЛИ ≤7дн.** (prune при записи).
+- **`role_id`** добавлен в `Data` у `session.started`/`session.stopped` (аддитивно).
+- **HTTP**: `ListEvents` (`event_handlers.go`); route `GET /api/v1/events`;
+  **RBAC `dashboard.read`** (middleware `case "events"`), viewer-ok.
+- **Тесты**: repo (sort/фильтры/bounded 5001→5000); service-integration (4 типа
+  через EventBus + реальная CreateTask); HTTP (200+обогащение, 401, RBAC viewer→200).
+- **Решения** (см. `api-decisions.md` §P2.9): EventBus-sink; bounded; без
+  session.output; entity_title; отдельный от audit.
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

@@ -185,12 +185,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   (если легко), сохранение снапшота в logs.
 - **Критерии**: эндпоинт + тест, UI-кнопка + скриншот, OpenAPI.
 
-### P2.9 Pulse feed — единая лента событий — `in_progress`
-- **Scope**: страница/панель «Pulse»: агрегированный поток WS-событий
-  (task./session./message./alert.) с фильтрами по типу/команде/роли,
-  история из БД (не только live), клики → EntityLink.
-- **Критерии**: хранение событий (есть audit? решить — может, новый
-  bounded-буфер/таблица), UI + тесты, скриншот.
+### P2.9 Pulse feed — единая лента событий — `done` (T-20261010164511; GET /events, EventBus-sink (аддитивно), bounded-таблица ≤5000/≤7дн., без session.output, обогащение entity_title, UI: лента+фильтры type/team/role+EntityLink+live-prepend по WS, 91 ops; полный WS-стрим/FTS — follow-up)
 
 ### P2.10 Command palette (Cmd+K) — `new`
 - **Scope**: fuzzy-палитра: навигация по страницам + сущностям (поиск

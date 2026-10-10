@@ -1176,3 +1176,54 @@ RBAC на артефакты) — большая правка, не по тем�
 - вложение capture в сообщение/задачу (media-контракт);
 - глобальный потолок снапшотов + TTL; capture с пометкой/комментарием;
 - diff-снимков (что изменилось на экране с последнего capture).
+
+---
+
+## P2.9. Pulse feed — единая лента событий (T-20261010164511)
+
+**Цель**: одна лента всего, что происходит в системе (задачи, сессии, сообщения,
+алерты, воркфлоу) — история из БД + live-обновление по WS. Отдельно от audit (кто
+через API что делал) и от WS-стрима (live): Pulse — persisted срез «что было».
+
+### Эндпоинт
+- `GET /api/v1/events?type=&team_id=&role_id=&entity_kind=&entity_id=&limit=&offset=`
+- **RBAC `dashboard.read`** (viewer-ok; middleware `case "events" → dashboard.read`).
+- `limit` — **default 50, max 200** (clamp). Ответ: `{events[], total, has_more}`,
+  sort **created_at desc**.
+
+### Источники: EventBus sink (не новый publish-site)
+- В `EventBus` добавлен **`SetSink(SinkFunc)`**: sink вызывается **синхронно в
+  `Publish()`** до WS-броадкаста. **Аддитивно** — WS-семантика и все
+  publish-сайты не трогались. Sink → `EventService.SetSink` → `EventRepo.Record`.
+- **`session.output` в ленту НЕ попадает** (live-поток транскрипта, не событие).
+- `role_id` добавлен в `Data` у `session.started`/`session.stopped` (2 строки,
+  аддитивно) — для role-фильтра. `team_id` извлекается из `Data["team_id"]`
+  либо из канала `team:<id>`.
+
+### Storage: bounded таблица `events` (migration 0017)
+- Колонки: `id, type, team_id, role_id, entity_kind, entity_id, summary, payload,
+  created_at` + индексы (created_at desc; фильтры).
+- **Bounded-политика**: **≤5000 строк ИЛИ ≤7 дней** (что раньше), авто-cleanup при
+  каждой записи (prune). Задокументировано (в отличие от audit — без жёсткого
+  лимита; лента — operational-срез).
+
+### Обогащение entity_title
+- Batch-lookups (1 запрос на тип): teams / roles / `queue_tasks` → имя сущности
+  (`entity_title`) для ленты. Не найденное → пусто (честность).
+
+### Frontend: PulsePage (`/pulse` + nav)
+- Feed: type-бейдж (цвет по категории) + summary + **EntityLink** (task/session/
+  message/alert/workflow) + команда + relative time.
+- Фильтры: **type / team / role** (select'ы; key-запрос меняется → refetch).
+- **live-prepend по WS**: те же релевантные события (без session.output) конвертятся
+  в EventItem + prepend (X3: throttle 3с + debounce 300мс); live-события тоже
+  проходят активные фильтры (client-side). `workflow.instance_updated` добавлен в
+  `WSServerEventType` (backend его публикует).
+- PageSkeleton / EmptyState / ErrorState.
+
+### Тесты
+- **repo**: sort desc, фильтры (type/team/entity), **bounded 5001→5000**.
+- **service (integration)**: 4 типа напрямую через EventBus + реальная `CreateTask`
+  (sink → лента).
+- **HTTP**: 200 + обогащение, 404-аналог (пусто), 401, **RBAC viewer → 200**.
+- **frontend (vitest)**: рендер ленты (бейджи + EntityLink), фильтр по типу, empty.

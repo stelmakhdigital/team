@@ -557,6 +557,20 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 
 Скриншот @2560: `session-capture-2560x1440.png` (модалка со снимком, tmux-pane).
 
+### 3p. Pulse feed, единая лента событий (P2.9, 2026-10-10)
+Путь `/pulse` (nav «Pulse»): лента событий системы с фильтрами + live-prepend по WS.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/pages/PulsePage.tsx` (NEW) | Feed: type-бейдж (цвет по категории) + summary + **EntityLink** (task/session/message/alert/workflow) + команда + relative time; фильтры **type/team/role** (select, key→refetch); **live-prepend по WS** (X3: throttle 3с + debounce 300мс, live тоже через фильтры); PageSkeleton/EmptyState/ErrorState |
+| `frontend/src/types/api.ts` | `EventItem`/`EventPage`/`GetEventsParams`; `workflow.instance_updated` в `WSServerEventType` |
+| `frontend/src/api/{types,real}.ts` + `api/mock/{adapter,data}.ts` | `events.list(params)`; real `GET /events`; mock (8 событий, фильтры) |
+| `frontend/src/App.tsx` + `components/layout/AppShell.tsx` | route `/pulse` + nav-пункт |
+| `frontend/src/styles.css` | `.pulse-*` + `badge-type-*` |
+| `frontend/tests/pulse.test.tsx` (NEW) | 3 теста: рендер ленты (бейджи+EntityLink), фильтр по типу, empty state |
+
+Скриншот @2560: `pulse-feed-2560x1440.png` (лента с бейджами, фильтрами, EntityLink).
+
 ## 5. Команды
 ```bash
 cd frontend

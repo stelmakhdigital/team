@@ -1607,6 +1607,31 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/events:
+    get:
+      operationId: listEvents
+      summary: Pulse feed — единая лента событий (task./session./message./alert./workflow.), bounded (≤5000 строк ИЛИ ≤7дн.)
+      description: >-
+        События из EventBus (sink) с обогащением entity_title. session.output в ленту НЕ попадает
+        (live-поток, не событие). Фильтры: type, team_id, role_id, entity_kind, entity_id.
+      tags: [events]
+      parameters:
+        - { name: type, in: query, schema: { type: string } }
+        - { name: team_id, in: query, schema: { type: integer } }
+        - { name: role_id, in: query, schema: { type: integer } }
+        - { name: entity_kind, in: query, schema: { type: string } }
+        - { name: entity_id, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: Лента событий (created_at desc)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/projects:
     get:
       operationId: listProjects
@@ -3392,6 +3417,30 @@ components:
         created_at: { type: string, format: date-time }
         suggested_action: { type: string }
         link: { $ref: '#/components/schemas/AttentionLink' }
+    EventPage:
+      type: object
+      required: [events, total, has_more]
+      properties:
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/EventItem' }
+        total: { type: integer }
+        has_more: { type: boolean }
+    EventItem:
+      type: object
+      required: [id, type, entity_kind, entity_id, summary, created_at]
+      properties:
+        id: { type: integer }
+        type: { type: string, enum: [task.created, task.state_changed, session.started, session.stopped, message.sent, alert.created, workflow.instance_updated] }
+        team_id: { type: [integer, 'null'] }
+        team_name: { type: [string, 'null'] }
+        role_id: { type: [integer, 'null'] }
+        role_name: { type: [string, 'null'] }
+        entity_kind: { type: string }
+        entity_id: { type: integer }
+        entity_title: { type: [string, 'null'] }
+        summary: { type: string }
+        created_at: { type: string, format: date-time }
     AttentionLink:
       type: object
       required: [path, label]
