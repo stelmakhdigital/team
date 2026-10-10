@@ -46,6 +46,8 @@ import type {
   TranscriptSearchParams,
   TranscriptSearchResult,
   CaptureResult,
+  EventPage,
+  GetEventsParams,
   ListSessionsResponse,
   CreateSessionRequest,
   CreateSessionResponse,
@@ -170,6 +172,9 @@ export interface Api {
   };
   attention: {
     list(params?: GetAttentionParams): Promise<GetAttentionResponse>;
+  };
+  events: {
+    list(params?: GetEventsParams): Promise<EventPage>; // P2.9
   };
   sessions: {
     list(params?: ListSessionsParams): Promise<ListSessionsResponse>;

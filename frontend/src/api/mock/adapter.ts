@@ -7,6 +7,8 @@ import type {
   DiagnosticsResult,
   GetAttentionParams,
   GetAttentionResponse,
+  EventPage,
+  GetEventsParams,
   CreateRoleRequest,
   CreateSegmentRequest,
   CreateTeamRequest,
@@ -1005,6 +1007,26 @@ export function createMockAdapter(): Api {
         const limit = params?.limit ?? 50;
         const page = items.slice(offset, offset + limit);
         return { total, items: clone(page) };
+      },
+    },
+
+    // P2.9: Pulse feed (mock-лента событий + фильтры)
+    events: {
+      async list(params?: GetEventsParams): Promise<EventPage> {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        let items = db.events;
+        if (params?.type) items = items.filter((e) => e.type === params.type);
+        if (params?.team_id != null) items = items.filter((e) => e.team_id === params.team_id);
+        if (params?.role_id != null) items = items.filter((e) => e.role_id === params.role_id);
+        if (params?.entity_kind) items = items.filter((e) => e.entity_kind === params.entity_kind);
+        if (params?.entity_id != null) items = items.filter((e) => e.entity_id === params.entity_id);
+        items = [...items].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const limit = Math.max(1, Math.min(params?.limit ?? 50, 200));
+        const offset = Math.max(0, params?.offset ?? 0);
+        const total = items.length;
+        return { events: clone(items.slice(offset, offset + limit)), total, has_more: offset + limit < total };
       },
     },
 

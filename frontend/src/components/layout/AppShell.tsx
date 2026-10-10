@@ -9,6 +9,7 @@ import { useWebSocket } from '../../hooks/useWebSocket';
 const NAV = [
   { to: '/', label: 'Dashboard', icon: '▦', end: true },
   { to: '/attention', label: 'Attention', icon: '⚑' },
+  { to: '/pulse', label: 'Pulse', icon: '📡' },
   { to: '/teams', label: 'Teams', icon: '⬡' },
   { to: '/projects', label: 'Projects', icon: '▣' },
   { to: '/tasks', label: 'Tasks', icon: '☰' },

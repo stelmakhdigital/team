@@ -54,6 +54,20 @@ export function createRealAdapter(): Api {
     attention: {
       list: (params) => http(`${B}/attention${toQuery({ limit: params?.limit, offset: params?.offset })}`),
     },
+    events: {
+      list: (params) =>
+        http(
+          `${B}/events${toQuery({
+            type: params?.type,
+            team_id: params?.team_id,
+            role_id: params?.role_id,
+            entity_kind: params?.entity_kind,
+            entity_id: params?.entity_id,
+            limit: params?.limit,
+            offset: params?.offset,
+          })}`,
+        ), // P2.9
+    },
     sessions: {
       list: (params) => http(`${B}/sessions${toQuery({ team_id: params?.team_id, role_id: params?.role_id, state: params?.state })}`),
       search: (params) =>

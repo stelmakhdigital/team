@@ -1033,6 +1033,38 @@ export interface CaptureResult {
   saved_path: string; // путь к сохранённому снапшоту
 }
 
+// ---- P2.9: Pulse feed (единая лента событий) ----
+
+export interface EventItem {
+  id: number;
+  type: string;
+  team_id: number | null;
+  team_name?: string | null;
+  role_id?: number | null;
+  role_name?: string | null;
+  entity_kind: string;
+  entity_id: number;
+  entity_title?: string | null;
+  summary: string;
+  created_at: string;
+}
+
+export interface EventPage {
+  events: EventItem[];
+  total: number;
+  has_more: boolean;
+}
+
+export interface GetEventsParams {
+  type?: string;
+  team_id?: number;
+  role_id?: number;
+  entity_kind?: string;
+  entity_id?: number;
+  limit?: number; // default 50, max 200
+  offset?: number;
+}
+
 // ---- Message Center ----
 
 export type MessageType = 'direct' | 'broadcast' | 'segment' | 'system' | 'watchdog';
@@ -1342,7 +1374,8 @@ export type WSServerEventType =
   | 'session.stopped'
   | 'session.output'
   | 'message.sent'
-  | 'alert.created';
+  | 'alert.created'
+  | 'workflow.instance_updated'; // P2.9: публикуется workflow engine
 
 export interface WSServerMessage {
   type: WSServerEventType;

@@ -3,6 +3,7 @@
 import type {
   AgentSpec,
   AuditEntry,
+  EventItem,
   Chatroom,
   ChatroomMessage,
   DashboardSummaryResponse,
@@ -62,6 +63,7 @@ interface DB {
   chatMessages: ChatroomMessage[];
   library: LibraryItem[];
   audit: AuditEntry[];
+  events: EventItem[]; // P2.9: Pulse feed (mock-события для ленты)
   taskHistory: TaskHistoryEntry[];
   configOverrides: Record<string, unknown>;
   seq: number;
@@ -128,6 +130,7 @@ function seed(): DB {
     sessions: [],
     transcripts: {},
     alerts: [],
+    events: [],
     // P1.6: watchdog-джобы (target — сессия 5 у контекст-стены 88% + сессия 1)
     watchdogJobs: [
       {
@@ -657,6 +660,18 @@ function seed(): DB {
     { id: 2, queue_task_id: 1, from_state: 'pending', to_state: 'in_progress', actor_type: 'role', actor_role_name: 'Worker', created_at: iso(60 * 25), icon: 'play', color: 'blue' },
     { id: 3, queue_task_id: 4, from_state: 'pending', to_state: 'in_progress', actor_type: 'role', actor_role_name: 'Worker2', created_at: iso(60 * 22), icon: 'play', color: 'blue' },
     { id: 4, queue_task_id: 4, from_state: 'in_progress', to_state: 'blocked', actor_type: 'watchdog', comment: 'No progress for 2h', created_at: iso(60 * 3), icon: 'alert', color: 'red' },
+  ];
+
+  // P2.9: Pulse feed (mock-события) — разные типы, distinct created_at (iso = минуты назад)
+  t.events = [
+    { id: 1, type: 'task.state_changed', team_id: 1, team_name: 'Dev Team', role_id: 2, role_name: 'Worker', entity_kind: 'task', entity_id: 2, entity_title: 'Implement auth middleware', summary: 'Task #2: in_progress → in_progress', created_at: iso(4) },
+    { id: 2, type: 'session.started', team_id: 1, team_name: 'Dev Team', role_id: 2, role_name: 'Worker', entity_kind: 'session', entity_id: 2, summary: 'Session #2 started (Worker, pi)', created_at: iso(12) },
+    { id: 3, type: 'message.sent', team_id: 1, team_name: 'Dev Team', role_id: 1, role_name: 'Lead', entity_kind: 'message', entity_id: 1, summary: 'Message: Lead → Worker (direct)', created_at: iso(15) },
+    { id: 4, type: 'alert.created', team_id: 1, team_name: 'Dev Team', entity_kind: 'alert', entity_id: 1, summary: 'Alert [critical] worker-ctx: context high', created_at: iso(18) },
+    { id: 5, type: 'task.created', team_id: 1, team_name: 'Dev Team', role_id: 2, role_name: 'Worker', entity_kind: 'task', entity_id: 2, entity_title: 'Implement auth middleware', summary: 'Task #2 created: Implement auth middleware', created_at: iso(45) },
+    { id: 6, type: 'workflow.instance_updated', team_id: 1, team_name: 'Dev Team', entity_kind: 'workflow', entity_id: 1, summary: 'Workflow instance #1 → running', created_at: iso(60) },
+    { id: 7, type: 'session.stopped', team_id: 1, team_name: 'Dev Team', role_id: 2, role_name: 'Worker', entity_kind: 'session', entity_id: 5, summary: 'Session #5 stopped', created_at: iso(90) },
+    { id: 8, type: 'task.state_changed', team_id: 2, team_name: 'Platform Team', role_id: 5, role_name: 'Lead', entity_kind: 'task', entity_id: 6, summary: 'Task #6: pending → in_progress', created_at: iso(120) },
   ];
 
   return t;
