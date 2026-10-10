@@ -189,7 +189,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ### P2.10 Command palette (Cmd+K) — `done` (T-20261010180526; CommandPalette global (Cmd+K/Ctrl+K, Esc), fuzzy (subseq, своя функция lib/fuzzy.ts), разделы Pages/Entities(lazy API)/Actions, клавиатура ↑/↓/Enter + focus-trap + aria, 12 новых тестов (fuzzy unit + палитра + K3 P2.9 live-prepend); OpenAPI не меняется)
 
-### P2.11 Send verify — `new`
+### P2.11 Send verify — `in_progress`
 - **Scope**: при отправке сообщения в сессию (runtime tmux/pi) — подтверждение
   доставки (панель получила текст) + отказ, если адресат на interactive
   prompt; статус в сообщении (`delivered|staged|retained`).
