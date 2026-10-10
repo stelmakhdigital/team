@@ -1069,3 +1069,50 @@ detail-UI), `briefing_path` (process/tmux: путь к файлу). `SessionRepo
 
 ### Follow-up (вне v1)
 - disk-space по ключевым путям; auto-heal (сейчас read-only).
+
+---
+
+## P2.7. Поиск по транскриптам (T-20261010140809)
+
+**Цель**: оператор ищет фразу/решение по истории вывода всех сессий (транскрипты)
+и попадает в конкретное место: сессия + контекст-окно → EntityLink.
+
+### Эндпоинт
+- `GET /api/v1/sessions/search?q=&role_id=&team_id=&state=&limit=&offset=`
+- **RBAC `sessions.read`** (viewer-ok; через дефолт GET → `res.read`).
+- `q` — обязательный, non-empty, **min 2 символа** (иначе **400**).
+- Фильтры `role_id`/`team_id`/`state` — по сессиям-владелец (сузят набор файлов).
+- `limit` (default 50, max 200 — число результатов), `offset`.
+
+### Механика (наивный, bounded, read-only, честный)
+Транскрипты — файлы `<LogsDir>/session-<id>.log` (см. `SessionService.LogsDir`).
+- **Кандидаты**: сессии с фильтром, newest-first, **≤200** (`transcriptMaxSessions`).
+- **Чтение**: transcript-файл **построчно**, **tail ≤20k строк** (кольцевой буфер —
+  **не весь файл в память**). Свежие совпадения в хвосте (транскрипты растут вниз).
+- **Матч**: substring, **case-insensitive**.
+- **Контекст-окно**: **±3 строки** (`transcriptContext`) вокруг совпадения;
+  **слияние** соседних окон (если окна ближе `transcriptMergeGap`).
+- **Item**: `{session_id, role_name, team_name, state, line_number, match_line,
+  context[], snippet}`. `line_number` = 1-based первичное совпадение в окне.
+- **Сортировка**: `session_id desc` (новые сессии выше) → `line_number asc`
+  (в сессии — по строкам).
+- **Ответ**: `{results, total, has_more}`.
+
+### Честность + производительность
+- **Честность**: transcript-файла нет/нечитаем → сессия **пропускается** (не ошибка);
+  `q` не найден → **пустой список** (не 404).
+- **Производительность**: bounded по сессиям (≤200) + строкам (tail ≤20k/файл) +
+  **время-бюджет скана 3s** (`transcriptMaxScan` — не блокируем API надолго).
+  Решения задокументированы в константах (`session_transcript_search.go`).
+
+### Тесты
+- **service** pure-функции: `transcriptWindows` (матч/окно/case-insensitive/
+  merge/sеparate/clamp/no-match) + `readTailLines` (fewer/bounded-tail/missing).
+- **service** интеграция: `SearchTranscripts` (match+context+имена/фильтры
+  role+team+state/пусто/файл-нет/**bounded-tail**).
+- **HTTP**: 200+результаты, 400 (q пустой/короткий), 401, **viewer-200** (RBAC),
+  фильтр role, limit/offset/has_more, пустой результат.
+
+### Follow-up (вне v1)
+- точный line-скролл в live-терминале; индексация транскриптов (FTS) для больших
+  объёмов; поиск по всем файлам (не только tail).

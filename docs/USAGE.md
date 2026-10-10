@@ -487,6 +487,17 @@ unread-алерт **diagnostics_fail** (critical, link на Health) в **Attenti
 в Library и применяете к следующему проекту.
 ```
 
+### 6.1. Поиск по транскриптам (P2.7)
+
+Поиск фразы/решения по истории вывода всех сессий (транскрипты). Страница
+**Search** (nav): вводите `q` (+фильтры команда/роль/состояние) → «Найти».
+Результаты сгруппированы по сессии (роль/команда/состояние + **EntityLink** на
+сессию), под каждой — совпадения с контекст-окном (±3 строки, подсветка).
+Точный переход — на Session Detail (live-терминал). **API**: `GET /api/v1/sessions/search`
+(RBAC sessions.read, viewer-ok). Механика: наивный bounded-поиск по transcript-
+файлам (case-insensitive, tail-ограничение, read-only). Ссылка:
+`docs/contracts/api-decisions.md` §P2.7.
+
 ---
 
 ## 7. Безопасность (ключи и RBAC)

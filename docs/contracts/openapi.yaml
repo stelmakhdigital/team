@@ -804,6 +804,34 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/sessions/search:
+    get:
+      operationId: searchSessionsTranscripts
+      summary: Поиск по транскриптам сессий (P2.7)
+      tags: [sessions]
+      description: >-
+        Наивный bounded-поиск (substring, case-insensitive) по transcript-файлам
+        сессий. q — обязательный (min 2, иначе 400). Фильтры role_id/team_id/state
+        сужают набор сканируемых файлов. Файл нет/нечитаем → сессия пропускается;
+        q не найден → пустой список (не 404).
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2 } }
+        - { name: role_id, in: query, required: false, schema: { type: integer } }
+        - { name: team_id, in: query, required: false, schema: { type: integer } }
+        - { name: state, in: query, required: false, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: Результаты поиска
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TranscriptSearchResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   /api/v1/sessions/{id}:
     get:
       operationId: getSession
@@ -2777,6 +2805,31 @@ components:
         transcript:
           type: array
           items: { $ref: '#/components/schemas/TranscriptEntry' }
+        total: { type: integer }
+        has_more: { type: boolean }
+
+    # ---- P2.7: поиск по транскриптам ----
+    TranscriptMatch:
+      type: object
+      required: [session_id, role_name, team_name, state, line_number, match_line, context, snippet]
+      properties:
+        session_id: { type: integer, format: int64 }
+        role_name: { type: string }
+        team_name: { type: string }
+        state: { type: string }
+        line_number: { type: integer, description: '1-based: первичное совпадение в окне' }
+        match_line: { type: string }
+        context:
+          type: array
+          items: { type: string }
+        snippet: { type: string }
+    TranscriptSearchResponse:
+      type: object
+      required: [results, total, has_more]
+      properties:
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/TranscriptMatch' }
         total: { type: integer }
         has_more: { type: boolean }
 

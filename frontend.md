@@ -528,6 +528,21 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 
 Скриншот @2560: `diagnostics-panel-2560x1440.png` (7 чек'ов, расхождение fail + drill-down).
 
+### 3n. Поиск по транскриптам (P2.7, 2026-10-10)
+«Поиск фразы/решения по истории вывода всех сессий» → сессия + контекст-окно + EntityLink.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/pages/TranscriptSearchPage.tsx` (NEW) | Страница: input `q` + фильтры (team/role/state select) + кнопка «Найти»; результаты **сгруппированы по сессии** (state-badge + role + team + **EntityLink** → /sessions/{id}) + под каждой список совпадений (line-number + контекст-окно с **подсветкой** `q`); EmptyState (пусто/нет запроса) + PageSkeleton (loading) |
+| `frontend/src/App.tsx` | Маршрут `/transcript-search` |
+| `frontend/src/components/layout/AppShell.tsx` | nav-link «Search» (🔎) |
+| `frontend/src/types/api.ts` | TranscriptSearchParams/Match/SearchResult |
+| `frontend/src/api/{types,real}.ts` + `api/mock/{adapter,data}.ts` | `sessions.search`; mock — `transcripts` (session_id→строки) + поиск (substring/окно/merge) |
+| `frontend/src/styles.css` | ts-form/ts-session/ts-match/ts-context + подсветка CSS |
+| `frontend/tests/transcriptSearch.test.tsx` (NEW) | 4 теста: результаты (группы+context+подсветка), EntityLink (href), EmptyState, nav-link |
+
+Скриншот @2560: `transcript-search-2560x1440.png` (3 сессии, подсветка совпадений).
+
 ## 5. Команды
 ```bash
 cd frontend

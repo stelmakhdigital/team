@@ -408,6 +408,29 @@ Read-only «the surface that shows the truth»: состояние daemon/БД/t
 - **Решения** (см. `api-decisions.md` §P1.8): read-only; divergence (stale+ zombie)
   через `Adapter.Status`; bounded; RBAC operator+; fail→Attention с дедупом.
 
+### 3l. P2.7 — Поиск по транскриптам (backend, 2026-10-10)
+Наивный bounded-поиск (substring, case-insensitive) по transcript-файлам сессий.
+- **`SessionService.SearchTranscripts`** (`service/session_transcript_search.go`):
+  `GET /api/v1/sessions/search` (RBAC sessions.read, viewer-ok; q min 2 → 400).
+  Механика: кандидаты (фильтр role/team/state, newest-first, ≤200) → чтение
+  `<LogsDir>/session-<id>.log` **построчно** (tail ≤20k строк, кольцевой буфер —
+  не весь файл в память) → substring-матч (case-insensitive) + контекст-окно ±3 +
+  слияние соседних окон → item `{session_id, role_name, team_name, state,
+  line_number, match_line, context, snippet}`. Сортировка session_id desc →
+  line_number asc; ответ `{results, total, has_more}`.
+  Честность: файл нет/нечитаем → сессия пропускается (не ошибка); q не найден →
+  пустой список. Производительность: bounded (≤200 сессий, tail ≤20k/файл) +
+  время-бюджет 3s (константы `transcriptMax*`).
+- **Чистые функции** (тестируются в изоляции): `transcriptWindows` (матч/окно/
+  merge), `readTailLines` (tail, bounded), `transcriptSnippet`.
+- **HTTP**: `SearchSessions` (`session_handlers.go`); route `GET /api/v1/sessions/search`
+  (literal — приоритетнее `{id}`, как `/tasks/overdue`). RBAC sessions.read (дефолт GET).
+- **Тесты**: pure (`transcriptWindows`/`readTailLines`) + интеграция (`SearchTranscripts`:
+  match/фильтры/пусто/файл-нет/bounded-tail) + HTTP (200/400-q/401/viewer-200/фильтры/
+  limit-offset/has_more).
+- **Решения** (см. `api-decisions.md` §P2.7): наивный+bounded+tail-ограничение;
+  read-only; честность пропущенных; сортировка; время-бюджет.
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin
