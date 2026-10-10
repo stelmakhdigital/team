@@ -26,6 +26,7 @@ var AllPermissions = []string{
 	"teams.read", "teams.create", "teams.update", "teams.delete",
 	"tasks.read", "tasks.create", "tasks.update",
 	"sessions.read", "sessions.create", "sessions.stop",
+	"sessions.update", // P2.11: send to session (operator+) (admin wildcard + explicit)
 	"messages.read", "messages.create",
 	"chatrooms.read", "chatrooms.create",
 	"workflows.read", "workflows.create", "workflows.update",

@@ -202,6 +202,37 @@ func (h *handlers) CaptureSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
+// ---------- P2.11: send to session + verify ----------
+
+// SendSession — POST /api/v1/sessions/{id}/send (RBAC sessions.update, operator+).
+// Body: {text (non-empty, ≤2000), submit? bool default true}. Ввод в терминал
+// живой сессии + верификация capture-м (delivered/staged/retained).
+func (h *handlers) SendSession(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body struct {
+		Text   string `json:"text"`
+		Submit *bool  `json:"submit"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, service.NewValidation("invalid body"))
+		return
+	}
+	submit := true
+	if body.Submit != nil {
+		submit = *body.Submit
+	}
+	res, err := h.ssvc.Send(r.Context(), id, body.Text, submit)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
 // ---------- P2.7: поиск по транскриптам ----------
 
 // SearchSessions — GET /api/v1/sessions/search?q=&role_id=&team_id=&state=&limit=&offset=

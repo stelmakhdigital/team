@@ -87,6 +87,42 @@ func (a *TMuxAdapter) Capture(ctx context.Context, runtimeRef string, lines int)
 	return splitLines(strings.TrimRight(string(out), "\n")), nil
 }
 
+// Send — ввести текст в терминал tmux (literal send-keys) + Enter при submit.
+// tmux нет → ErrTmuxUnavailable; сессия мертва/отсутствует → ErrTmuxSessionDead.
+func (a *TMuxAdapter) Send(ctx context.Context, runtimeRef, text string, submit bool) (SendResult, error) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		return SendResult{}, ErrTmuxUnavailable
+	}
+	// literal: -l (literal, без интерпретации) + -- (text как аргумент)
+	cmd := exec.CommandContext(ctx, "tmux", "send-keys", "-t", runtimeRef, "-l", "--", text)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return SendResult{}, tmuxSendErr(out)
+	}
+	res := SendResult{Sent: true}
+	if submit {
+		cmd2 := exec.CommandContext(ctx, "tmux", "send-keys", "-t", runtimeRef, "Enter")
+		out2, err2 := cmd2.CombinedOutput()
+		if err2 != nil {
+			return res, tmuxSendErr(out2)
+		}
+		res.Submitted = true
+	}
+	return res, nil
+}
+
+// tmuxSendErr — маппинг вывода tmux на sentinel (мертвая сессия) или обычную ошибку.
+func tmuxSendErr(out []byte) error {
+	s := strings.TrimSpace(string(out))
+	if strings.Contains(s, "can't find") || strings.Contains(s, "no session") {
+		return ErrTmuxSessionDead
+	}
+	if strings.Contains(s, "is not installed") {
+		return ErrTmuxUnavailable
+	}
+	return fmt.Errorf("tmux send-keys: %s", s)
+}
+
 func orDash(s string) string {
 	if s == "" {
 		return "."

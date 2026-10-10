@@ -160,4 +160,9 @@ func (a *ProcessAdapter) Capture(ctx context.Context, runtimeRef string, lines i
 	return nil, ErrNoScreen
 }
 
+// Send — у process нет терминала/экрана → отправить некуда (service → 409/retained).
+func (a *ProcessAdapter) Send(ctx context.Context, runtimeRef, text string, submit bool) (SendResult, error) {
+	return SendResult{}, ErrNoScreen
+}
+
 func intPtr(v int) *int { return &v }

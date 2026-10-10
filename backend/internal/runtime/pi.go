@@ -57,6 +57,11 @@ func (a *PiAdapter) Capture(ctx context.Context, runtimeRef string, lines int) (
 	return a.TMux.Capture(ctx, runtimeRef, lines)
 }
 
+// Send — pi работает в tmux → delegate на tmux send-keys.
+func (a *PiAdapter) Send(ctx context.Context, runtimeRef, text string, submit bool) (SendResult, error) {
+	return a.TMux.Send(ctx, runtimeRef, text, submit)
+}
+
 // WriteSessionConfig — пишет конфиг сессии для pi (используется session service).
 func WriteSessionConfig(path string, f AgentSpecFields) error {
 	data := formatConfig(f)

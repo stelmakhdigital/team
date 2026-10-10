@@ -88,6 +88,10 @@ func parseEvent(e WSEvent) (*repository.EventIn, bool) {
 				ev.RoleID = rid
 			}
 			ev.Summary = sessionSummary(e.Type, data)
+		case "session.send": // P2.11: send to session (delivered/staged/retained)
+			ev.EntityKind = "session"
+			ev.EntityID, _ = int64FromAny(anyFrom(data, "session_id"))
+			ev.Summary = sessionSendSummary(data)
 		case "message.sent":
 			ev.EntityKind = "message"
 			ev.EntityID, _ = int64FromAny(anyFrom(data, "message_id"))
@@ -152,6 +156,15 @@ func sessionSummary(typ string, m map[string]any) string {
 	default: // stopped
 		return fmt.Sprintf("Session #%d stopped", id)
 	}
+}
+
+func sessionSendSummary(m map[string]any) string {
+	id, _ := int64FromAny(anyFrom(m, "session_id"))
+	st := strFromAny(anyFrom(m, "status"))
+	if st == "" {
+		st = "sent"
+	}
+	return fmt.Sprintf("Send to session #%d: %s", id, st)
 }
 
 func messageSummary(m map[string]any) string {

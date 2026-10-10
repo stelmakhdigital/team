@@ -118,6 +118,8 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("GET /api/v1/sessions/{id}/transcript", h.GetTranscript)
 	// P2.8: capture (стл-кадр экрана сессии) — GET, viewer-ok (sessions.read)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/capture", h.CaptureSession)
+	// P2.11: send to session + verify — POST, operator+ (sessions.update)
+	mux.HandleFunc("POST /api/v1/sessions/{id}/send", h.SendSession)
 	// P2.9: Pulse feed — unified event feed (GET /events, dashboard.read, viewer-ok)
 	mux.HandleFunc("GET /api/v1/events", h.ListEvents)
 	mux.HandleFunc("GET /api/v1/compact-plan", h.CompactPlan)                // P1.5
