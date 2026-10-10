@@ -378,22 +378,35 @@ OpenAPI: +3 операции (всего 63); `check_openapi.py` PASS.
 Read-only «the surface that shows the truth»: состояние daemon/БД/tmux/сессий/logs/git
 + **расхождения** (БД-статус vs реальная живость).
 - **DiagnosticsService** (`service/diagnostics_service.go`): `Run(ctx)` → 7 чек'ов
-  (name/status ok|warn|fail/detail/evidence): daemon, database.ping, database.migrations
-  (applied vs available), tmux.server, **sessions.divergence** (КЛЮЧ: active в БД vs
-  alive в `adapter.Status` → stale → fail), logs.dir (writable), git (bounded 3,
-  read-only + timeout 5s). Overall = worst. Read-only: ошибки отдельного чека → свой
-  статус, не ломают прогон; внешние вызовы `exec.CommandContext` + timeout.
+  (name/status ok|warn|fail/detail/evidence) — **каждый чек отдельная функция**
+  (`checkDaemon`, `checkDatabasePing`, `checkMigrations`, `checkTmux`,
+  `checkSessionDivergence`, `checkLogsDir`, `checkGit`): daemon, database.ping,
+  database.migrations (applied vs available), tmux.server, **sessions.divergence**
+  (КЛЮЧ: **stale** active-в-БД/мёртв-в-адаптере → fail + **zombie**
+  stopped/failed-в-БД/жив-в-адаптере → warn; structured evidence
+  `stale_sessions`/`zombie_sessions` для drill-down), logs.dir (writable), git
+  (bounded 3, read-only + timeout 5s). Overall = worst. Read-only: ошибка отдельного
+  чека → свой статус, не ломают прогон; внешние вызовы `exec.CommandContext`.
+- **`ReportFail`** (R2, fail→Attention): при `POST /diagnostics/run` fail-чек'и →
+  **ОДИН** unread `watchdog_events` `diagnostics_fail` (critical, `requires_action`)
+  с дедупом (`WatchdogRepo.ExistsUnreadByType`). Attention: новый kind
+  `diagnostics_fail` (critical, link `/diagnostics`) — через unread-алерт.
 - **`database.MigrationStatus`** (`database/migrate.go`): applied (из `schema_migrations`)
   vs available (из embedded FS).
-- **Миграция 0015** (sqlite+postgres): перм `diagnostics.read` (operator+; viewer не
-  получает — not `%.read`); admin — через `AllPermissions` (`auth_service.go`).
-- **HTTP**: `GET /api/v1/diagnostics` + `POST /api/v1/diagnostics/run` (read-only);
-  RBAC `diagnostics.read` (`middleware.go`: GET default `res.read`, POST `id=="run"`).
+- **Миграции**: 0015 (RBAC `diagnostics.read` operator+); **0016** (R2) —
+  `diagnostics_fail` в `watchdog_events.event_type` CHECK (sqlite: пересоздание;
+  postgres: DROP/ADD CONSTRAINT). admin — через `AllPermissions`.
+- **HTTP**: `GET /api/v1/diagnostics` (срез) + `POST /api/v1/diagnostics/run`
+  (срез + ReportFail); RBAC `diagnostics.read` (`middleware.go`: GET `res.read`,
+  POST `id=="run"`). GET не создаёт алерт.
 - **Wiring** (`main.go`): `DiagnosticsService` + `Options.Diagnostics`.
-- **Тесты**: service (5: basic, divergence-stale, migration-pending, git-repo,
-  logs-missing) + HTTP (2: GET/POST 200 + checks, RBAC 401/viewer-403/operator-200).
-- **Решения** (см. `api-decisions.md` §P1.8): read-only; divergence через
-  `Adapter.Status`; bounded; RBAC operator+.
+- **Тесты**: service core (basic, divergence-stale, **divergence-zombie**,
+  migration-pending, git-repo, logs-missing) + per-check (внутр. file: daemon,
+  ping ok/fail, tmux, logs, git, registry-nil) + **ReportFail** (create/dedup/no-fails)
+  + attention (`diagnostics_fail`: critical + /diagnostics) + HTTP (GET/POST 200,
+  RBAC 401/viewer-403/operator-200, **POST /run → unread event + dedup**).
+- **Решения** (см. `api-decisions.md` §P1.8): read-only; divergence (stale+ zombie)
+  через `Adapter.Status`; bounded; RBAC operator+; fail→Attention с дедупом.
 
 ## 4. Как проверить
 ```

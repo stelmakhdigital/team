@@ -513,19 +513,20 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 `briefing-launch-panel`, `briefing-launch-result`.
 
 ### 3m. Health/Doctor-панель (P1.8, 2026-10-10)
-«The surface that shows the truth»: список чек'ов (status + detail + evidence) + run.
+«The surface that shows the truth»: список чек'ов (status + detail + evidence) + run
++ **drill-down на сессию-расхождение**.
 
 | Файл | Что |
 |------|-----|
-| `frontend/src/pages/DiagnosticsPage.tsx` (NEW) | Страница Health/Doctor: overall-баннер (ok/warn/fail) + список чек'ов (status-badge + name + detail + evidence-JSON) + кнопка «⟳ Run full diagnostics» (async, read-only) |
+| `frontend/src/pages/DiagnosticsPage.tsx` (NEW) | Страница Health/Doctor: overall-баннер (ok/warn/fail) + список чек'ов (status-badge + name + detail + evidence-JSON) + кнопка «⟳ Run full diagnostics» (async) + **drill-down**: EntityLink на stale (👻) + zombie (🧟) сессию (→ /sessions/{id}) из structured evidence |
 | `frontend/src/App.tsx` | Маршрут `/diagnostics` |
 | `frontend/src/components/layout/AppShell.tsx` | nav-link «Health» (🩺) |
 | `frontend/src/types/api.ts` | CheckResult/DiagnosticsResult/CheckStatus |
-| `frontend/src/api/{types,real}.ts` + `api/mock/adapter.ts` | `diagnostics.get/run`; mock-срез (с расхождением sessions.divergence fail) |
-| `frontend/src/styles.css` | doctor-overall/list/item/status/evidence CSS |
-| `frontend/tests/diagnostics.test.tsx` (NEW) | 3 теста: чек'и (name+status) + overall, run-кнопка (read-only), nav-link |
+| `frontend/src/api/{types,real}.ts` + `api/mock/adapter.ts` | `diagnostics.get/run`; mock-срез (расхождение: stale #5 + zombie #8, structured evidence) |
+| `frontend/src/styles.css` | doctor-overall/list/item/status/evidence/**links** CSS |
+| `frontend/tests/diagnostics.test.tsx` (NEW) | 4 теста: чек'и + overall, run, nav-link, **drill-down (ссылки на #5 + #8)** |
 
-Скриншот @2560: `diagnostics-panel-2560x1440.png` (7 чек'ов, расхождение fail).
+Скриншот @2560: `diagnostics-panel-2560x1440.png` (7 чек'ов, расхождение fail + drill-down).
 
 ## 5. Команды
 ```bash
