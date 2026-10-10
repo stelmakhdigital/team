@@ -51,3 +51,19 @@ export function formatBytes(bytes?: number): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
   return `${Math.round(mb)} MB`;
 }
+
+// P2.14: стоимость (USD) → "~$7.50" / "$7.50" / "нет данных" (честно, не 0).
+// cost = null (нет данных) → «нет данных»; estimate → «~» (оценка).
+export interface CostInfo {
+  cost_usd: number | null;
+  has_data: boolean;
+  estimate: boolean;
+}
+
+export function formatCost(cost?: CostInfo | null): string {
+  if (!cost || !cost.has_data || cost.cost_usd === null || cost.cost_usd === undefined) {
+    return 'нет данных';
+  }
+  const usd = `$${cost.cost_usd.toFixed(2)}`;
+  return cost.estimate ? `~${usd}` : usd;
+}

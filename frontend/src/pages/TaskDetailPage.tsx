@@ -6,7 +6,7 @@ import { useMutation } from '../hooks/useMutation';
 import { ErrorState, PageSkeleton, Spinner, Badge } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import EntityLink from '../components/ui/EntityLink';
-import { formatDateTime, formatRelative, formatRelativeFromSecs } from '../lib/format';
+import { formatDateTime, formatRelative, formatRelativeFromSecs, formatCost } from '../lib/format';
 import type { Task, TaskWake } from '../types/api';
 
 // U4b: task drill-down — full task detail + history timeline + subtasks (fetch-by-id).
@@ -47,6 +47,7 @@ export default function TaskDetailPage() {
       ),
     ],
     ['Closure', t.closure_reason ? `${t.closure_reason}` : '—'],
+    ['Cost', formatCost(t.estimated_cost)], // P2.14 (сумма сессий; оценка)
     ['Created', formatDateTime(t.created_at)],
     ['Updated', `${formatRelative(t.updated_at)} (${formatDateTime(t.updated_at)})`],
   ];

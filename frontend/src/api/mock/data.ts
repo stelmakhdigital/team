@@ -398,7 +398,7 @@ function seed(): DB {
   });
 
   t.tasks = [
-    mkTask(1, 'Implement auth middleware', 'in_progress', 'Backend.Worker', 1, 'Dev Team', { progress: 45, closure_required_at: iso(90) }),
+    mkTask(1, 'Implement auth middleware', 'in_progress', 'Backend.Worker', 1, 'Dev Team', { progress: 45, closure_required_at: iso(90), estimated_cost: { cost_usd: 12.34, has_data: true, estimate: true } }),
     mkTask(2, 'Write integration tests', 'pending', 'Backend.Worker', 2, 'Dev Team'),
     mkTask(3, 'Review PR #142', 'in_progress', 'Review.Reviewer', 3, 'Dev Team', { progress: 80, closure_required_at: iso(-120) }),
     mkTask(4, 'Fix flaky CI job', 'blocked', 'Backend.Worker2', 1, 'Dev Team', { is_blocked: true, is_stale: true, updated_at: iso(60 * 3), closure_required_at: iso(120) }),
@@ -438,6 +438,8 @@ function seed(): DB {
       context_used_percentage: 42,
       context_total_input_tokens: 84_000,
       context_total_output_tokens: 1_200,
+      // P2.14: стоимость (оценка, модель известна + цена задана в mock)
+      estimated_cost: { cost_usd: 7.52, has_data: true, estimate: true },
       log_path: 'mock/logs/session-1.log',
       // P1.7: session briefing
       briefing_applied: 'builtin',
@@ -749,6 +751,7 @@ export function computeMetrics(): GetMetricsResponse {
       sessions_active: points(3, 2),
       queue_size: points(4, 3),
       llm_tokens: points(1200, 400),
+      llm_cost_usd: points(7.5, 3), // P2.14: стоимость (USD)
     },
   };
 }

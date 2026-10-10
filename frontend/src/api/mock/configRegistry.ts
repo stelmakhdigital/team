@@ -20,6 +20,7 @@ interface RegKey {
   default_is_derived?: boolean;
   requires_restart: boolean;
   editable: boolean;
+  json_object?: boolean; // P2.14: JSON-объект (текст-поле)
 }
 
 const SECTION_DESC: Record<string, string> = {
@@ -29,10 +30,11 @@ const SECTION_DESC: Record<string, string> = {
   watchdog: 'Watchdog-мониторинг',
   security: 'Безопасность',
   logging: 'Логирование',
+  cost: 'Стоимость LLM-сессий (P2.14)',
   workspace: 'Рабочая область (workspace)',
 };
 
-const SECTION_ORDER = ['server', 'storage', 'tasks', 'sessions', 'watchdog', 'security', 'logging', 'workspace'];
+const SECTION_ORDER = ['server', 'storage', 'tasks', 'sessions', 'watchdog', 'security', 'logging', 'cost', 'workspace'];
 
 export const CONFIG_REGISTRY: RegKey[] = [
   { key: 'server.listen_addr', section: 'server', type: 'string', description: 'Адрес прослушивания HTTP', default_value: ':8080', env_var: 'DAEMON_LISTEN_ADDR', requires_restart: true, editable: true },
@@ -52,6 +54,8 @@ export const CONFIG_REGISTRY: RegKey[] = [
   { key: 'security.secret_key', section: 'security', type: 'string', description: 'AES-256-GCM ключ (secret, readonly)', default_value: '', env_var: 'DAEMON_SECRET_KEY', requires_restart: true, editable: false },
   { key: 'security.agent_specs_dir', section: 'security', type: 'path', description: 'Каталог agent-spec', default_value: 'agents', env_var: 'DAEMON_AGENT_SPECS_DIR', requires_restart: true, editable: true },
   { key: 'logging.level', section: 'logging', type: 'string', description: 'Уровень логов (debug|info|warn|error)', default_value: 'info', env_var: 'DAEMON_LOG_LEVEL', requires_restart: true, editable: true },
+  { key: 'cost.model_prices', section: 'cost', type: 'string', description: 'Цены моделей, JSON: {"<model>":{"in_usd_per_mtok":N,"out_usd_per_mtok":N}}. Пусто = «нет данных».', default_value: '{}', env_var: 'DAEMON_COST_MODEL_PRICES', requires_restart: false, editable: true, json_object: true },
+  { key: 'cost.budget_alert_cents', section: 'cost', type: 'integer', description: 'Порог бюджета в ЦЕНТАХ (0 = выключен). Стоимость всех сессий > порога → watchdog-алерт (dedup).', default_value: 0, env_var: 'DAEMON_COST_BUDGET_ALERT_CENTS', requires_restart: false, editable: true },
   { key: 'workspace.root', section: 'workspace', type: 'path', description: 'Корень workspace (дефолт — cwd)', default_value: '.', env_var: 'DAEMON_WORKSPACE_ROOT', default_is_derived: true, requires_restart: true, editable: true },
   { key: 'workspace.artifacts_dir', section: 'workspace', type: 'path', description: 'Папка артефактов (дефолт — root/artifacts)', default_value: 'artifacts', env_var: 'DAEMON_WORKSPACE_ARTIFACTS', default_is_derived: true, requires_restart: true, editable: true },
   { key: 'workspace.screenshots_dir', section: 'workspace', type: 'path', description: 'Папка скриншотов (дефолт — root/screenshots)', default_value: 'screenshots', env_var: 'DAEMON_WORKSPACE_SCREENSHOTS', default_is_derived: true, requires_restart: true, editable: true },
@@ -89,6 +93,7 @@ function mkView(k: RegKey, currentValue: unknown, source: ConfigKeyView['source'
     default_is_derived: k.default_is_derived ?? false,
     requires_restart: k.requires_restart,
     editable: k.editable,
+    json_object: k.json_object ?? undefined,
   };
 }
 

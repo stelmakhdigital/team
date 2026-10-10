@@ -6,7 +6,7 @@ import { ErrorState, PageSkeleton, Spinner, isNotFoundError } from '../component
 import HandoverModal from '../components/HandoverModal';
 import CaptureModal from '../components/CaptureModal';
 import SendToSession from '../components/SendToSession';
-import { formatRelative } from '../lib/format';
+import { formatRelative, formatCost } from '../lib/format';
 
 // U4b: session drill-down — session metrics + history + transcript (messages), fetch-by-id.
 function fmtTokens(n?: number): string {
@@ -40,6 +40,7 @@ export default function SessionDetailPage() {
     ...(s.model ? ([['Model', s.model]] as Array<[string, string]>) : []),
     ['Context', s.context_used_percentage !== undefined ? `${Math.round(s.context_used_percentage)}%` : '--'],
     ['Tokens', `${fmtTokens(s.context_total_input_tokens)} / ${fmtTokens(s.context_total_output_tokens)}`],
+    ['Cost', formatCost(s.estimated_cost)], // P2.14 (оценка; «нет данных» если нет)
     ...(s.log_path ? ([['Log', s.log_path]] as Array<[string, string]>) : []),
     ...(s.runtime_ref ? ([['Ref', s.runtime_ref]] as Array<[string, string]>) : []),
   ];

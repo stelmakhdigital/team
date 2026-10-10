@@ -8,6 +8,7 @@ const SERIES: { key: keyof GetMetricsResponse['metrics']; label: string }[] = [
   { key: 'sessions_active', label: 'Active sessions' },
   { key: 'queue_size', label: 'Queue size' },
   { key: 'llm_tokens', label: 'LLM tokens' },
+  { key: 'llm_cost_usd', label: 'LLM cost (USD)' }, // P2.14
 ];
 
 function Sparkline({ points, color }: { points: TimeSeriesPoint[]; color: string }) {
@@ -48,7 +49,7 @@ export default function MetricsChart({ metrics }: { metrics: GetMetricsResponse 
   if (!metrics.metrics || Object.keys(metrics.metrics).length === 0) {
     return <EmptyState title="No metrics" />;
   }
-  const colors = ['#4f8ef7', '#3fb950', '#d29922', '#f778ba', '#a371f7'];
+  const colors = ['#4f8ef7', '#3fb950', '#d29922', '#f778ba', '#a371f7', '#2dd4bf'];
   return (
     <div className="card">
       <h2>

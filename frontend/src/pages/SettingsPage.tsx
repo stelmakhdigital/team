@@ -18,6 +18,17 @@ function fmtValue(v: unknown): string {
   return String(v);
 }
 
+// P2.14: JSON-ключ (cost.model_prices) — current_value = строка с JSON; pretty-print для чтения.
+function fmtJSONValue(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'object') return JSON.stringify(v);
+  try {
+    return JSON.stringify(JSON.parse(String(v)), null, 0);
+  } catch {
+    return String(v);
+  }
+}
+
 function ConfigKeyRow({ kv, onChanged }: { kv: ConfigKeyView; onChanged: () => void }) {
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -81,6 +92,15 @@ function ConfigKeyRow({ kv, onChanged }: { kv: ConfigKeyView; onChanged: () => v
               <input type="checkbox" checked={boolOn} onChange={(e) => setDraft(e.target.checked ? 'true' : 'false')} />
               {boolOn ? 'yes' : 'no'}
             </label>
+          ) : kv.json_object ? (
+            <textarea
+              className="input cfg-input cfg-json-input"
+              rows={5}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              aria-label={kv.key}
+              spellCheck={false}
+            />
           ) : (
             <input
               className="input cfg-input"
@@ -91,7 +111,7 @@ function ConfigKeyRow({ kv, onChanged }: { kv: ConfigKeyView; onChanged: () => v
             />
           )
         ) : (
-          <span className="cfg-value">{fmtValue(kv.current_value)}</span>
+          <span className={kv.json_object ? 'cfg-value cfg-json-value' : 'cfg-value'}>{kv.json_object ? fmtJSONValue(kv.current_value) : fmtValue(kv.current_value)}</span>
         )}
         <div className="muted small cfg-default">
           default: {fmtValue(kv.default_value)}

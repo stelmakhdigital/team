@@ -6,7 +6,7 @@ import { useQuery } from '../hooks/useQuery';
 import { Badge, ErrorState, PageSkeleton, errorMessage } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import EntityLink from '../components/ui/EntityLink';
-import { formatRelative } from '../lib/format';
+import { formatRelative, formatCost } from '../lib/format';
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -157,6 +157,10 @@ export default function ProjectDetailPage() {
               <td>
                 {data.counts.teams} teams · {data.counts.tasks} tasks · {data.counts.active_sessions} active sessions
               </td>
+            </tr>
+            <tr>
+              <th>Estimated cost</th>
+              <td>{formatCost(data.estimated_cost)}</td>
             </tr>
             <tr>
               <th>Created / Updated</th>

@@ -125,6 +125,8 @@ function toSessionDetail(s: Session): SessionDetail {
     context_total_input_tokens: s.context_total_input_tokens,
     context_total_output_tokens: s.context_total_output_tokens,
     log_path: s.log_path,
+    // P2.14: стоимость (оценка)
+    estimated_cost: s.estimated_cost,
     // P1.7: session briefing
     briefing_applied: s.briefing_applied,
     briefing_path: s.briefing_path,

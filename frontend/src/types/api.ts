@@ -586,6 +586,8 @@ export interface Task {
   is_overdue?: boolean;
   closure_required_at?: string;
   remaining_secs?: number;
+  // P2.14: стоимость задачи (сумма сессий; оценка)
+  estimated_cost?: CostInfo | null;
 }
 
 // P0.3: wake для заблокированной задачи (block with wake).
@@ -705,6 +707,8 @@ export interface Session {
   briefing_applied?: string; // builtin | override | none (пусто = без брифинга)
   briefing_path?: string; // process/tmux: путь к файлу
   briefing_text?: string; // detail: полный текст
+  // P2.14: стоимость сессии (оценка); undefined/null = «нет данных»
+  estimated_cost?: CostInfo | null;
 }
 
 export interface GetSessionsResponse {
@@ -783,6 +787,14 @@ export interface TimeSeriesPoint {
   value: number;
 }
 
+// P2.14: стоимость LLM-сессии (оценка). cost_usd=null / has_data=false = «нет данных»
+// (честно, не 0 — нет токенов или не задана цена модели). estimate=true → «~».
+export interface CostInfo {
+  cost_usd: number | null;
+  has_data: boolean;
+  estimate: boolean;
+}
+
 export interface GetMetricsResponse {
   time_range: { start: string; end: string };
   metrics: {
@@ -791,6 +803,7 @@ export interface GetMetricsResponse {
     sessions_active: TimeSeriesPoint[];
     queue_size: TimeSeriesPoint[];
     llm_tokens: TimeSeriesPoint[];
+    llm_cost_usd: TimeSeriesPoint[]; // P2.14
   };
 }
 
@@ -843,6 +856,8 @@ export interface SessionDetail {
   briefing_applied?: string;
   briefing_path?: string;
   briefing_text?: string;
+  // P2.14: стоимость (оценка); undefined/null = «нет данных»
+  estimated_cost?: CostInfo | null;
 }
 
 export interface ListSessionsParams {
@@ -1457,6 +1472,7 @@ export interface ConfigKeyView {
   default_is_derived: boolean;
   requires_restart: boolean;
   editable: boolean;
+  json_object?: boolean; // P2.14: значение = JSON-объект (текст-поле)
 }
 
 export interface ConfigSection {
@@ -1558,6 +1574,7 @@ export interface ProjectCounts {
 export interface GetProjectResponse {
   project: Project;
   counts: ProjectCounts;
+  estimated_cost?: CostInfo | null; // P2.14: оценка
 }
 
 export interface UpdateProjectRequest {
