@@ -137,6 +137,29 @@ func (r *SessionRepo) UpdateState(ctx context.Context, tx DBTX, id int64, s *mod
 	return nil
 }
 
+// UpdateConfig — persist config (P1.7: briefing-поля после создания сессии).
+func (r *SessionRepo) UpdateConfig(ctx context.Context, tx DBTX, id int64, s *models.Session) error {
+	if s.Config == nil {
+		s.Config = map[string]any{}
+	}
+	cfg, err := marshalJSON(s.Config)
+	if err != nil {
+		return err
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE sessions SET config = ?, updated_at = ? WHERE id = ?`, cfg, nowStr(), id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *SessionRepo) ListByState(ctx context.Context, tx DBTX, state models.SessionState, limit int) ([]*models.Session, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE state = ? ORDER BY id LIMIT ?`,
 		string(state), limit)

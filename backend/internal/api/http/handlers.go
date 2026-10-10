@@ -33,6 +33,8 @@ type handlers struct {
 	engine *service.WorkflowEngine
 	// P1.6 — Watchdog-джобы (register, context-usage-threshold)
 	wdjobs *service.WatchdogJobService
+	// P1.7 — Session briefing (preview)
+	briefing *service.BriefingService
 }
 
 func limitOffset(q url.Values) (int, int) {

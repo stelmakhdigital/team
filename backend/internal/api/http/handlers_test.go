@@ -81,6 +81,9 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 	msvc.Bus = bus
 	// P1.6: watchdog-джобы
 	wdjobs := service.NewWatchdogJobService(db, repository.NewStores(db))
+	// P1.7: session briefing
+	briefing := service.NewBriefingService(db, repository.NewStores(db))
+	ssvc.BriefingFunc = briefing.Build
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger:       slog.New(slog.NewTextHandler(os.Stderr, nil)),
 		DB:           db,
@@ -97,6 +100,7 @@ func newTestServer(t *testing.T, apiKeys []string) *httptest.Server {
 		Attention:    attention,
 		Engine:       engine,
 		WatchdogJobs: wdjobs,
+		Briefing:     briefing,
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)

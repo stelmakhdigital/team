@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -423,4 +425,108 @@ func renderBriefing(d BriefingData) string {
 		}
 	}
 	return strings.TrimRight(b.String(), "\n") + "\n"
+}
+
+// ---------- delivery helpers (CreateSession + preview) ----------
+
+// BriefingDelivery — как briefing будет передан агенту (по адаптеру).
+type BriefingDelivery struct {
+	Mode   string `json:"mode"`   // pi-system-prompt | file-env
+	Detail string `json:"detail"` // человекочитаемо
+}
+
+func BriefingDeliveryFor(runtimeType string) BriefingDelivery {
+	if runtimeType == "pi" {
+		return BriefingDelivery{Mode: "pi-system-prompt",
+			Detail: "briefing_text → system_prompt в pi-конфиге сессии"}
+	}
+	return BriefingDelivery{Mode: "file-env",
+		Detail: "briefing_text → файл <logs>/briefings/<id>.md + env BRIEFING_FILE"}
+}
+
+// ApplyBriefingOverrides — canonical текст + applied (builtin|override) с учётом
+// override/append. base=nil и нет override/append → ("", "none").
+func ApplyBriefingOverrides(base *Briefing, override, appendStr string) (string, string) {
+	o := strings.TrimSpace(override)
+	a := strings.TrimSpace(appendStr)
+	baseText := ""
+	if base != nil {
+		baseText = strings.TrimSpace(base.Text)
+	}
+	var text, applied string
+	switch {
+	case o != "":
+		text, applied = o, "override"
+	case baseText != "":
+		text, applied = baseText, "builtin"
+	case a != "":
+		text, applied = a, "override"
+	default:
+		return "", "none"
+	}
+	if a != "" && text != a {
+		text = text + "\n\n" + a
+	}
+	return text, applied
+}
+
+func briefingDisabled(cfg map[string]any) bool {
+	if cfg == nil {
+		return false
+	}
+	if v, ok := cfg["briefing"].(string); ok && v == "none" {
+		return true
+	}
+	if v, ok := cfg["briefing_disable"].(bool); ok && v {
+		return true
+	}
+	return false
+}
+
+func cfgStr(cfg map[string]any, key string) string {
+	if cfg == nil {
+		return ""
+	}
+	if s, ok := cfg[key].(string); ok {
+		return s
+	}
+	return ""
+}
+
+// appendConfigEnv — добавляет K=V в config["env"] ([]string), сохраняя тип.
+func appendConfigEnv(env any, kv string) any {
+	var out []string
+	switch v := env.(type) {
+	case []string:
+		out = v
+	case []any:
+		for _, x := range v {
+			if s, ok := x.(string); ok {
+				out = append(out, s)
+			}
+		}
+	}
+	return append(out, kv)
+}
+
+// ---------- SessionService helpers (файл брифинга) ----------
+
+// briefingFilePath — <logs>/briefings/<session_id>.md (process/tmux-доставка).
+func (s *SessionService) briefingFilePath(sessID int64) string {
+	if s.LogsDir == "" {
+		return ""
+	}
+	return filepath.Join(s.LogsDir, "briefings", fmt.Sprintf("%d.md", sessID))
+}
+
+func (s *SessionService) writeBriefingFile(path, text string) error {
+	if path == "" {
+		return fmt.Errorf("no briefing path")
+	}
+	if dir := filepath.Dir(path); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(path, []byte(text), 0o644)
 }

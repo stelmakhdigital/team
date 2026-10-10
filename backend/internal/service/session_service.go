@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ type sessionStore interface {
 	GetByID(ctx context.Context, tx repository.DBTX, id int64) (*models.Session, error)
 	List(ctx context.Context, tx repository.DBTX, f repository.SessionFilter) ([]*models.Session, int, error)
 	UpdateState(ctx context.Context, tx repository.DBTX, id int64, s *models.Session) error
+	UpdateConfig(ctx context.Context, tx repository.DBTX, id int64, s *models.Session) error
 	ListByState(ctx context.Context, tx repository.DBTX, state models.SessionState, limit int) ([]*models.Session, error)
 	CountByStates(ctx context.Context, tx repository.DBTX, states ...models.SessionState) (int, error)
 }
@@ -52,6 +54,9 @@ type SessionService struct {
 	// P1.5 — handover: переиспользуем существующую механику handoff задачи
 	// (TaskService.HandoffTask). nil = task-шаг handover skipped.
 	TaskHandoffFunc func(ctx context.Context, req HandoffTaskRequest) (*HandoffTaskResult, error)
+	// P1.7 — briefing builder (nil = briefing выключен для сессии). Возвращает
+	// собранный брифинг (Text + Data) по role/task/project.
+	BriefingFunc func(ctx context.Context, p BriefingParams) *Briefing
 	// tails — tailer'ы session.output (live-терминал, slice 7); tailMu — защита.
 	tailMu sync.Mutex
 	tails  map[int64]*tailState
@@ -150,6 +155,37 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 		return nil, err
 	}
 
+	// P1.7: собрать briefing (read-only, до tx). nil-Builder / disabled → none.
+	var briefingText, briefingApplied string
+	if s.BriefingFunc != nil && !briefingDisabled(req.Config) {
+		var base *Briefing
+		override := cfgStr(req.Config, "briefing_override")
+		if strings.TrimSpace(override) != "" {
+			base = &Briefing{} // override: base не нужен
+		} else {
+			base = s.BriefingFunc(ctx, BriefingParams{
+				TeamID: team.ID, RoleID: role.ID, QueueTaskID: req.QueueTaskID,
+				WorkingDir: workingDir, ProjectID: projectID,
+			})
+		}
+		briefingText, briefingApplied = ApplyBriefingOverrides(base, override, cfgStr(req.Config, "briefing_append"))
+	}
+	// P1.7: поля, известные до insert → в config (персистится sessions.Create).
+	if briefingApplied != "none" && strings.TrimSpace(briefingText) != "" {
+		if req.Config == nil {
+			req.Config = map[string]any{}
+		}
+		req.Config["briefing_applied"] = briefingApplied
+		req.Config["briefing_text"] = briefingText
+		if rtType == "pi" {
+			if existing := cfgStr(req.Config, "system_prompt"); existing != "" {
+				req.Config["system_prompt"] = strings.TrimSpace(briefingText) + "\n\n" + existing
+			} else {
+				req.Config["system_prompt"] = strings.TrimSpace(briefingText)
+			}
+		}
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -172,6 +208,19 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+
+	// P1.7: process/tmux-доставка — файл + env + path (pi-системный prompt уже в config до tx).
+	if briefingApplied != "none" && strings.TrimSpace(briefingText) != "" && rtType != "pi" {
+		if bp := s.briefingFilePath(sess.ID); bp != "" {
+			if err := s.writeBriefingFile(bp, briefingText); err == nil {
+				req.Config["briefing_path"] = bp
+				req.Config["env"] = appendConfigEnv(req.Config["env"], "BRIEFING_FILE="+bp)
+				if err := s.sessions.UpdateConfig(ctx, s.db, sess.ID, sess); err != nil {
+					_ = err // путь/внешние данные уже готовы; персист-ошибка не ломает старт
+				}
+			}
+		}
 	}
 
 	// конфиг для pi
@@ -392,6 +441,12 @@ func (s *SessionService) GetSessionView(ctx context.Context, id int64) (*Session
 	if err != nil {
 		return nil, err
 	}
+	// P1.7: canonical-текст брифинга (только в detail, чтобы не раздувать list)
+	if v := views[0]; v != nil {
+		if bt := cfgStr(sess.Config, "briefing_text"); bt != "" {
+			v.BriefingText = bt
+		}
+	}
 	return views[0], nil
 }
 
@@ -506,6 +561,10 @@ type SessionView struct {
 	ContextTotalInputTokens  *int64   `json:"context_total_input_tokens,omitempty"`
 	ContextTotalOutputTokens *int64   `json:"context_total_output_tokens,omitempty"`
 	LogPath                  string   `json:"log_path,omitempty"`
+	// P1.7 — briefing (startup context): что передано агенту.
+	BriefingApplied string `json:"briefing_applied,omitempty"` // builtin|override|none
+	BriefingPath    string `json:"briefing_path,omitempty"`    // файл (process/tmux)
+	BriefingText    string `json:"briefing_text,omitempty"`    // canonical markdown (detail)
 }
 
 func (s *SessionService) viewsFor(ctx context.Context, sessions []*models.Session) ([]*SessionView, error) {
@@ -585,6 +644,13 @@ func (s *SessionService) viewsFor(ctx context.Context, sessions []*models.Sessio
 			v.StoppedAt = ptr(x.StoppedAt.Format(rfc3339))
 		}
 		s.enrichLiveMetrics(v, x)
+		// P1.7: briefing из config (только applied+path в списке; text — в detail)
+		if ba := cfgStr(x.Config, "briefing_applied"); ba != "" {
+			v.BriefingApplied = ba
+		}
+		if bp := cfgStr(x.Config, "briefing_path"); bp != "" {
+			v.BriefingPath = bp
+		}
 		out = append(out, v)
 	}
 	return out, nil

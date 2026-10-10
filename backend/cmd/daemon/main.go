@@ -115,6 +115,9 @@ func run() error {
 	wd.JobEvents = stores.WatchdogJobEvents
 	wd.LiveSession = ssvc.GetSessionView
 	wd.FireWatchdogWakes = tsvc.FireArmedWatchdogWakes
+	// P1.7 — Session briefing (startup context): сборщик + func для CreateSession.
+	briefing := service.NewBriefingService(db, stores)
+	ssvc.BriefingFunc = briefing.Build
 	alerts := &service.AlertStoreRef{Events: stores.Watchdog, Teams: stores.Teams, DB: db}
 
 	// P0.1 — Attention view ("Что требует меня")
@@ -172,7 +175,7 @@ func run() error {
 		Workflows: wsvc, Events: bus,
 		Library: lservice, Audit: aservice, Metrics: msvcMetrics,
 		Auth: authSvc, Config: cvc, Attention: attention, Projects: projSvc, Engine: engine,
-		WatchdogJobs: wdjobs,
+		WatchdogJobs: wdjobs, Briefing: briefing,
 	})
 
 	server := &http.Server{

@@ -35,6 +35,8 @@ type Options struct {
 	Engine *service.WorkflowEngine
 	// P1.6 — Watchdog-джобы (register, context-usage-threshold)
 	WatchdogJobs *service.WatchdogJobService
+	// P1.7 — Session briefing (startup context): preview-эндпоинт
+	Briefing *service.BriefingService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -46,7 +48,8 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	h := &handlers{svc: svc, tsvc: tsvc, ssvc: opts.Sessions, msvc: opts.Messages,
 		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
 		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention,
-		projects: opts.Projects, engine: opts.Engine, wdjobs: opts.WatchdogJobs}
+		projects: opts.Projects, engine: opts.Engine, wdjobs: opts.WatchdogJobs,
+		briefing: opts.Briefing}
 
 	mux := http.NewServeMux()
 
@@ -71,6 +74,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("POST /api/v1/teams/{id}/save", h.SaveTopology)
 	mux.HandleFunc("POST /api/v1/teams/{id}/segments", h.CreateSegment)
 	mux.HandleFunc("POST /api/v1/teams/{id}/relatives", h.CreateRelative)
+	mux.HandleFunc("POST /api/v1/teams/{id}/briefing/preview", h.PreviewBriefing) // P1.7 (dry-run)
 
 	// Team Builder — segments / roles / relatives
 	mux.HandleFunc("POST /api/v1/segments/{id}/roles", h.CreateRole)

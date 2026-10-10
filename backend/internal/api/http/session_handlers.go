@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"daemon/internal/models"
 	"daemon/internal/repository"
@@ -43,8 +44,13 @@ func (h *handlers) CreateSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
+	briefingApplied, _ := sess.Config["briefing_applied"].(string)
+	briefingPath, _ := sess.Config["briefing_path"].(string)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id": sess.ID, "state": string(sess.State), "status": "started",
+		// P1.7: briefing (что передано агенту)
+		"briefing_applied": briefingApplied,
+		"briefing_path":    briefingPath,
 	})
 }
 
@@ -206,6 +212,69 @@ func (h *handlers) HandoverSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// PreviewBriefing — POST /api/v1/teams/{id}/briefing/preview (P1.7, dry-run).
+// Возвращает собранный брифинг (text + data) + как он будет передан (adapter-режим).
+type briefingPreviewBody struct {
+	RoleID      int64  `json:"role_id"`
+	QueueTaskID *int64 `json:"queue_task_id"`
+	Override    string `json:"override"`
+	Append      string `json:"append"`
+	RuntimeType string `json:"runtime_type"`
+	WorkingDir  string `json:"working_dir"`
+	ProjectID   *int64 `json:"project_id"`
+}
+
+func (h *handlers) PreviewBriefing(w http.ResponseWriter, r *http.Request) {
+	if h.briefing == nil {
+		writeError(w, r, &service.AppError{Code: "not_implemented", Status: http.StatusNotImplemented, Message: "briefing service not configured"})
+		return
+	}
+	teamID, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	// team должен существовать (404)
+	if _, err := h.svc.GetTeam(r.Context(), teamID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body briefingPreviewBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	if body.RoleID == 0 {
+		writeError(w, r, service.NewValidation("invalid request", []service.FieldError{{Field: "role_id", Reason: "required"}}))
+		return
+	}
+	rtType := body.RuntimeType
+	if rtType == "" {
+		rtType = "pi"
+	}
+	var base *service.Briefing
+	if strings.TrimSpace(body.Override) == "" {
+		base = h.briefing.Build(r.Context(), service.BriefingParams{
+			TeamID: teamID, RoleID: body.RoleID, QueueTaskID: body.QueueTaskID,
+			WorkingDir: body.WorkingDir, ProjectID: body.ProjectID,
+		})
+	}
+	text, applied := service.ApplyBriefingOverrides(base, body.Override, body.Append)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"briefing_text":    text,
+		"briefing_data":    briefDataOrEmpty(base),
+		"briefing_applied": applied,
+		"delivery":         service.BriefingDeliveryFor(rtType),
+	})
+}
+
+func briefDataOrEmpty(base *service.Briefing) any {
+	if base == nil {
+		return service.BriefingData{}
+	}
+	return base.Data
 }
 
 // ---------- Dashboard: sessions & alerts (slice 3) ----------

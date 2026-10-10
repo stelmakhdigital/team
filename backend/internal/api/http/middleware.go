@@ -177,6 +177,8 @@ func requiredPermission(method, path string) string {
 			return "dashboard.read" // mark alert read
 		case res == "teams" && id != "" && (sub == "segments" || sub == "relatives" || sub == "save" || sub == "validate"):
 			return "teams.update"
+		case res == "teams" && id != "" && sub == "briefing": // P1.7: briefing preview (dry-run) = sessions.read
+			return "sessions.read"
 		case res == "segments" && id != "" && sub == "roles":
 			return "teams.update"
 		case res == "tasks" && id != "" && sub == "resolve": // P0.3: ручной resolve = tasks.update
