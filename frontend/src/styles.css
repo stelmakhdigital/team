@@ -953,6 +953,62 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .ts-ctx-line { line-height: 1.5; }
 .ts-match { background: rgba(88, 166, 255, 0.35); color: #fff; border-radius: 3px; padding: 0 2px; }
 
+/* ---------- P2.8: capture (стл-кадр экрана сессии) ---------- */
+.card-head { display: flex; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 10px; }
+.card-head h2 { margin: 0; }
+.capture-modal { width: min(720px, 94vw); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.modal-head h2 { margin: 0; }
+.modal-close {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-close:hover { color: var(--text); border-color: var(--muted); }
+.capture-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.capture-lines-label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted); }
+.capture-lines-label select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input, var(--bg));
+  color: var(--text);
+}
+.capture-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.capture-snapshot {
+  margin: 0 0 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 42vh;
+  overflow: auto;
+}
+.capture-saved { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.capture-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  word-break: break-all;
+}
+.capture-actions { display: flex; gap: 8px; }
+.capture-error-reason { margin: 8px 0 0; }
+
 /* ---------- P1.6: watchdog-джобы ---------- */
 .watchdog-form { margin-top: 16px; }
 .watchdog-form-grid {

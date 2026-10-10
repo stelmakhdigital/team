@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { ErrorState, PageSkeleton, Spinner, isNotFoundError } from '../components/ui/States';
 import HandoverModal from '../components/HandoverModal';
+import CaptureModal from '../components/CaptureModal';
 import { formatRelative } from '../lib/format';
 
 // U4b: session drill-down — session metrics + history + transcript (messages), fetch-by-id.
@@ -20,6 +21,7 @@ export default function SessionDetailPage() {
   const hist = useQuery(`session.history.${id}`, () => api.history.getSessionHistory(id));
   const trans = useQuery(`session.transcript.${id}`, () => api.history.getTranscript(id));
   const [handover, setHandover] = useState(false);
+  const [capture, setCapture] = useState(false);
 
   if (sess.loading) return <div className="page"><PageSkeleton label="Loading session…" /></div>;
   if (sess.error) return <div className="page"><ErrorState error={sess.error} onRetry={sess.refetch} /></div>;
@@ -91,7 +93,12 @@ export default function SessionDetailPage() {
           ) : null}
 
           <div className="card">
-            <h2>Transcript ({transcript.length})</h2>
+            <div className="card-head">
+              <h2>Transcript ({transcript.length})</h2>
+              <button type="button" className="btn btn-sm" onClick={() => setCapture(true)}>
+                📷 Capture
+              </button>
+            </div>
             {trans.loading ? (
               <Spinner />
             ) : isNotFoundError(trans.error) ? (
@@ -140,6 +147,7 @@ export default function SessionDetailPage() {
       </div>
 
       {handover && <HandoverModal sessionId={s.id} onClose={() => { setHandover(false); sess.refetch(); }} />}
+      {capture && <CaptureModal sessionId={s.id} onClose={() => setCapture(false)} />}
     </div>
   );
 }

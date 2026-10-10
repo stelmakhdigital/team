@@ -1022,6 +1022,17 @@ export interface TranscriptSearchResult {
   has_more: boolean;
 }
 
+// ---- P2.8: Capture (стл-кадр экрана сессии) ----
+
+export interface CaptureResult {
+  session_id: number;
+  runtime_type: string;
+  lines: string[]; // последние N строк экрана/лога
+  captured_at: string; // RFC3339Nano
+  source: 'tmux-pane' | 'log-tail';
+  saved_path: string; // путь к сохранённому снапшоту
+}
+
 // ---- Message Center ----
 
 export type MessageType = 'direct' | 'broadcast' | 'segment' | 'system' | 'watchdog';

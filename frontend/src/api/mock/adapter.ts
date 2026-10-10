@@ -1066,6 +1066,27 @@ export function createMockAdapter(): Api {
         return { results: items.slice(offset, offset + limit), total, has_more: offset + limit < total };
       },
 
+      // P2.8: capture (стл-кадр экрана). process → log-tail; tmux/pi → tmux-pane (мёртвая → 409).
+      async capture(id, lines) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const s = db.sessions.find((x) => x.id === id);
+        if (!s) throw new ApiClientError(404, 'not_found', `Session ${id} not found`);
+        const n = Math.max(1, Math.min(lines ?? 20, 200));
+        const all = db.transcripts?.[s.id] ?? [];
+        const tail = all.slice(-n);
+        const saved_path = `mock/captures/session-${s.id}-${Date.now()}.txt`;
+        if (s.runtime_type === 'process') {
+          return { session_id: s.id, runtime_type: s.runtime_type, lines: tail, captured_at: now(), source: 'log-tail', saved_path };
+        }
+        // tmux / pi: мёртвая сессия (stopped/failed) → 409 (clear reason); idle/running/starting → экран доступен
+        if (s.state === 'stopped' || s.state === 'failed') {
+          throw new ApiClientError(409, 'conflict', 'screen not available: tmux session not alive');
+        }
+        return { session_id: s.id, runtime_type: s.runtime_type, lines: tail, captured_at: now(), source: 'tmux-pane', saved_path };
+      },
+
       async create(teamId, req) {
         maybeFail();
         await latency();

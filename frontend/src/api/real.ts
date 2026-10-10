@@ -70,6 +70,7 @@ export function createRealAdapter(): Api {
       create: (teamId, req) => http(`${B}/sessions?team_id=${teamId}`, { method: 'POST', body: req }),
       get: (id) => http(`${B}/sessions/${id}`),
       stop: (id) => http(`${B}/sessions/${id}`, { method: 'DELETE' }),
+      capture: (id, lines) => http(`${B}/sessions/${id}/capture${toQuery({ lines })}`), // P2.8
       getCompactPlan: () => http(`${B}/compact-plan`), // P1.5
       handover: (id, req) => http(`${B}/sessions/${id}/handover`, { method: 'POST', body: req }), // P1.5
       previewBriefing: (teamId, req) => http(`${B}/teams/${teamId}/briefing/preview`, { method: 'POST', body: req }), // P1.7
