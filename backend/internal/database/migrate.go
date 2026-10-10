@@ -94,3 +94,22 @@ func Migrate(ctx context.Context, db *sql.DB, dialect string) error {
 	}
 	return nil
 }
+
+// MigrationStatus — применённые vs доступные numbered-миграции диалекта (P1.8 diagnostics).
+// available — из embedded FS, applied — из schema_migrations.
+func MigrationStatus(ctx context.Context, db *sql.DB, dialect string) (applied, available int, err error) {
+	dir := filepath.Join("migrations", dialect)
+	entries, err := migrationsFS.ReadDir(dir)
+	if err != nil {
+		return 0, 0, fmt.Errorf("list migrations %s: %w", dir, err)
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+			available++
+		}
+	}
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&applied); err != nil {
+		return 0, 0, fmt.Errorf("count applied migrations: %w", err)
+	}
+	return applied, available, nil
+}

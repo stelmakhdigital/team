@@ -118,6 +118,8 @@ func run() error {
 	// P1.7 — Session briefing (startup context): сборщик + func для CreateSession.
 	briefing := service.NewBriefingService(db, stores)
 	ssvc.BriefingFunc = briefing.Build
+	// P1.8 — Health/Doctor-панель (diagnostics, read-only): daemon/БД/tmux/сессии/logs/git + divergence.
+	diagnostics := service.NewDiagnosticsService(db, stores, rtRegistry, cfg.Dialect(), cfg.LogsDir, "0.1.0")
 	alerts := &service.AlertStoreRef{Events: stores.Watchdog, Teams: stores.Teams, DB: db}
 
 	// P0.1 — Attention view ("Что требует меня")
@@ -176,6 +178,7 @@ func run() error {
 		Library: lservice, Audit: aservice, Metrics: msvcMetrics,
 		Auth: authSvc, Config: cvc, Attention: attention, Projects: projSvc, Engine: engine,
 		WatchdogJobs: wdjobs, Briefing: briefing,
+		Diagnostics: diagnostics,
 	})
 
 	server := &http.Server{

@@ -185,6 +185,8 @@ func requiredPermission(method, path string) string {
 			return "tasks.update"
 		case res == "sessions" && id != "" && sub == "handover": // P1.5: handover = sessions.update
 			return "sessions.update"
+		case res == "diagnostics" && id == "run": // P1.8: полный прогон = diagnostics.read (operator+)
+			return "diagnostics.read"
 		default:
 			return res + ".create"
 		}

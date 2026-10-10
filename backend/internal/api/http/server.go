@@ -37,6 +37,8 @@ type Options struct {
 	WatchdogJobs *service.WatchdogJobService
 	// P1.7 — Session briefing (startup context): preview-эндпоинт
 	Briefing *service.BriefingService
+	// P1.8 — Health/Doctor-панель (diagnostics, read-only)
+	Diagnostics *service.DiagnosticsService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -49,7 +51,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
 		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention,
 		projects: opts.Projects, engine: opts.Engine, wdjobs: opts.WatchdogJobs,
-		briefing: opts.Briefing}
+		briefing: opts.Briefing, diagnostics: opts.Diagnostics}
 
 	mux := http.NewServeMux()
 
@@ -63,6 +65,10 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 	})
+
+	// P1.8 — Health/Doctor-панель (diagnostics, read-only; RBAC diagnostics.read)
+	mux.HandleFunc("GET /api/v1/diagnostics", h.GetDiagnostics)
+	mux.HandleFunc("POST /api/v1/diagnostics/run", h.RunDiagnostics)
 
 	// Team Builder — teams
 	mux.HandleFunc("GET /api/v1/teams", h.ListTeams)

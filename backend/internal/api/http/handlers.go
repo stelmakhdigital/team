@@ -35,6 +35,8 @@ type handlers struct {
 	wdjobs *service.WatchdogJobService
 	// P1.7 — Session briefing (preview)
 	briefing *service.BriefingService
+	// P1.8 — Health/Doctor-панель (diagnostics)
+	diagnostics *service.DiagnosticsService
 }
 
 func limitOffset(q url.Values) (int, int) {
