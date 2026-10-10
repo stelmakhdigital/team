@@ -1060,3 +1060,75 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   .pulse-item { grid-template-columns: 1fr; gap: 4px; }
   .pulse-time { order: 3; }
 }
+
+/* P2.10: Command palette (Cmd+K) */
+.palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(1, 4, 11, 0.6);
+  backdrop-filter: blur(2px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+.palette-modal {
+  width: min(680px, 92vw);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.palette-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 18px;
+  font-size: 1.05rem;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  outline: none;
+}
+.palette-input::placeholder { color: var(--muted); }
+.palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+.palette-section { margin-bottom: 4px; }
+.palette-section-head {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 6px 12px 4px;
+}
+.palette-item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.palette-item.active { background: var(--bg-panel-2); outline: 1px solid var(--border); }
+.palette-icon { width: 22px; text-align: center; font-size: 1rem; flex: none; }
+.palette-item-main { display: flex; flex-direction: column; min-width: 0; }
+.palette-item-label { font-size: 0.95rem; color: var(--text); }
+.palette-item-sub { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-hl { font-weight: 700; color: var(--accent); }
+.palette-empty { padding: 20px 12px; text-align: center; font-size: 0.9rem; }
+.palette-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 0.74rem;
+}
+.palette-loading { color: var(--accent); }

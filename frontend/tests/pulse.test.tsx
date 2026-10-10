@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '../src/App';
 import { getDb, resetMockDb } from '../src/api/mock/data';
@@ -45,5 +45,32 @@ describe('P2.9: Pulse feed (единая лента событий)', () => {
     renderPulse();
     expect(await screen.findByRole('heading', { name: 'Pulse' }, { timeout: 10_000 })).toBeInTheDocument();
     expect(await screen.findByText('Событий нет', {}, { timeout: 10_000 })).toBeInTheDocument();
+  }, 20_000);
+
+  // K3 (P2.9): live-prepend — WS-событие → новая запись в ленте.
+  it('K3: WS event → new entry prepended to the feed (live-prepend)', async () => {
+    vi.useFakeTimers();
+    try {
+      renderPulse();
+      // initial load (mock API latency) + mount (WS interval registered). Fake timers →
+      // только синхронные screen.* (async findBy под fake-timers зависает).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(screen.getByRole('heading', { name: 'Pulse' })).toBeInTheDocument();
+      // live WS-событие (task #1) ещё не появилось
+      expect(screen.queryByText('Task #1 → in_progress')).not.toBeInTheDocument();
+      // mock WS emits pool[0] = task.state_changed (task_id 1) each 8s → onEvent
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(8000);
+      });
+      // X3 debounce (300ms) → prepend
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(screen.getByText('Task #1 → in_progress')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   }, 20_000);
 });

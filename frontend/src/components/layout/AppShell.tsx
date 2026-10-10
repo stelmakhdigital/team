@@ -5,6 +5,7 @@ import { api } from '../../api';
 import { getMockError, setMockError } from '../../api/mock/adapter';
 import type { MockErrorKind } from '../../api/mock/adapter';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import CommandPalette from '../CommandPalette';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: '▦', end: true },
@@ -129,6 +130,7 @@ export default function AppShell() {
       <main className="content">
         <Outlet />
       </main>
+      <CommandPalette />
     </div>
   );
 }
