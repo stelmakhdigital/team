@@ -109,6 +109,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	// Slice 3 — Sessions & Runtime
 	mux.HandleFunc("GET /api/v1/sessions", h.ListSessions)
 	mux.HandleFunc("POST /api/v1/sessions", h.CreateSession)
+	mux.HandleFunc("GET /api/v1/sessions/search", h.SearchSessions) // P2.7 (literal — приоритетнее {id})
 	mux.HandleFunc("GET /api/v1/sessions/{id}", h.GetSession)
 	mux.HandleFunc("DELETE /api/v1/sessions/{id}", h.StopSession)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/history", h.GetSessionHistory)

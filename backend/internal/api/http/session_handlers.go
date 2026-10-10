@@ -174,6 +174,58 @@ func (h *handlers) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"transcript": entries, "total": total, "has_more": hasMore})
 }
 
+// ---------- P2.7: поиск по транскриптам ----------
+
+// SearchSessions — GET /api/v1/sessions/search?q=&role_id=&team_id=&state=&limit=&offset=
+// (RBAC sessions.read, viewer-ok). q — обязательный (min 2), фильтры сузят набор
+// сканируемых файлов. Read-only, bounded, честный (файл-нет → сессия пропускается).
+func (h *handlers) SearchSessions(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len(q) < 2 {
+		writeError(w, r, service.NewValidation("q: обязательный, мин 2 символа"))
+		return
+	}
+	var roleID, teamID *int64
+	if v := r.URL.Query().Get("role_id"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			roleID = &n
+		}
+	}
+	if v := r.URL.Query().Get("team_id"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			teamID = &n
+		}
+	}
+	var state *models.SessionState
+	if v := r.URL.Query().Get("state"); v != "" {
+		sst := models.SessionState(v)
+		if !sst.Valid() {
+			writeError(w, r, service.NewValidation("state: невалидное состояние сессии"))
+			return
+		}
+		state = &sst
+	}
+	limit, offset := 50, 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if l, err := strconv.Atoi(v); err == nil && l >= 0 {
+			limit = l
+		}
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if o, err := strconv.Atoi(v); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+	res, err := h.ssvc.SearchTranscripts(r.Context(), service.TranscriptSearchParams{
+		Q: q, RoleID: roleID, TeamID: teamID, State: state, Limit: limit, Offset: offset,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
 // ---------- P1.5: compact-plan + handover ----------
 
 // CompactPlan — GET /api/v1/compact-plan (живые сессии у контекст-стены, desc).
