@@ -218,7 +218,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   `reorderFlagsFirst` (флаги после positional); httptest-тесты (15: request + parse
   + auth + exit codes); README «Для агентов» + USAGE §6.5; OpenAPI 93.
 
-### P2.13 Starter bundles (ориентир OpenRIG RigBundle) — `new`
+### P2.13 Starter bundles (ориентир OpenRIG RigBundle) — `in_progress`
 - **Scope**: готовые стартеры как pin'нутые library-предметы: напр. «dev-team:
   lead+worker+reviewer (pi-* specs)» + связанный workflow; `apply` в один клик
   (селект проекта, если P1.0 готов); метка `starter` в UI Library, защита от
