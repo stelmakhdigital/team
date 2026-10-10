@@ -543,6 +543,20 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 
 Скриншот @2560: `transcript-search-2560x1440.png` (3 сессии, подсветка совпадений).
 
+### 3o. Capture, стл-кадр экрана сессии (P2.8, 2026-10-10)
+Кнопка «📷 Capture» в карточке Transcript (Session Detail) → модалка со снимком экрана.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/components/CaptureModal.tsx` (NEW) | Модалка: Lines 10..200 (default 20) + «📷 Capture»; **снимок** (mono, readonly, scrollable), **source-бейдж** (tmux-pane/log-tail) + captured_at, **saved_path**, «📋 Copy» (clipboard); capture-on-open; Pending (Spinner) + error-state (ErrorState + 409-причина) |
+| `frontend/src/pages/SessionDetailPage.tsx` | Кнопка «📷 Capture» в карточке Transcript (`.card-head`) + рендер CaptureModal |
+| `frontend/src/types/api.ts` | `CaptureResult` |
+| `frontend/src/api/{types,real}.ts` + `api/mock/adapter.ts` | `sessions.capture(id, lines)`; real `GET /sessions/{id}/capture?lines=N`; mock (tmux-pane/log-tail/409) |
+| `frontend/src/styles.css` | `.capture-*` + `.card-head` (CSS) |
+| `frontend/tests/capture.test.tsx` (NEW) | 3 теста: button→модалка (snapshot+source+saved_path+Copy), Copy→clipboard, error-state 409 (+причина) |
+
+Скриншот @2560: `session-capture-2560x1440.png` (модалка со снимком, tmux-pane).
+
 ## 5. Команды
 ```bash
 cd frontend

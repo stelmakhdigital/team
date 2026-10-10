@@ -179,7 +179,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Критерии**: индекс/наивный поиск (решить по размеру данных), тесты,
   UI + тест, OpenAPI.
 
-### P2.8 Capture — снимок экрана сессии — `in_progress`
+### P2.8 Capture — снимок экрана сессии — `done` (T-20261010153631; GET /sessions/{id}/capture, tmux-pane vs log-tail, 409 на мёртвый tmux, сохранение+bounded-cleanup, UI-модалка+Copy, 90 ops; вложение-в-сообщение — follow-up)
 - **Scope**: `GET /sessions/{id}/capture?lines=N` — «стл-кадр» (последние N
   строк) как артефакт: кнопка в Session Detail + вложение в сообщение/задачу
   (если легко), сохранение снапшота в logs.

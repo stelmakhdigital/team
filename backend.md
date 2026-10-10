@@ -431,6 +431,29 @@ Read-only «the surface that shows the truth»: состояние daemon/БД/t
 - **Решения** (см. `api-decisions.md` §P2.7): наивный+bounded+tail-ограничение;
   read-only; честность пропущенных; сортировка; время-бюджет.
 
+### 3m. P2.8 — Capture, стл-кадр экрана сессии (backend, 2026-10-10)
+«Стл-кадр» экрана/вывода сессии (последние N строк) + сохранение снапшота. Read-only.
+- **`SessionService.Capture`** (`service/session_capture.go`):
+  `GET /api/v1/sessions/{id}/capture?lines=N` (RBAC sessions.read, viewer-ok;
+  lines default 20, max 200 — clamp; 404 нет сессии; 409 tmux недоступен/мёртв).
+- **Адаптеры** (`Capture` в интерфейсе `runtime.Adapter`):
+  tmux → `capture-pane -t <ref> -p -S -N` (реальный экран); pi → delegate tmux;
+  process → `ErrNoScreen` (нет экрана → service использует log-tail).
+  Сентинелы `ErrTmuxUnavailable`/`ErrTmuxSessionDead` → 409 (не 500, clear reason);
+  дед-детекция: `can't find pane/session` + `no session` (defensive).
+- **Асимметрия** (документация): tmux/pi = экран (`tmux-pane`), process = лог
+  (`log-tail`: tail `<LogsDir>/session-<id>.log`). process без лога → 200 пустые
+  lines (честность, не ошибка).
+- **Сохранение**: `<LogsDir>/captures/session-<id>-<unixnano>.txt`; `saved_path`
+  в ответе; **bounded-cleanup ≤20 снапшотов/сессию** (`captureMaxPerSession`).
+- **HTTP**: `CaptureSession` (`session_handlers.go`); route `GET /api/v1/sessions/{id}/capture`
+  (RBAC sessions.read через дефолт GET — middleware без правки).
+- **Тесты**: runtime (process no-screen, tmux dead, tmux live-интеграция+skip);
+  service (log-tail/пустой/404/409/clamp/bounded-cleanup); HTTP (200/404/409/400/401/
+  lines param/RBAC viewer+operator).
+- **Решения** (см. `api-decisions.md` §P2.8): tmux-pane vs log-tail; 409 на мёртвый
+  tmux; сохранение+bounded-cleanup; вложение в сообщение отложено (follow-up).
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

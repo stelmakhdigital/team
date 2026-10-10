@@ -498,6 +498,18 @@ unread-алерт **diagnostics_fail** (critical, link на Health) в **Attenti
 файлам (case-insensitive, tail-ограничение, read-only). Ссылка:
 `docs/contracts/api-decisions.md` §P2.7.
 
+### 6.2. Capture — стл-кадр экрана сессии (P2.8)
+
+«Стл-кадр» экрана/вывода сессии — последние N строк как артефакт (можно
+скопировать/сохранить). На **Session Detail** → кнопка **«📷 Capture»** (в карточке
+Transcript) → модалка со снимком (mono, readonly), **source** (`tmux-pane`/
+`log-tail`), `captured_at`, `saved_path` (путь к сохранённому снапшоту) + «📋 Copy».
+**API**: `GET /api/v1/sessions/{id}/capture?lines=N` (RBAC sessions.read, viewer-ok;
+lines default 20, max 200). Механика: **tmux/pi → `tmux capture-pane`** (реальный
+экран; мёртвый tmux → 409 с причиной), **process → log-tail** (у process нет экрана
+— лог; файла нет → пустой снимок). Снимок сохраняется в `<logs>/captures/` (bounded:
+≤20 на сессию). Read-only. Ссылка: `docs/contracts/api-decisions.md` §P2.8.
+
 ---
 
 ## 7. Безопасность (ключи и RBAC)

@@ -1116,3 +1116,63 @@ detail-UI), `briefing_path` (process/tmux: путь к файлу). `SessionRepo
 ### Follow-up (вне v1)
 - точный line-скролл в live-терминале; индексация транскриптов (FTS) для больших
   объёмов; поиск по всем файлам (не только tail).
+
+## P2.8. Capture — стл-кадр экрана сессии (T-20261010153631)
+
+**Цель**: оператор получает «стл-кадр» экрана/вывода сессии (последние N строк)
+как артефакт — можно сохранить/прикрепить. Базис для P2.11 (send verify).
+Read-only для сессии (не влияет на её работу).
+
+### Эндпоинт
+- `GET /api/v1/sessions/{id}/capture?lines=N`
+- **RBAC `sessions.read`** (viewer-ok; дефолт GET → `res.read`, middleware без правки).
+- `lines` — **default 20, max 200** (больше → **clamp к 200**, не 400 — задокум.).
+- Ответ: `{session_id, runtime_type, lines[], captured_at, source,
+  saved_path}`. `source` ∈ `tmux-pane` | `log-tail`.
+
+### Механика: tmux-pane vs log-tail (асимметрия, задокументирована)
+- **tmux / pi** (pi = tmux внутри, `daemon-session-<id>`): `tmux capture-pane -t <ref>
+  -p -S -<N>` — **реальный экран** панели (не лог). Это «стл-кадр» в полном смысле.
+- **process**: у process **нет «экрана»** — только лог. Возвращаем **log-tail**:
+  tail transcript-файла `<LogsDir>/session-<id>.log` (последние N строк).
+  Асимметрия осознанная: process-рантайм не имеет GUI/терминала.
+- `Capture` вынесен в **интерфейс адаптера** (`Capture(ctx, ref, lines)
+  ([]string, error)`): tmux → capture-pane; pi → delegate tmux; process →
+  `ErrNoScreen` (service тогда использует log-tail). Это даёт мок в тестах.
+
+### 409 на мёртвый tmux (не 500) + честность
+- tmux **не установлен** (`ErrTmuxUnavailable`) или **сессия мертва/отсутствует**
+  (`ErrTmuxSessionDead`) → **409** с понятной причиной (clear reason). Не 500.
+- Дед-детекция: реальный tmux отдаёт `can't find pane/session` (проверка на
+  `can't find` + `no session` — defensive).
+- **Сессия не найдена** (нет в БД) → **404**.
+- **process без лога** → **200 с пустыми `lines`** + `source=log-tail` (не ошибка —
+  честность: у сессии ещё не было вывода). Задокументировано.
+
+### Сохранение снапшота + bounded-cleanup
+- Каждый capture пишется в `<LogsDir>/captures/session-<id>-<unixnano>.txt`.
+- `saved_path` — в ответе (оператор видит, где лежит артефакт).
+- **Bounded-cleanup**: держать **≤20 снапшотов на сессию** (`captureMaxPerSession`);
+  старые удаляются (сортировка по unixnano из имени). Глобального потолка нет
+  (20/сессию — предсказуемо + достаточно для v1). Задокументировано.
+
+### Вложение в сообщение/задачу — отложено (не блокирует)
+Возможность прикрепить последний capture в форме сообщения/комментария задачи —
+**не сделано** в v1: потребовало бы отдельного media-контракта (storage, ссылки,
+RBAC на артефакты) — большая правка, не по теме capture. Зафиксировано как
+**follow-up** (см. ниже). Capture доступен + сохраняется (`saved_path`) — этого
+достаточно для P2.11 (send verify) и ручной передачи артефакта.
+
+### Тесты
+- **runtime**: process → `ErrNoScreen`; tmux dead → `ErrTmuxSessionDead`; **tmux
+  live-интеграция** (реальный tmux: start + capture → строки; `t.Skip` без tmux).
+- **service**: process/log-tail (tail), process **без лога → пустые**, 404, **409
+  (tmux dead)**, lines **clamp** (>200→200, 0→default 20), **bounded-cleanup**
+  (25 capture → ≤20).
+- **HTTP**: 200 (process) + source/saved_path, lines param, **404**, **409** (tmux
+  dead), 400 (lines не число), 401, **RBAC viewer+operator → 200**.
+
+### Follow-up (вне v1)
+- вложение capture в сообщение/задачу (media-контракт);
+- глобальный потолок снапшотов + TTL; capture с пометкой/комментарием;
+- diff-снимков (что изменилось на экране с последнего capture).
