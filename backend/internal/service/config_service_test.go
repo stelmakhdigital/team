@@ -118,6 +118,8 @@ func TestConfigRegistryCompleteness(t *testing.T) {
 		"security.agent_specs_dir": "path",
 		// logging
 		"logging.level": "string",
+		// cost (P2.14)
+		"cost.model_prices": "string", "cost.budget_alert_cents": "integer",
 		// workspace (U4 — новый)
 		"workspace.root": "path", "workspace.artifacts_dir": "path",
 		"workspace.screenshots_dir": "path", "workspace.logs_dir": "path",
@@ -138,7 +140,8 @@ func TestConfigRegistryCompleteness(t *testing.T) {
 	// P1.5 sessions.context_wall_pct = false, т.к. читаются в рантайме, а не на старте),
 	// editable/secret-флаги
 	for _, spec := range svc.Registry() {
-		if !spec.RequiresRestart && spec.Key != "tasks.closure_required_secs" && spec.Key != "sessions.context_wall_pct" {
+		if !spec.RequiresRestart && spec.Key != "tasks.closure_required_secs" && spec.Key != "sessions.context_wall_pct" &&
+			spec.Key != "cost.model_prices" && spec.Key != "cost.budget_alert_cents" {
 			t.Errorf("key %s: requires_restart = false, want true", spec.Key)
 		}
 		if spec.Key == "tasks.closure_required_secs" && spec.RequiresRestart {
@@ -400,7 +403,7 @@ func TestConfigMetaAndHash(t *testing.T) {
 	for _, s := range resp1.Sections {
 		names = append(names, s.Name)
 	}
-	want := []string{"server", "storage", "tasks", "sessions", "watchdog", "security", "logging", "workspace"}
+	want := []string{"server", "storage", "tasks", "sessions", "watchdog", "security", "logging", "cost", "workspace"}
 	if len(names) != len(want) {
 		t.Fatalf("sections = %v, want %v", names, want)
 	}

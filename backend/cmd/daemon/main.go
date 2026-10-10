@@ -161,6 +161,15 @@ func run() error {
 		return err
 	}
 
+	// P2.14 — Cost tracking: оценка стоимости по токенам + ценам (cost.model_prices).
+	costSvc := service.NewCostService(cvc)
+	ssvc.SetCostService(costSvc)
+	// P2.14: dashboard-серия стоимости (llm_cost_usd) — по сессиям (bounded).
+	msvcMetrics.CostSeries = ssvc.CostSeries
+	// P2.14: budget-порог → watchdog-алерт (dedup: cooldown).
+	wd.TotalCost = ssvc.CostForAll
+	wd.CostSvc = costSvc
+
 	// P0.2: дедлайн закрытия читает tasks.closure_required_secs на момент перехода
 	// в in_progress (layered resolution, restart=false).
 	tsvc.ClosureRequiredFunc = func(ctx context.Context) (time.Duration, error) {

@@ -829,6 +829,8 @@ type TaskDetail struct {
 	Task     *TaskView   `json:"task"`
 	Subtasks []*TaskView `json:"subtasks"`
 	Wake     *WakeView   `json:"wake,omitempty"` // P0.3: current/most-recent wake
+	// P2.14: оценка стоимости задачи (сумма сессий); null/omit = «нет данных».
+	EstimatedCost *CostInfo `json:"estimated_cost,omitempty"`
 }
 
 func (s *TaskService) GetTask(ctx context.Context, id int64) (*TaskDetail, error) {

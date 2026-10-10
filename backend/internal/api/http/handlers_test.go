@@ -72,6 +72,9 @@ func newTestServerSeeded(t *testing.T, apiKeys []string, seedStarters bool) *htt
 	if err != nil {
 		t.Fatalf("config service: %v", err)
 	}
+	// P2.14: cost tracking (оценка стоимости)
+	ssvc.SetCostService(service.NewCostService(cvc))
+	msvcMetrics.CostSeries = ssvc.CostSeries
 	attention := service.NewAttentionService(db, repository.NewStores(db))
 	bus := service.NewEventBus()
 	tsvc.Bus = bus

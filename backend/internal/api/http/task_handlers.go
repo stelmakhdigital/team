@@ -113,6 +113,9 @@ func (h *handlers) GetTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
+	if h.ssvc != nil {
+		detail.EstimatedCost = h.ssvc.CostForTask(r.Context(), id) // P2.14
+	}
 	writeJSON(w, http.StatusOK, detail)
 }
 

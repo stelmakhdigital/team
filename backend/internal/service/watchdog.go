@@ -51,6 +51,10 @@ type WatchdogService struct {
 	LiveSession func(ctx context.Context, sessionID int64) (*SessionView, error)
 	// P1.6: fire watchdog-wakes parked-задач (подвязка на TaskService.FireArmedWatchdogWakes).
 	FireWatchdogWakes func(ctx context.Context, jobID string) int
+	// P2.14: budget-порог. TotalCost — общая стоимость (оценка); CostSvc — порог.
+	// nil = budget-алерт выключен.
+	TotalCost func(ctx context.Context) *CostInfo
+	CostSvc   *CostService
 }
 
 func NewWatchdogService(db *sql.DB, s *repository.Stores, cfg WatchdogConfig) *WatchdogService {
@@ -86,6 +90,8 @@ func (w *WatchdogService) Scan(ctx context.Context) int {
 	n += w.checkFailedSessions(ctx)
 	// P1.6: watchdog-джобы (context-usage-threshold) — fire / dead-target.
 	n += w.checkContextThresholdJobs(ctx)
+	// P2.14: budget-порог → watchdog-алерт (dedup: cooldown).
+	n += w.checkBudgetAlert(ctx)
 	// P0.3: timer-wakes, чей срок наступил → разблокировка (не создаёт алерт).
 	if w.FireTimerWakes != nil {
 		w.FireTimerWakes(ctx)
@@ -197,6 +203,53 @@ func (w *WatchdogService) checkFailedSessions(ctx context.Context) int {
 		}
 	}
 	return n
+}
+
+// ---------- P2.14: budget-порог → watchdog-алерт ----------
+
+const budgetAlertCooldown = time.Hour
+
+// checkBudgetAlert — если cost.budget_alert_cents > 0 и общая стоимость (оценка)
+// > порога → алерт (type=budget, high). Dedup: cooldown budgetAlertCooldown
+// (не спамить каждый скан). «Нет данных» (null) → алерт не создаётся.
+func (w *WatchdogService) checkBudgetAlert(ctx context.Context) int {
+	if w.TotalCost == nil || w.CostSvc == nil {
+		return 0
+	}
+	thresholdCents, err := w.CostSvc.BudgetAlertCents(ctx)
+	if err != nil || thresholdCents <= 0 {
+		return 0 // выключен
+	}
+	total := w.TotalCost(ctx)
+	if total == nil || !total.HasData || total.CostUSD == nil {
+		return 0 // нет данных (не 0)
+	}
+	totalCents := int64(*total.CostUSD*100 + 0.5)
+	if totalCents <= thresholdCents {
+		return 0 // ниже порога
+	}
+	// dedup: было ли budget-событие за последние cooldown?
+	recent, err := w.events.ExistsRecentByType(ctx, w.db, "budget", time.Now().UTC().Add(-budgetAlertCooldown))
+	if err != nil || recent {
+		return 0
+	}
+	// watchdog_events.team_id — FK на teams(id): глобальный budget-алерт привязываем
+	// к первой команде (sentinel). Нет команд → алерт не создаётся.
+	var teamID int64
+	if err := w.db.QueryRowContext(ctx, `SELECT id FROM teams ORDER BY id LIMIT 1`).Scan(&teamID); err != nil {
+		return 0 // нет команд (или БД-ошибка) — не создаём глобальный алерт
+	}
+	desc := fmt.Sprintf("total LLM cost $%.2f (estimate) exceeds budget threshold $%.2f",
+		*total.CostUSD, float64(thresholdCents)/100)
+	ev := &models.WatchdogEvent{
+		TeamID: teamID, EventType: "budget", Severity: "high",
+		Description: desc, RequiresAction: true,
+	}
+	if err := w.events.Create(ctx, w.db, ev); err != nil {
+		return 0
+	}
+	w.publishAlert(ev)
+	return 1
 }
 
 // ---------- P1.6: watchdog-джобы (context-usage-threshold) ----------

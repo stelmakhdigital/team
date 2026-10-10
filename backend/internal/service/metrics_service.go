@@ -11,6 +11,9 @@ import (
 // llm_tokens = 0 (LLM-агентов в сборке нет; появится с runtime-агентами).
 type MetricsService struct {
 	db *sql.DB
+	// P2.14: cost series (ниль = llm_cost_usd все 0). Вызывается для расчёта
+	// стоимости по сессиям (log reads, bounded); bucketed по периоду.
+	CostSeries func(ctx context.Context, start, end time.Time, bucket time.Duration) ([]TimeSeriesPoint, error)
 }
 
 func NewMetricsService(db *sql.DB) *MetricsService { return &MetricsService{db: db} }
@@ -43,6 +46,7 @@ type MetricsResult struct {
 		SessionsActive []TimeSeriesPoint `json:"sessions_active"`
 		QueueSize      []TimeSeriesPoint `json:"queue_size"`
 		LLMTokens      []TimeSeriesPoint `json:"llm_tokens"`
+		LLMCostUSD     []TimeSeriesPoint `json:"llm_cost_usd"` // P2.14
 	} `json:"metrics"`
 }
 
@@ -124,6 +128,21 @@ func (s *MetricsService) Get(ctx context.Context, r MetricsRange) (*MetricsResul
 		t := start.Add(time.Duration(i) * bucket)
 		out.Metrics.LLMTokens = append(out.Metrics.LLMTokens,
 			TimeSeriesPoint{Timestamp: t.Format(time.RFC3339), Value: 0})
+	}
+	// P2.14: стоимость (оценка) — по сессиям (log reads, bounded). Нил/ошибка → все 0
+	// (как llm_tokens; «нет данных» на сущность — в detail, не здесь).
+	out.Metrics.LLMCostUSD = make([]TimeSeriesPoint, 0, metricsPoints)
+	if s.CostSeries != nil {
+		if pts, err := s.CostSeries(ctx, start, end, bucket); err == nil && len(pts) == metricsPoints {
+			out.Metrics.LLMCostUSD = pts
+		}
+	}
+	if len(out.Metrics.LLMCostUSD) == 0 {
+		for i := 0; i < metricsPoints; i++ {
+			t := start.Add(time.Duration(i) * bucket)
+			out.Metrics.LLMCostUSD = append(out.Metrics.LLMCostUSD,
+				TimeSeriesPoint{Timestamp: t.Format(time.RFC3339), Value: 0})
+		}
 	}
 	return out, nil
 }

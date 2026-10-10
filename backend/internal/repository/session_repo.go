@@ -16,13 +16,14 @@ import (
 type SessionRepo struct{ db *sql.DB }
 
 type SessionFilter struct {
-	TeamID    *int64
-	RoleID    *int64
-	ProjectID *int64 // P1.0: фильтр по проекту
-	State     *models.SessionState
-	Active    bool // starting|running|idle|stopping
-	Limit     int
-	Offset    int
+	TeamID      *int64
+	RoleID      *int64
+	ProjectID   *int64 // P1.0: фильтр по проекту
+	QueueTaskID *int64 // P2.14: фильтр по задаче (cost per task)
+	State       *models.SessionState
+	Active      bool // starting|running|idle|stopping
+	Limit       int
+	Offset      int
 }
 
 const sessionColumns = `id, team_id, project_id, role_id, queue_task_id, runtime_type, runtime_ref,
@@ -80,6 +81,10 @@ func (r *SessionRepo) List(ctx context.Context, tx DBTX, f SessionFilter) ([]*mo
 	if f.ProjectID != nil {
 		conds = append(conds, "project_id = ?")
 		args = append(args, *f.ProjectID)
+	}
+	if f.QueueTaskID != nil {
+		conds = append(conds, "queue_task_id = ?")
+		args = append(args, *f.QueueTaskID)
 	}
 	if f.State != nil {
 		conds = append(conds, "state = ?")
@@ -465,6 +470,16 @@ func (r *WatchdogRepo) ExistsUnread(ctx context.Context, tx DBTX, eventType stri
 func (r *WatchdogRepo) ExistsUnreadByType(ctx context.Context, tx DBTX, eventType string) (bool, error) {
 	var n int
 	err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM watchdog_events WHERE event_type = ? AND is_read = 0`, eventType).Scan(&n)
+	return n > 0, err
+}
+
+// ExistsRecentByType — было ли событие данного типа за последние `since` (read/unread).
+// P2.14: cooldown-дедуп budget-алерта (не спамить каждый скан).
+func (r *WatchdogRepo) ExistsRecentByType(ctx context.Context, tx DBTX, eventType string, since time.Time) (bool, error) {
+	var n int
+	err := tx.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM watchdog_events WHERE event_type = ? AND created_at > ?`,
+		eventType, since.Format(time.RFC3339Nano)).Scan(&n)
 	return n > 0, err
 }
 

@@ -52,6 +52,7 @@ type KeySpec struct {
 	RequiresRestart  bool
 	Editable         bool
 	Secret           bool
+	ValidateJSON     bool   // P2.14: для StrType — значение должно быть JSON-объектом
 	EnvVar           string // "" = без env-слоя (константа)
 }
 
@@ -64,6 +65,7 @@ var configSections = []struct{ name, description string }{
 	{"watchdog", "Watchdog живости сессий (stale/blocked)"},
 	{"security", "Безопасность (API-ключи, secret key, specs)"},
 	{"logging", "Логи демона (уровень)"},
+	{"cost", "Стоимость LLM-сессий (цены моделей, бюджет-порог)"},
 	{"workspace", "Рабочая область (root, артефакты, скриншоты, логи)"},
 }
 
@@ -122,6 +124,14 @@ func configRegistry() []KeySpec {
 		{Key: "logging.level", Section: "logging", Type: StrType,
 			Description: "Уровень логов (debug|info|warn|error)", Default: "info",
 			RequiresRestart: true, Editable: true, EnvVar: "DAEMON_LOG_LEVEL"},
+		{Key: "cost.model_prices", Section: "cost", Type: StrType,
+			Description: "Цены моделей, JSON-объект: {\"<model>\":{\"in_usd_per_mtok\":N,\"out_usd_per_mtok\":N}}. " +
+				"Default {} = цены не заданы → стоимость «нет данных». (P2.14)",
+			Default: `{}`, RequiresRestart: false, Editable: true, ValidateJSON: true, EnvVar: "DAEMON_COST_MODEL_PRICES"},
+		{Key: "cost.budget_alert_cents", Section: "cost", Type: IntType,
+			Description: "Порог бюджета в ЦЕНТАХ для watchdog-алерта (0 = выключен). " +
+				"Если стоимость всех сессий > порога → алерт (dedup). (P2.14)",
+			Default: "0", RequiresRestart: false, Editable: true, EnvVar: "DAEMON_COST_BUDGET_ALERT_CENTS"},
 		{Key: "workspace.root", Section: "workspace", Type: PathType,
 			Description: "Корень workspace (дефолт — cwd)", Default: ".",
 			DefaultIsDerived: true, RequiresRestart: true, Editable: true, EnvVar: "DAEMON_WORKSPACE_ROOT"},
@@ -318,6 +328,30 @@ func (s *ConfigService) ResolveInt(ctx context.Context, key string) (int, error)
 		return 0, NewInternal(fmt.Errorf("config key %q: unexpected integer value", key))
 	}
 	return int(n), nil
+}
+
+// ResolveString — layered value (default < file < env < override) as string (P2.14).
+func (s *ConfigService) ResolveString(ctx context.Context, key string) (string, error) {
+	spec, ok := s.byKey[key]
+	if !ok {
+		return "", NewNotFound("config key " + key)
+	}
+	if spec.Type != StrType && spec.Type != PathType {
+		return "", NewValidation(fmt.Sprintf("config key %q is not a string", key))
+	}
+	overrides, err := s.repo.All(ctx, s.db)
+	if err != nil {
+		return "", NewInternal(err)
+	}
+	r, err := s.resolve(spec, overrides)
+	if err != nil {
+		return "", err
+	}
+	str, ok := r.Value.(string)
+	if !ok {
+		return "", NewInternal(fmt.Errorf("config key %q: unexpected string value", key))
+	}
+	return str, nil
 }
 
 // ---------- Layered resolution: default < file < env < override ----------
@@ -562,6 +596,17 @@ func parseOverrideValue(spec *KeySpec, raw json.RawMessage) (string, any, error)
 		var v string
 		if err := json.Unmarshal(raw, &v); err != nil {
 			return "", nil, typErr()
+		}
+		// P2.14: cost.model_prices — значение должно быть JSON-объектом (не скаляр/массив).
+		if spec.ValidateJSON && v != "" {
+			trimmed := strings.TrimSpace(v)
+			if !strings.HasPrefix(trimmed, "{") {
+				return "", nil, NewValidation(fmt.Sprintf("value for key %q must be a JSON object", spec.Key))
+			}
+			var obj map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(trimmed), &obj); err != nil {
+				return "", nil, NewValidation(fmt.Sprintf("value for key %q is not valid JSON object: %v", spec.Key, err))
+			}
 		}
 		return v, v, nil
 	case BoolType:

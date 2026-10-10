@@ -87,12 +87,18 @@ func (h *handlers) GetProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
+	// P2.14: стоимость проекта (оценка); nil = ssvc не подключён / «нет данных».
+	var projectCost *service.CostInfo
+	if h.ssvc != nil {
+		projectCost = h.ssvc.CostForProject(r.Context(), id)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"project": projectView(&summary.Project),
 		"counts": map[string]any{
 			"teams": summary.Counts.Teams, "tasks": summary.Counts.Tasks,
 			"active_sessions": summary.Counts.ActiveSessions,
 		},
+		"estimated_cost": projectCost,
 	})
 }
 

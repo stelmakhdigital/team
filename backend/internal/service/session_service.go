@@ -51,6 +51,8 @@ type SessionService struct {
 	// P1.5 — compact-plan: sessions.context_wall_pct в рантайме (layered config).
 	// nil = дефолт 80.
 	ContextWallPctFunc func(ctx context.Context) (int, error)
+	// P2.14 — cost: оценка стоимости сессий (nil = стоимость не считается).
+	cost *CostService
 	// P1.5 — handover: переиспользуем существующую механику handoff задачи
 	// (TaskService.HandoffTask). nil = task-шаг handover skipped.
 	TaskHandoffFunc func(ctx context.Context, req HandoffTaskRequest) (*HandoffTaskResult, error)
@@ -71,6 +73,9 @@ func NewSessionService(db *sql.DB, s *repository.Stores, rt *runtime.Registry) *
 		tails: make(map[int64]*tailState),
 	}
 }
+
+// SetCostService — P2.14: подключить расчёт стоимости (оценка по токенам).
+func (s *SessionService) SetCostService(c *CostService) { s.cost = c }
 
 type CreateSessionRequest struct {
 	RoleID      int64          `json:"role_id"`
@@ -561,7 +566,9 @@ type SessionView struct {
 	ContextUsedPercentage    *float64 `json:"context_used_percentage,omitempty"`
 	ContextTotalInputTokens  *int64   `json:"context_total_input_tokens,omitempty"`
 	ContextTotalOutputTokens *int64   `json:"context_total_output_tokens,omitempty"`
-	LogPath                  string   `json:"log_path,omitempty"`
+	// P2.14 — оценка стоимости (estimate). null/omit = «нет данных» (не 0).
+	EstimatedCost *CostInfo `json:"estimated_cost,omitempty"`
+	LogPath       string    `json:"log_path,omitempty"`
 	// P1.7 — briefing (startup context): что передано агенту.
 	BriefingApplied string `json:"briefing_applied,omitempty"` // builtin|override|none
 	BriefingPath    string `json:"briefing_path,omitempty"`    // файл (process/tmux)
@@ -645,6 +652,10 @@ func (s *SessionService) viewsFor(ctx context.Context, sessions []*models.Sessio
 			v.StoppedAt = ptr(x.StoppedAt.Format(rfc3339))
 		}
 		s.enrichLiveMetrics(v, x)
+		// P2.14: оценка стоимости (estimate) по токенам + цене модели.
+		if s.cost != nil {
+			v.EstimatedCost = s.cost.SessionCost(ctx, v.ContextTotalInputTokens, v.ContextTotalOutputTokens, v.Model)
+		}
 		// P1.7: briefing из config (только applied+path в списке; text — в detail)
 		if ba := cfgStr(x.Config, "briefing_applied"); ba != "" {
 			v.BriefingApplied = ba
