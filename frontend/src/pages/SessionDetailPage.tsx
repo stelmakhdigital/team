@@ -75,6 +75,21 @@ export default function SessionDetailPage() {
             </dl>
           </div>
 
+          {s.briefing_applied ? (
+            <div className="card briefing-card">
+              <h2>Briefing (startup context)</h2>
+              <div className="briefing-delivery">
+                <span className="badge badge--entity">{s.briefing_applied}</span>
+                {s.briefing_path ? <span className="muted small"> · {s.briefing_path}</span> : null}
+              </div>
+              {s.briefing_text ? (
+                <pre className="briefing-text">{s.briefing_text}</pre>
+              ) : (
+                <p className="muted">Брифинг сформирован (текст в {s.briefing_path || 'конфиге сессии'}).</p>
+              )}
+            </div>
+          ) : null}
+
           <div className="card">
             <h2>Transcript ({transcript.length})</h2>
             {trans.loading ? (

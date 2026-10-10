@@ -103,6 +103,8 @@ import type {
   WorkflowStep,
   ListWorkflowInstancesResponse,
   // P1.5: handover + compact-plan
+  BriefingPreviewRequest,
+  BriefingPreviewResponse,
   CompactPlanResponse,
   HandoverRequest,
   HandoverResult,
@@ -172,6 +174,7 @@ export interface Api {
     stop(id: number): Promise<StopSessionResponse>;
     getCompactPlan(): Promise<CompactPlanResponse>; // P1.5
     handover(id: number, req: HandoverRequest): Promise<HandoverResult>; // P1.5
+    previewBriefing(teamId: number, req: BriefingPreviewRequest): Promise<BriefingPreviewResponse>; // P1.7
   };
   tasks: {
     list(params?: ListTasksParams): Promise<GetTasksResponse>;

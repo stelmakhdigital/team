@@ -1,4 +1,6 @@
-import type { TopologyError, TopologyWarning } from '../../types/api';
+import { useState } from 'react';
+import type { Role, TopologyError, TopologyWarning } from '../../types/api';
+import BriefingPreviewModal from '../BriefingPreviewModal';
 
 interface BottomPanelProps {
   validating: boolean;
@@ -8,10 +10,27 @@ interface BottomPanelProps {
   onSave: () => void;
   onDeleteSelection: (() => void) | null;
   selectionLabel: string | null;
+  teamId: number;
+  roles: Role[];
+  selectedRole?: Role;
 }
 
 export default function BottomPanel(props: BottomPanelProps) {
-  const { validating, validation, onValidate, saving, onSave, onDeleteSelection, selectionLabel } = props;
+  const {
+    validating,
+    validation,
+    onValidate,
+    saving,
+    onSave,
+    onDeleteSelection,
+    selectionLabel,
+    teamId,
+    roles,
+    selectedRole,
+  } = props;
+  const [briefingRole, setBriefingRole] = useState<Role | null>(null);
+  const previewRole = selectedRole ?? roles[0];
+
   return (
     <div className="bottom-panel">
       <div className="bottom-left">
@@ -46,6 +65,9 @@ export default function BottomPanel(props: BottomPanelProps) {
             Delete {selectionLabel}
           </button>
         )}
+        <button className="btn" onClick={() => previewRole && setBriefingRole(previewRole)} disabled={!previewRole} title="П1.7: предпросмотр брифинга при запуске роли">
+          📋 Брифинг
+        </button>
         <button className="btn" onClick={onValidate} disabled={validating}>
           {validating ? 'Validating…' : 'Validate'}
         </button>
@@ -53,6 +75,8 @@ export default function BottomPanel(props: BottomPanelProps) {
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
+
+      {briefingRole ? <BriefingPreviewModal teamId={teamId} role={briefingRole} onClose={() => setBriefingRole(null)} /> : null}
     </div>
   );
 }

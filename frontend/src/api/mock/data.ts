@@ -408,6 +408,11 @@ function seed(): DB {
       context_total_input_tokens: 84_000,
       context_total_output_tokens: 1_200,
       log_path: 'mock/logs/session-1.log',
+      // P1.7: session briefing
+      briefing_applied: 'builtin',
+      briefing_path: 'mock/briefings/session-1.md',
+      briefing_text:
+        '# Session briefing\n\n## Task\n- Implement auth middleware (state: in_progress, id: 1)\n\n## Team\n- команда: Dev Team\n- адрес: core.lead\n\n## Project\n- project: team-console (path: /home/arkalaust/CODE/PROJECTS/team)\n- git: branch main @ 3fa9c21\n\n## Recent\n- сообщение от lead: «продолжаем по плану»',
     },
     {
       id: 2,

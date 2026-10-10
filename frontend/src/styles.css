@@ -888,6 +888,19 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .handover-status--partial { color: var(--yellow); }
 .handover-status--failed { color: var(--red); }
 
+/* ---------- P1.7: session briefing ---------- */
+.briefing-modal { width: min(640px, 94vw); }
+.briefing-opts { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.briefing-opts .field { display: flex; flex-direction: column; gap: 4px; }
+.briefing-delivery { margin: 8px 0; font-size: 0.9rem; }
+.briefing-text {
+  background: rgba(0, 0, 0, 0.28); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; margin: 8px 0; white-space: pre-wrap; word-break: break-word;
+  font-size: 0.85rem; max-height: 46vh; overflow: auto;
+}
+.briefing-card { border-left: 3px solid var(--accent); }
+.briefing-loading { padding: 16px 0; }
+
 /* ---------- P1.6: watchdog-джобы ---------- */
 .watchdog-form { margin-top: 16px; }
 .watchdog-form-grid {

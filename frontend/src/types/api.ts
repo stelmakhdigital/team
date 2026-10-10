@@ -701,6 +701,10 @@ export interface Session {
   context_total_input_tokens?: number;
   context_total_output_tokens?: number;
   log_path?: string;
+  // P1.7: Session briefing (запускающий контекст)
+  briefing_applied?: string; // builtin | override | none (пусто = без брифинга)
+  briefing_path?: string; // process/tmux: путь к файлу
+  briefing_text?: string; // detail: полный текст
 }
 
 export interface GetSessionsResponse {
@@ -832,6 +836,10 @@ export interface SessionDetail {
   context_total_input_tokens?: number;
   context_total_output_tokens?: number;
   log_path?: string;
+  // P1.7: Session briefing
+  briefing_applied?: string;
+  briefing_path?: string;
+  briefing_text?: string;
 }
 
 export interface ListSessionsParams {
@@ -921,6 +929,49 @@ export interface StopSessionResponse {
   id: number;
   state: SessionState;
   status: 'stopped';
+}
+
+// ---- P1.7: Session briefing (запускающий контекст) ----
+
+export interface BriefingPreviewRequest {
+  role_id: number;
+  queue_task_id?: number;
+  override?: string;
+  append?: string;
+  runtime_type?: RuntimeType;
+  working_dir?: string;
+  project_id?: number;
+}
+
+export interface BriefingTask {
+  id: number;
+  title: string;
+  state: string;
+  body?: string;
+  parent_id?: number;
+  project?: string;
+  recent?: { kind: string; text: string; at?: string }[];
+}
+
+export interface BriefingGit {
+  branch: string;
+  head: string;
+  commits?: string[];
+}
+
+export interface BriefingData {
+  task?: BriefingTask;
+  team?: { name: string; address?: string; neighbors?: string[] };
+  project?: { name: string; path: string; git?: BriefingGit; open_tasks: number; active_tasks?: { id: number; title: string; state: string }[] };
+  messages?: { kind: 'direct' | 'chatroom'; from?: string; body: string; at?: string }[];
+  alerts?: { title: string; description?: string; age_secs?: number }[];
+}
+
+export interface BriefingPreviewResponse {
+  briefing_text: string;
+  briefing_data: BriefingData;
+  briefing_applied: 'builtin' | 'override' | 'none';
+  delivery: { mode: 'pi-system-prompt' | 'file-env'; detail: string };
 }
 
 // ---- Message Center ----

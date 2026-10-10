@@ -95,6 +95,10 @@ function toSessionDetail(s: Session): SessionDetail {
     context_total_input_tokens: s.context_total_input_tokens,
     context_total_output_tokens: s.context_total_output_tokens,
     log_path: s.log_path,
+    // P1.7: session briefing
+    briefing_applied: s.briefing_applied,
+    briefing_path: s.briefing_path,
+    briefing_text: s.briefing_text,
   };
 }
 function clone<T>(v: T): T {
@@ -1016,9 +1020,14 @@ export function createMockAdapter(): Api {
           context_total_input_tokens: 84_000,
           context_total_output_tokens: 1_200,
           log_path: `mock/logs/session-${id}.log`,
+          // P1.7: session briefing (mock)
+          briefing_applied: 'builtin',
+          briefing_path: `mock/briefings/session-${id}.md`,
+          briefing_text:
+            `# Session briefing\n\n## Task\n- ${task ? task.title : '— (нет задачи)'} (state: ${task?.state ?? '—'})\n\n## Team\n- команда: ${team.name}\n- адрес: core.${role.name}\n\n## Project\n- git: branch main @ 3fa9c21 (mock)\n\n## Recent\n- сообщение от lead: «продолжаем по плану»`,
         });
         db.audit.unshift({ id: nextId(), timestamp: at, action: 'session.create', resource: `session:${id}` });
-        return { id, state: 'running', status: 'started' };
+        return { id, state: 'running', status: 'started', briefing_applied: 'builtin', briefing_path: `mock/briefings/session-${id}.md` };
       },
 
       async get(id) {
@@ -1133,6 +1142,47 @@ export function createMockAdapter(): Api {
             context_file: `mock/handovers/handover-${id}.md`, transcript_path: s.log_path, lines: 200,
             task: task ? { id: task.id, title: task.title, state: 'in_progress', new_id: newTaskId } : undefined,
           },
+        };
+      },
+
+      // P1.7: preview-брифинг (mock)
+      async previewBriefing(teamId, req) {
+        await latency();
+        const db = getDb();
+        const team = db.teams.find((t) => t.id === teamId);
+        if (!team) throw new ApiClientError(404, 'not_found', `Team ${teamId} not found`);
+        const role = db.roles.find((r) => r.id === req.role_id && r.team_id === teamId);
+        if (!role) throw new ApiClientError(404, 'not_found', `Role ${req.role_id} not found in team ${teamId}`);
+        const task = req.queue_task_id != null ? db.tasks.find((t) => t.id === req.queue_task_id) : undefined;
+        const applied = req.override ? 'override' : 'builtin';
+        const text = [
+          `# Session briefing`,
+          ``,
+          `## Task`,
+          task ? `- ${task.title} (state: ${task.state}, id: ${task.id})` : '- — (задача не выбрана)',
+          ``,
+          `## Team`,
+          `- команда: ${team.name}`,
+          `- адрес: core.${role.name}`,
+          `- соседи: — (mock)`,
+          ``,
+          `## Project`,
+          `- project: demo (path: /home/demo)`,
+          `- git: branch main @ 3fa9c21 (mock)`,
+          ``,
+          `## Recent`,
+          `- сообщение от lead: «продолжаем по плану»`,
+        ].join('\n');
+        return {
+          briefing_text: req.override ? `# Override briefing\n${req.override}` : text,
+          briefing_data: {
+            task: task ? { id: task.id, title: task.title, state: task.state } : undefined,
+            team: { name: team.name, address: `core.${role.name}`, neighbors: [] },
+            project: { name: 'demo', path: '/home/demo', git: { branch: 'main', head: '3fa9c21' }, open_tasks: 3 },
+            messages: [{ kind: 'direct', from: 'lead', body: 'продолжаем по плану' }],
+          },
+          briefing_applied: applied as 'builtin' | 'override' | 'none',
+          delivery: (req.runtime_type ?? 'pi') === 'pi' ? { mode: 'pi-system-prompt' as const, detail: 'config: system_prompt' } : { mode: 'file-env' as const, detail: 'file: <logs>/briefings/<id>.md + BRIEFING_FILE' },
         };
       },
     },

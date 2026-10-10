@@ -332,6 +332,28 @@ runtime `pi`/`tmux`/`process`.
 **UI**: панель «Context wall» в Dashboard + контекст-стенa banner на сессии с
 кнопкой «Продолжить в новой сессии» (модалка: reason → Показать план → Выполнить).
 
+#### 5.2.2. Session briefing — «входящий контекст при запуске» (P1.7)
+
+При запуске сессии агент получает компактный **briefing** — «что я делаю, где я,
+чего ждали, что новое»: задача (если в контексте) + последние переходы, команда
+(адрес + соседи), проект (git branch/head + открытые задачи), последние сообщения
+(direct + chatroom) и unread-alerts.
+
+**Как передать агенту** (по адаптеру):
+- **pi** → `system_prompt` в pi-конфиге (merges с handover-prompt P1.5);
+- **process/tmux** → файл `<logs>/briefings/<id>.md` + env `BRIEFING_FILE`.
+
+**Персонализация** (config сессии): `briefing` (`"none"` = выключить),
+`briefing_override` (свой текст вместо builtin), `briefing_append` (добавка в конец).
+
+**UI**:
+- **TeamBuilder** → кнопка «📋 Брифинг» → модалка «Предпросмотр брифинга»
+  (dry-run, без запуска): что агент получит + override/append-поля + delivery-режим.
+- **Session Detail** → блок «Briefing (startup context)»: applied-badge (builtin/override)
+  + путь к файлу + полный текст брифинга.
+
+**Preview API**: `POST /api/v1/teams/{id}/briefing/preview` (dry-run, без мутаций).
+
 ### 5.3. Workflow engine (close-step → next task, P1.4)
 
 Воркфлоу можно **исполнять**: каждый шаг становится задачей, и закрытие задачи

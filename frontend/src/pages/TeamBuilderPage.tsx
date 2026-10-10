@@ -407,6 +407,9 @@ export default function TeamBuilderPage() {
         onSave={onSave}
         onDeleteSelection={selectionIsRelative ? onDeleteSelection : null}
         selectionLabel={selectionIsRelative ? `${selectionIsRelative.from_role_name} → ${selectionIsRelative.to_role_name}` : null}
+        teamId={id}
+        roles={roles}
+        selectedRole={selectionIsRole}
       />
     </div>
   );
