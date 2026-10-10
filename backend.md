@@ -353,6 +353,27 @@ OpenAPI: +3 операции (всего 63); `check_openapi.py` PASS.
 - **Решения** (см. `api-decisions.md` §P1.6): порог в pct (не МБ); v1 — только
   `context-usage-threshold`; дедуп >5 п.п.; dead-target → disabled.
 
+### 3j. P1.7 — Session briefing (backend, 2026-10-10)
+- **Без миграции**: briefing-метаданные в `sessions.config` (JSON): `briefing_applied`,
+  `briefing_text`, `briefing_path`. `SessionRepo.UpdateConfig` — persist config после
+  создания (UpdateState не трогает config).
+- **BriefingService** (`service/session_briefing.go`): `Build(ctx, params)` — read-only
+  сборка canonical-брифинга (markdown + JSON) из task/team/project/git/messages/alerts.
+  Bounded-лимиты; empty/error → omit (не ломают запуск). `gitSnapshot` — read-only git
+  через `exec.CommandContext` (timeout 5s).
+- **Доставка по адаптеру** (в `SessionService.CreateSession`): pi → `system_prompt`
+  (merges с P1.5 handover-prompt); process/tmux → файл `<logs>/briefings/<id>.md` + env
+  `BRIEFING_FILE`. `BriefingFunc` (field) — nil → без брифинга (старые тесты не ломаются).
+  Override/append/disable (config): `briefing`/`briefing_override`/`briefing_append`.
+- **HTTP**: `POST /teams/{id}/briefing/preview` (dry-run, sessions.read); `POST /sessions`
+  ответ +`briefing_applied`/`briefing_path`. SessionView +`briefing_applied`/`path`(list)
+  +`briefing_text`(detail).
+- **Wiring** (`main.go`): `BriefingService` + `ssvc.BriefingFunc = briefing.Build` +
+  `Options.Briefing`.
+- **Тесты**: service core (5) + delivery (5, включая pi-config yaml + handover) + HTTP (3).
+- **Решения** (см. `api-decisions.md` §P1.7): хранение в config (без миграции); git
+  read-only; bounded; empty/error→omit; merge с P1.5 handover.
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

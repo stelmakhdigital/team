@@ -937,3 +937,61 @@ detail?}` (честный per-step отчёт: partial — не скрываем
   нужен механизм проверки диска по project-path.
 - **`periodic-reminder`** — периодический reminder (у OpenRIG есть; нам —
   низкий приоритет, покрывается timer-wake P0.3).
+
+---
+
+## P1.7. Session briefing — «входящий контекст при запуске» (T-20261010070318)
+
+**Цель**: при запуске сессии (запуск из TeamBuilder, handover-наследник, engine)
+агент получает компактный **briefing** — «что я делаю, где я, чего ждали, что
+новое» — из task (если в контексте), team (адрес + соседи), project (git +
+открытые задачи), последних сообщений (direct + chatroom) и unread-alerts.
+Передаётся **по адаптеру** (pi → system_prompt; process/tmux → файл + env).
+
+### Хранение
+**Без миграции** — briefing-метаданные в `sessions.config` (JSON):
+`briefing_applied` (builtin|override|none), `briefing_text` (canonical, для
+detail-UI), `briefing_path` (process/tmux: путь к файлу). `SessionRepo.UpdateConfig`
+персистит config после создания (UpdateState не трогает config).
+
+### Сборка (`BriefingService.Build`) — read-only, bounded
+- **task**: id/title/state/body + последние переходы (≤5, из history).
+- **team**: имя, адрес `segment.role`, соседи (relatives).
+- **project**: имя/путь; **git read-only** (`git -C <path> rev-parse/rev-list/branch`
+  через `exec.CommandContext`, timeout 5s) — branch/head/≤5 коммитов; open tasks;
+  топ-активных задач.
+- **messages**: последние direct (≤3) + chatroom (≤2) (обрезка 500 симв.).
+- **alerts**: unread (≤3).
+- **empty/error → omit** (не ошибки, не ломают запуск); git-ошибка →
+  `git.available=false` + причина.
+- **canonical**: markdown (`briefing_text`) + JSON (`briefing_data`) — один источник
+  для UI + передачи.
+
+### Передача по адаптерам
+- **pi** → `config["system_prompt"]` (merges: briefing ПЕРЕД existing handover-prompt
+  P1.5 — тот не ломается). Пишется в pi-config yaml (session-N.yaml).
+- **process/tmux** → файл `<logs>/briefings/<id>.md` + env `BRIEFING_FILE=<path>`.
+- **override/append/disable** (config): `briefing` ("none"=выкл), `briefing_override`
+  (вместо builtin), `briefing_append` (добавка). Priority: disable > override > append >
+  builtin.
+
+### Preview (dry-run)
+`POST /api/v1/teams/{id}/briefing/preview` (RBAC sessions.read) — собирает briefing
+(без мутаций) + возвращает `briefing_text` + `briefing_data` + `delivery`
+(pi-system-prompt | file-env) + `briefing_applied`. Для launch-UI TeamBuilder.
+
+### CreateSession response
+`POST /api/v1/sessions` теперь возвращает `briefing_applied` + `briefing_path`.
+
+### Тесты
+- service core (`session_briefing_test.go`, 5): full assembly, empty→omit,
+  git present (репо), git absent→omit, bounded (recent ≤5).
+- service delivery (`session_briefing_delivery_test.go`, 5): process-доставка
+  (файл+env+view), override, disabled, pi-config yaml (system_prompt), handover+briefing
+  (наследник builtin).
+- HTTP (`session_briefing_handlers_test.go`, 3): preview (200/400/404/401 + delivery),
+  RBAC (viewer 200), create-session (briefing_applied + path).
+
+### Follow-up (вне v1)
+- live-refetch briefing через WS; другие политики брифинга (drift, cost);
+  LLM-суммаризация (как у handover context wall).

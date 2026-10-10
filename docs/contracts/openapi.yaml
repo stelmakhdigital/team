@@ -248,6 +248,36 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  # ---- P1.7: session briefing (startup context) ----
+  /api/v1/teams/{id}/briefing/preview:
+    post:
+      operationId: previewBriefing
+      summary: Preview-брифинг сессии (dry-run, без мутаций)
+      description: >
+        P1.7. Собирает briefing по role (+ опц. задача/проект/override) и
+        возвращает canonical-текст (briefing_text) + данные (briefing_data) +
+        как он будет передан агенту (delivery: pi-system-prompt | file-env).
+        Без мутаций. RBAC sessions.read.
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BriefingPreviewRequest' }
+      responses:
+        '200':
+          description: Собранный брифинг + delivery-режим
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BriefingPreviewResponse' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   # ---- topology: segments / roles / relatives ----
   /api/v1/segments/{id}:
     patch:
@@ -2365,6 +2395,8 @@ components:
         uptime_seconds: { type: number }
         cpu_percent: { type: number }
         memory_bytes: { type: integer, format: int64 }
+        briefing_applied: { type: string, description: "P1.7: builtin | override | none (если пуст — без брифинга)" }
+        briefing_path: { type: string, description: "P1.7: путь к briefing-файлу (process/tmux)" }
     SessionDetail:
       allOf:
         - $ref: '#/components/schemas/Session'
@@ -2380,6 +2412,7 @@ components:
             context_total_input_tokens: { type: integer, format: int64 }
             context_total_output_tokens: { type: integer, format: int64 }
             log_path: { type: string }
+            briefing_text: { type: string, description: "P1.7: полный текст брифинга (detail)" }
     SessionsListResponse:
       type: object
       required: [sessions, total]
@@ -2408,6 +2441,8 @@ components:
         id: { type: integer, format: int64 }
         state: { type: string }
         status: { type: string, enum: [started] }
+        briefing_applied: { type: string, description: "P1.7: builtin | override | none (пусто = без брифинга)" }
+        briefing_path: { type: string, description: "P1.7: путь к briefing-файлу (process/tmux)" }
     StopSessionResponse:
       type: object
       required: [id, state, status]
@@ -2546,6 +2581,108 @@ components:
           type: array
           items: { $ref: '#/components/schemas/WatchdogJobView' }
         total: { type: integer }
+    # P1.7 — Session briefing
+    BriefingPreviewRequest:
+      type: object
+      required: [role_id]
+      properties:
+        role_id: { type: integer, format: int64 }
+        queue_task_id: { type: integer, format: int64 }
+        override: { type: string }
+        append: { type: string }
+        runtime_type: { type: string, enum: [pi, tmux, process] }
+        working_dir: { type: string }
+        project_id: { type: integer, format: int64 }
+    BriefingTask:
+      type: object
+      required: [id, title, state]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        state: { type: string }
+        body: { type: string }
+        parent_id: { type: integer, format: int64 }
+        project: { type: string }
+        recent:
+          type: array
+          items:
+            type: object
+            properties:
+              kind: { type: string }
+              text: { type: string }
+              at: { type: string, format: date-time }
+    BriefingTeam:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        address: { type: string }
+        neighbors:
+          type: array
+          items: { type: string }
+    BriefingGit:
+      type: object
+      required: [branch, head]
+      properties:
+        branch: { type: string }
+        head: { type: string }
+        commits:
+          type: array
+          items: { type: string }
+    BriefingProject:
+      type: object
+      required: [name, path, open_tasks]
+      properties:
+        name: { type: string }
+        path: { type: string }
+        git: { $ref: '#/components/schemas/BriefingGit' }
+        open_tasks: { type: integer }
+        active_tasks:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer, format: int64 }
+              title: { type: string }
+              state: { type: string }
+              priority: { type: integer }
+    BriefingData:
+      type: object
+      properties:
+        task: { $ref: '#/components/schemas/BriefingTask' }
+        team: { $ref: '#/components/schemas/BriefingTeam' }
+        project: { $ref: '#/components/schemas/BriefingProject' }
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              kind: { type: string, enum: [direct, chatroom] }
+              from: { type: string }
+              body: { type: string }
+              at: { type: string, format: date-time }
+        alerts:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              description: { type: string }
+              age_secs: { type: integer, format: int64 }
+    BriefingDelivery:
+      type: object
+      required: [mode, detail]
+      properties:
+        mode: { type: string, enum: [pi-system-prompt, file-env] }
+        detail: { type: string }
+    BriefingPreviewResponse:
+      type: object
+      required: [briefing_text, briefing_data, briefing_applied, delivery]
+      properties:
+        briefing_text: { type: string }
+        briefing_data: { $ref: '#/components/schemas/BriefingData' }
+        briefing_applied: { type: string, enum: [builtin, override, none] }
+        delivery: { $ref: '#/components/schemas/BriefingDelivery' }
     SessionHistoryEntry:
       type: object
       required: [id, session_id, to_state, actor_type, created_at]
