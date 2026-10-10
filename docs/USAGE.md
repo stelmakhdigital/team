@@ -432,8 +432,11 @@ Watchdog-джоб — повторяемая проверка по состоя�
 - `git` — read-only статус по git-проектам (branch/head).
 
 **UI**: страница **Health** (nav) — overall-баннер (ok/warn/fail) + список чек'ов +
-кнопка «Run full diagnostics». **API**: `GET /api/v1/diagnostics`, `POST
-/api/v1/diagnostics/run` (RBAC `diagnostics.read`, operator+). Ссылка:
+кнопка «Run full diagnostics» + **drill-down** (EntityLink на сессию-расхождение:
+stale 👻 / zombie 🧟). **Aлерт**: при «Run full diagnostics» fail-чеги →
+unread-алерт **diagnostics_fail** (critical, link на Health) в **Attention** (с
+дедупом). **API**: `GET /api/v1/diagnostics`, `POST /api/v1/diagnostics/run`
+(RBAC `diagnostics.read`, operator+). Ссылка:
 `docs/contracts/api-decisions.md` §P1.8.
 
 ---

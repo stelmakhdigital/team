@@ -1016,9 +1016,14 @@ detail-UI), `briefing_path` (process/tmux: путь к файлу). `SessionRepo
   (pending) → **warn**.
 - **tmux.server** — `tmux list-sessions` (ok если сервер; warn если нет —
   process/pi не зависят).
-- **sessions.divergence** — **КЛЮЧЕВОЙ (R3)**: для каждой active-сессии (БД)
-  проверка живости через `adapter.Status(runtime_ref)`. active в БД, но
-  `!Alive` в адаптере → **fail** (stale-сессия, evidence: список `#id(type)`).
+- **sessions.divergence** — **КЛЮЧЕВОЙ (R3)**: где БД-статус расходится с реальной
+  живостью, через `adapter.Status(runtime_ref)`:
+  - **stale** — active в БД, `!Alive` в адаптере → **fail** (показываем «working»,
+    а сессии нет);
+  - **zombie** (R2) — stopped/failed в БД, жив в адаптере → **warn** (утёкший
+    процесс/панель).
+  - bounded (active ≤50, stopped/failed ≤10); structured evidence
+    `stale_sessions`/`zombie_sessions` `[{id,runtime,label}]` (UI drill-down).
 - **logs.dir** — dir существует + writable (fail если нет/не запись).
 - **git** — по git-проектам (bounded 3, read-only `git -C <path> rev-parse`,
   timeout 5s, как P1.7). not-a-repo → warn; нет проектов → ok (skipped).
@@ -1029,21 +1034,38 @@ detail-UI), `briefing_path` (process/tmux: путь к файлу). `SessionRepo
 - **Read-only**: внешние вызовы (git/tmux) через `exec.CommandContext` + timeout
   (5s) — не блокируют/не зависают; ошибки отдельного чека → свой статус, не
   ломают весь прогон.
-- **Divergence** (R3): `sessions.divergence` использует существующий
-  `Adapter.Status` (process/tmux/pi) — расхождение БД↔реальность → fail.
-- **Без миграции для данных**: чек'и считаются on-the-fly; только RBAC-миграция
-  0015 (перм `diagnostics.read`, operator+).
-- **`database.MigrationStatus`** — helper (applied из `schema_migrations` vs
-  available из embedded FS).
-- **Bounded**: sessions ≤50, git ≤3 проекта.
+- **Каждый чек — отдельная функция** (`checkDaemon`, `checkDatabasePing`,
+  `checkMigrations`, `checkTmux`, `checkSessionDivergence`, `checkLogsDir`,
+  `checkGit`) → тестируются по отдельности (внутр. `diagnostics_service_checks_test.go`).
+- **Divergence** (R3+R2): `sessions.divergence` использует `Adapter.Status`
+  (process/tmux/pi) — ОБЕ стороны расхождения: stale (fail) + zombie (warn).
+- **Migrations**: 0015 (RBAC `diagnostics.read` operator+); **0016 (R2)** —
+  `diagnostics_fail` в `watchdog_events.event_type` CHECK (sqlite: пересоздание
+  таблицы; postgres: DROP/ADD CONSTRAINT).
+- **`database.MigrationStatus`** — helper (applied vs available из embedded FS).
+- **Bounded**: sessions ≤50, stopped/failed ≤10, git ≤3 проекта.
+
+### fail → Attention (P0.1) (R4, закрыт в раунде 2)
+- **`ReportFail`**: при `POST /diagnostics/run`, если есть fail-чек'и → создаёт
+  **ОДИН** unread `watchdog_events` `event_type='diagnostics_fail'` (critical,
+  `requires_action`). **Дедуп**: если unread diagnostics_fail уже есть → не
+  дублирует (`WatchdogRepo.ExistsUnreadByType`).
+- **Attention**: новый kind **`diagnostics_fail`** (critical, link **`/diagnostics`**) —
+  выпадает из unread-алертов (source `alert_unread`); `alertSeverityAndAction` +
+  `alertItem` special-case.
+- GET /diagnostics НЕ создаёт алерт (только POST /run). Alerт — best-effort
+  (не ломает ответ прогона).
 
 ### Тесты
-- service (`diagnostics_service_test.go`, 5): basic (7 чек'ов, all ok),
-  **divergence-stale** (active+dead-ref → fail), **migration-pending** (→ warn),
-  git-repo (реальное репо → ok), logs-missing (→ fail).
-- HTTP (`diagnostics_handlers_test.go`, 2): GET/POST 200 + checks, RBAC
-  (401 / viewer 403 / operator 200 + run).
+- service core (`diagnostics_service_test.go`): basic (7 чек'ов),
+  **divergence-stale** (fail), **divergence-zombie** (warn + structured evidence),
+  migration-pending (warn), git-repo (ok), logs-missing (fail).
+- service per-check (`diagnostics_service_checks_test.go`, внутр.): daemon,
+  db.ping (ok/fail), tmux, logs.dir (ok/warn/fail), git (no-projects),
+  divergence (registry-nil), **ReportFail** (create/dedup/no-fails).
+- attention: `TestAttentionDiagnosticsFail` (kind + critical + /diagnostics).
+- HTTP (`diagnostics_handlers_test.go`, 3): GET/POST 200 + checks, RBAC
+  (401/viewer-403/operator-200+run), **POST /run → unread diagnostics_fail + dedup**.
 
 ### Follow-up (вне v1)
-- disk-space по ключевым путям; fail-findings → Attention (P0.1) как алерт;
-  auto-heal (сейчас read-only).
+- disk-space по ключевым путям; auto-heal (сейчас read-only).
