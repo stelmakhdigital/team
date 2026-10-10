@@ -478,6 +478,22 @@ Attention view рендерит `session_context_wall` (high) через generic
 Follow-up: live-рефетч контекст-стены по WS (сейчас по навигации), авто-подсказка порога
 из config в UI.
 
+### 3k. Watchdog-джобы (P1.6, 2026-10-10, T-20261010022307)
+Панель джоб (список + создание + stop + delete) + watchdog-wake форма + attention.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/pages/WatchdogJobsPage.tsx` (NEW) | Список джоб (policy, target-сессия, порог, status, fired/last) + форма «Новый дjob» (name, сессия-select, порог 1-100, message) + Stop + Delete (если fired=0) |
+| `frontend/src/pages/TaskDetailPage.tsx` | Wake-форма: новый kind «watchdog» + селектор активного джоба (ref=job id) |
+| `frontend/src/App.tsx` | Маршрут `/watchdog/jobs` + nav-link «Watchdog» |
+| `frontend/src/types/api.ts` | WatchdogJob/WatchdogJobEvent/WatchdogJobDetail/WatchdogJobRegisterRequest/WatchdogJobListResponse |
+| `frontend/src/api/{types,real}.ts` + `api/mock/{adapter,data}.ts` | `watchdogJobs.list/get/register/stop/delete`; mock-симуляция + seed (2 джоба) |
+| `frontend/src/styles.css` | watchdog-panel/list/item/form/status CSS |
+| `frontend/tests/watchdogJobs.test.tsx` (NEW) | тесты: список джоб, создание (валидации), stop, attention watchdog_job |
+
+Attention рендерит `watchdog_job` (high) через generic `link.path` → `/sessions/{id}`
+(без изменений в AttentionPage).
+
 ## 5. Команды
 ```bash
 cd frontend

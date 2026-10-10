@@ -320,6 +320,39 @@ OpenAPI: +3 операции (всего 63); `check_openapi.py` PASS.
 - **Решения** (см. `api-decisions.md` §P1.5): порядок context→stop→task→successor;
   без LLM-summary (raw-хвост); одна роль-наследник; только живая сессия (409).
 
+### 3i. P1.6 — Watchdog-джобы (backend, 2026-10-10)
+Регистрация джоба с политикой + целевой сессией + порогом; loop watchdog; attention.
+
+- **Миграции**: 0013 (`watchdog_jobs` + `watchdog_job_events` + перм
+  `watchdog.update` для operator); 0014 (добавлять `watchdog_job` в CHECK
+  `watchdog_events.event_type` — sqlite: пересоздание таблицы, postgres: ALTER
+  CONSTRAINT).
+- **Модель/репо** (`models/watchdog_job.go`, `repository/watchdog_job_repo.go`):
+  `WatchdogJob` + `WatchdogJobEvent`; `WatchdogJobRepo` (Create/GetByID/List/
+  SetEnabled/RecordFire/Delete) + `WatchdogJobEventRepo` (Create с cap-20 / ListByJob).
+- **WatchdogJobService** (`service/watchdog_job_service.go`): Register (валидации:
+  name, policy, session 404, threshold 1..100) / List / Get (+ последние оценки) / Stop
+  / Delete (409 если fired>0).
+- **Loop** (`service/watchdog.go`, `checkContextThresholdJobs`): на каждом скане
+  enabled-джобы → live context % target-сессии >= порога → fire (алерт + fired_count +
+  история + fire parked-wakes). Дедуп: повтор только при росте >5 п.п. от
+  `last_fired_pct`; quiet — skip без лога. Dead-target: сессия stopped/failed/отсутствует
+  → `enabled=false` + событие.
+- **P0.3-связка** (`task_service.go`): `WakeKindWatchdog="watchdog"`, `WakeSpec.JobID`;
+  `createWake` case watchdog (ref=job_id); `FireArmedWatchdogWakes(ctx, jobID)`;
+  `WakeRepo.ListArmedWatchdogByJob`.
+- **Attention**: новый alert-вид `watchdog_job` (high, «Посмотреть сессию», link на
+  сессию) — 7-й источник.
+- **HTTP** (`watchdog_job_handlers.go`): 5 routes (register/list/show/stop/delete),
+  RBAC watchdog.update (write) / dashboard.read (read).
+- **OpenAPI**: +5 ops → **85 ops**; схемы `WatchdogJobView`/`WatchdogJobEvent`/
+  `WatchdogJobDetail`/`WatchdogJobRegisterRequest`/`WatchdogJobListResponse`;
+  `check_openapi.py` PASS.
+- **Тесты**: service (`watchdog_job_service_test.go`, 9) + HTTP
+  (`watchdog_job_handlers_test.go`, 3).
+- **Решения** (см. `api-decisions.md` §P1.6): порог в pct (не МБ); v1 — только
+  `context-usage-threshold`; дедуп >5 п.п.; dead-target → disabled.
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

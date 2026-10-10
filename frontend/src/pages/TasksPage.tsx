@@ -526,8 +526,12 @@ function BlockTaskModal({
   const [kind, setKind] = useState<WakeKind>('timer');
   const [after, setAfter] = useState('30m');
   const [refTaskId, setRefTaskId] = useState('');
+  const [refJobId, setRefJobId] = useState('');
   const [continuation, setContinuation] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  // P1.6: активные watchdog-джобы для выбора (kind=watchdog)
+  const { data: jobsData } = useQuery('watchdogJobs.list', () => api.watchdogJobs.list(), []);
+  const activeJobs = (jobsData?.jobs ?? []).filter((j) => j.enabled);
 
   const block = useMutation((wake?: TaskWakeSpec) => api.tasks.updateState(taskId, { state: 'blocked', wake }));
   const submit = async (e: React.FormEvent) => {
@@ -537,7 +541,9 @@ function BlockTaskModal({
       wake =
         kind === 'timer'
           ? { kind: 'timer', after, continuation }
-          : { kind: 'task', task_id: Number(refTaskId) || undefined, continuation };
+          : kind === 'task'
+            ? { kind: 'task', task_id: Number(refTaskId) || undefined, continuation }
+            : { kind: 'watchdog', job_id: Number(refJobId) || undefined, continuation };
     }
     setFormError(null);
     try {
@@ -565,6 +571,7 @@ function BlockTaskModal({
                 <select value={kind} onChange={(e) => setKind(e.target.value as WakeKind)}>
                   <option value="timer">timer — after a duration</option>
                   <option value="task">task — when another task closes</option>
+                  <option value="watchdog">watchdog — when a watchdog job fires</option>
                 </select>
               </label>
               {kind === 'timer' ? (
@@ -572,10 +579,23 @@ function BlockTaskModal({
                   After *
                   <input value={after} onChange={(e) => setAfter(e.target.value)} placeholder="e.g. 30m, 2h" />
                 </label>
-              ) : (
+              ) : kind === 'task' ? (
                 <label>
                   Referenced task id *
                   <input type="number" value={refTaskId} onChange={(e) => setRefTaskId(e.target.value)} placeholder="task id" />
+                </label>
+              ) : (
+                <label>
+                  Watchdog job *
+                  <select value={refJobId} onChange={(e) => setRefJobId(e.target.value)}>
+                    <option value="">— выбрать дjob —</option>
+                    {activeJobs.map((j) => (
+                      <option key={j.id} value={j.id}>
+                        #{j.id} · {j.name} (порог {j.threshold_pct}%, сессия {j.target_session_id})
+                      </option>
+                    ))}
+                  </select>
+                  {activeJobs.length === 0 && <span className="hint">Нет активных watchdog-джобов</span>}
                 </label>
               )}
               <label>

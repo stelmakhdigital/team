@@ -142,5 +142,12 @@ export function createRealAdapter(): Api {
       update: (id, req) => http(`${B}/projects/${id}`, { method: 'PATCH', body: req }),
       archive: (id) => http(`${B}/projects/${id}`, { method: 'DELETE' }),
     },
+    watchdogJobs: {
+      list: () => http(`${B}/watchdog/jobs`),
+      get: (id) => http(`${B}/watchdog/jobs/${id}`),
+      register: (req) => http(`${B}/watchdog/jobs`, { method: 'POST', body: req }),
+      stop: (id) => http(`${B}/watchdog/jobs/${id}/stop`, { method: 'POST' }),
+      remove: (id) => http(`${B}/watchdog/jobs/${id}`, { method: 'DELETE' }),
+    },
   };
 }

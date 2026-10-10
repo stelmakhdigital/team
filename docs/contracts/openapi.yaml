@@ -39,6 +39,8 @@ tags:
     description: Audit log
   - name: config
     description: "Settings: конфигурация демона (U4)"
+  - name: watchdogJobs
+    description: "Watchdog-джобы (P1.6): политики слежения + пороги"
   - name: websocket
     description: Real-time события
 
@@ -1636,6 +1638,114 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /api/v1/watchdog/jobs:
+    get:
+      operationId: listWatchdogJobs
+      summary: Список watchdog-джоб (политики слежения)
+      description: >
+        P1.6. Все watchdog-джобы (enabled + disabled). viewer+ (dashboard.read).
+      tags: [watchdogJobs]
+      parameters:
+        - { $ref: '#/components/parameters/Key' }
+      responses:
+        '200':
+          description: Список джоб
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WatchdogJobListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: registerWatchdogJob
+      summary: Зарегистрировать watchdog-дjob (target-сессия + политика + порог)
+      description: >
+        P1.6. Новый watchdog-дjob: target_session_id + policy (v1 — только
+        context-usage-threshold) + threshold_pct (1..100) + опциональный message.
+        operator+ (watchdog.update). Сессия должна существовать (иначе 404).
+      tags: [watchdogJobs]
+      parameters:
+        - { $ref: '#/components/parameters/Key' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WatchdogJobRegisterRequest' }
+      responses:
+        '201':
+          description: Джоб зарегистрирован
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WatchdogJobView' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/watchdog/jobs/{id}:
+    get:
+      operationId: getWatchdogJob
+      summary: Показ джоба (+ последние оценки — live-проверка)
+      description: >
+        P1.6. Джоб + его история (последние 20 watchdog_job_events). viewer+
+        (dashboard.read).
+      tags: [watchdogJobs]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/Key' }
+      responses:
+        '200':
+          description: Джоб + история
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WatchdogJobDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: deleteWatchdogJob
+      summary: Удалить дjob (только если ещё не fired; с историей → 409)
+      description: >
+        P1.6. Удаление джоба. Если fired_count > 0 (есть история) — 409 (удалить
+        нельзя, только остановить). operator+ (watchdog.update).
+      tags: [watchdogJobs]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/Key' }
+      responses:
+        '200':
+          description: Джоб удалён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/watchdog/jobs/{id}/stop:
+    post:
+      operationId: stopWatchdogJob
+      summary: Остановить дjob (enabled=false; история сохраняется)
+      description: >
+        P1.6. Остановка джоба (enabled=false). История не трогается. operator+
+        (watchdog.update).
+      tags: [watchdogJobs]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/Key' }
+      responses:
+        '200':
+          description: Джоб остановлен (enabled=false)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WatchdogJobView' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
 components:
   securitySchemes:
     apiKeyAuth:
@@ -2386,6 +2496,56 @@ components:
           items: { $ref: '#/components/schemas/CompactPlanEntry' }
         total: { type: integer }
         wall_pct: { type: integer }
+    WatchdogJobView:
+      type: object
+      required: [id, name, policy, target_session_id, threshold_pct, enabled, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        policy: { type: string, enum: [context-usage-threshold] }
+        target_session_id: { type: integer, format: int64 }
+        threshold_pct: { type: number }
+        message: { type: string }
+        enabled: { type: boolean }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        fired_count: { type: integer, format: int64 }
+        last_fired_at: { type: string, format: date-time }
+        last_fired_pct: { type: number }
+    WatchdogJobEvent:
+      type: object
+      required: [id, job_id, outcome, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        job_id: { type: integer, format: int64 }
+        outcome: { type: string, enum: [fired, quiet, dead-target, stopped] }
+        detail: { type: string }
+        pct: { type: number }
+        created_at: { type: string, format: date-time }
+    WatchdogJobDetail:
+      type: object
+      required: [job, recent_evaluations]
+      properties:
+        job: { $ref: '#/components/schemas/WatchdogJobView' }
+        recent_evaluations:
+          type: array
+          items: { $ref: '#/components/schemas/WatchdogJobEvent' }
+    WatchdogJobRegisterRequest:
+      type: object
+      required: [name, target_session_id, threshold_pct]
+      properties:
+        name: { type: string, maxLength: 200 }
+        target_session_id: { type: integer, format: int64 }
+        threshold_pct: { type: number, minimum: 1, maximum: 100 }
+        message: { type: string, maxLength: 500 }
+    WatchdogJobListResponse:
+      type: object
+      required: [jobs, total]
+      properties:
+        jobs:
+          type: array
+          items: { $ref: '#/components/schemas/WatchdogJobView' }
+        total: { type: integer }
     SessionHistoryEntry:
       type: object
       required: [id, session_id, to_state, actor_type, created_at]

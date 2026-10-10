@@ -366,6 +366,37 @@ curl -X PATCH localhost:8080/api/v1/workflows/1 \
 
 ---
 
+### 5.4. Watchdog-джобы (политики слежения, P1.6)
+
+Watchdog-джоб — повторяемая проверка по состоянию (v1: **context-usage-threshold**):
+когда live-контекст целевой сессии пересекает порог — алерт в Attention + (если
+поставлен) разбудить parked-задачу. В отличие от разового context wall (P1.5 —
+статус сессии) это **зарегистрированная политика** с историей.
+
+```bash
+# зарегистрировать джоб: context сессии 3 >= 80% → алерт
+ curl -X POST localhost:8080/api/v1/watchdog/jobs \
+   -d '{"name": "worker ctx", "target_session_id": 3, "threshold_pct": 80, "message": "context high"}'  # → 201
+
+# список / детали (+ последние оценки)
+ curl "localhost:8080/api/v1/watchdog/jobs"                # → {jobs, total}
+ curl localhost:8080/api/v1/watchdog/jobs/1                # → {job, recent_evaluations}
+
+# остановить (enabled=false, история сохраняется) / удалить (только если ещё не fired)
+ curl -X POST localhost:8080/api/v1/watchdog/jobs/1/stop   # → 200 (enabled=false)
+ curl -X DELETE localhost:8080/api/v1/watchdog/jobs/1      # → 200; с историей → 409
+```
+
+Повторный fire — только при росте контекста > 5 п.п. от последнего (иначе skip,
+без алерта). Если target-сессия умерла (stopped/failed/удалена) — дjob
+автоматически останавливается + `dead-target` в историю. В **Attention** —
+`watchdog_job` (high, ссылка на сессию). Sвязка с P0.3: blocked-задача с
+`wake.kind='watchdog'` (ref=job id) разблокируется при fire. UI: страница **Watchdog**
+(список + создание + stop/delete) + wake-форма на задаче. Ссылка:
+`docs/contracts/api-decisions.md` §P1.6.
+
+---
+
 ## 6. Получение результата
 
 Результат работы агентов собирается в нескольких плоскостях:

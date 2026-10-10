@@ -589,10 +589,11 @@ export interface Task {
 }
 
 // P0.3: wake для заблокированной задачи (block with wake).
-export type WakeKind = 'timer' | 'task';
+export type WakeKind = 'timer' | 'task' | 'watchdog';
 export interface TaskWake {
-  kind: WakeKind; // timer | task (watchdog: planned, P1.6)
-  ref: string; // kind=task: task_id; kind=timer: fire-at (RFC3339)
+  kind: WakeKind; // timer | task | watchdog
+  ref: string; // kind=task: task_id; kind=timer: fire-at (RFC3339); kind=watchdog: job id
+  job_id?: number; // kind=watchdog: id watchdog-дjоба
   continuation?: string; // «как продолжить»
   fired: boolean; // закрыт (fired ИЛИ resolve)
   fired_at?: string;
@@ -602,6 +603,7 @@ export interface TaskWakeSpec {
   kind: WakeKind;
   after?: string; // timer: duration, e.g. "30m"
   task_id?: number; // task: referenced task_id
+  job_id?: number; // watchdog: id watchdog-дjоба (ref)
   continuation?: string;
 }
 
@@ -1404,4 +1406,50 @@ export interface UpdateProjectRequest {
   name?: string;
   description?: string;
   path?: string; // если задан → 409 (immutable)
+}
+
+// ---------- P1.6: watchdog-джобы (политики слежения + пороги) ----------
+
+export type WatchdogJobPolicy = 'context-usage-threshold';
+export type WatchdogJobEventOutcome = 'fired' | 'quiet' | 'dead-target' | 'stopped';
+
+export interface WatchdogJob {
+  id: number;
+  name: string;
+  policy: WatchdogJobPolicy;
+  target_session_id: number;
+  threshold_pct: number;
+  message?: string;
+  enabled: boolean;
+  created_by: string;
+  created_at: string;
+  fired_count: number;
+  last_fired_at?: string;
+  last_fired_pct?: number;
+}
+
+export interface WatchdogJobEvent {
+  id: number;
+  job_id: number;
+  outcome: WatchdogJobEventOutcome;
+  detail?: string;
+  pct?: number;
+  created_at: string;
+}
+
+export interface WatchdogJobDetail {
+  job: WatchdogJob;
+  recent_evaluations: WatchdogJobEvent[];
+}
+
+export interface WatchdogJobRegisterRequest {
+  name: string;
+  target_session_id: number;
+  threshold_pct: number;
+  message?: string;
+}
+
+export interface WatchdogJobListResponse {
+  jobs: WatchdogJob[];
+  total: number;
 }

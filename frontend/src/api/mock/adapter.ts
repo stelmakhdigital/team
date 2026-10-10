@@ -20,6 +20,7 @@ import type {
   TaskWake,
   UpdateRoleConfigRequest,
   Workflow,
+  WatchdogJob,
 } from '../../types/api';
 import { canTransition, isTerminalTaskState } from '../../lib/task';
 import { CONFIG_REGISTRY, resolveConfig, normalizeSetValue } from './configRegistry';
@@ -1786,6 +1787,63 @@ export function createMockAdapter(): Api {
         p.archived = true; // idempotent
         p.updated_at = new Date().toISOString();
         return { project: p };
+      },
+    },
+    // P1.6: watchdog-джобы (mock-симуляция)
+    watchdogJobs: {
+      async list() {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        return { jobs: db.watchdogJobs.slice(), total: db.watchdogJobs.length };
+      },
+      async get(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const j = db.watchdogJobs.find((x) => x.id === id);
+        if (!j) throw new ApiClientError(404, 'not_found', `watchdog job ${id} not found`);
+        return { job: j, recent_evaluations: (db.watchdogJobEvents ?? []).filter((e) => e.job_id === id).slice(0, 20) };
+      },
+      async register(req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        if (!req.name?.trim()) throw new ApiClientError(400, 'validation_failed', 'name is required');
+        if (typeof req.threshold_pct !== 'number' || req.threshold_pct < 1 || req.threshold_pct > 100) {
+          throw new ApiClientError(400, 'validation_failed', 'threshold_pct must be 1..100');
+        }
+        if (!db.sessions.some((s) => s.id === req.target_session_id)) throw new ApiClientError(404, 'not_found', `session ${req.target_session_id} not found`);
+        const now = new Date().toISOString();
+        const job: WatchdogJob = {
+          id: nextId(), name: req.name.trim(), policy: 'context-usage-threshold',
+          target_session_id: req.target_session_id, threshold_pct: req.threshold_pct,
+          message: req.message, enabled: true, created_by: 'mock-user', created_at: now,
+          fired_count: 0,
+        };
+        db.watchdogJobs.push(job);
+        return job;
+      },
+      async stop(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const j = db.watchdogJobs.find((x) => x.id === id);
+        if (!j) throw new ApiClientError(404, 'not_found', `watchdog job ${id} not found`);
+        j.enabled = false;
+        db.watchdogJobEvents = db.watchdogJobEvents ?? [];
+        db.watchdogJobEvents.push({ id: nextId(), job_id: id, outcome: 'stopped', detail: 'остановлен пользователем', created_at: new Date().toISOString() });
+        return j;
+      },
+      async remove(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const j = db.watchdogJobs.find((x) => x.id === id);
+        if (!j) throw new ApiClientError(404, 'not_found', `watchdog job ${id} not found`);
+        if (j.fired_count > 0) throw new ApiClientError(409, 'conflict', 'watchdog job has fired history — stop it instead');
+        db.watchdogJobs = db.watchdogJobs.filter((x) => x.id !== id);
+        db.watchdogJobEvents = (db.watchdogJobEvents ?? []).filter((e) => e.job_id !== id);
       },
     },
   };

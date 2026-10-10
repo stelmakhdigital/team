@@ -22,6 +22,8 @@ import type {
   Team,
   TopologyLayout,
   WatchdogAlert,
+  WatchdogJob,
+  WatchdogJobEvent,
   Workflow,
   WorkflowInstance,
   WorkflowStep,
@@ -52,6 +54,8 @@ interface DB {
   taskWakes: MockWake[]; // P0.3
   sessions: Session[];
   alerts: WatchdogAlert[];
+  watchdogJobs: WatchdogJob[]; // P1.6
+  watchdogJobEvents: WatchdogJobEvent[]; // P1.6
   messages: Message[];
   chatrooms: Chatroom[];
   chatMessages: ChatroomMessage[];
@@ -122,6 +126,25 @@ function seed(): DB {
     taskWakes: [],
     sessions: [],
     alerts: [],
+    // P1.6: watchdog-джобы (target — сессия 5 у контекст-стены 88% + сессия 1)
+    watchdogJobs: [
+      {
+        id: 1, name: 'worker ctx', policy: 'context-usage-threshold',
+        target_session_id: 5, threshold_pct: 80, message: 'context high',
+        enabled: true, created_by: 'mock-user', created_at: iso(60),
+        fired_count: 2, last_fired_at: iso(10), last_fired_pct: 88,
+      },
+      {
+        id: 2, name: 'lead ctx', policy: 'context-usage-threshold',
+        target_session_id: 1, threshold_pct: 70,
+        enabled: true, created_by: 'mock-user', created_at: iso(30),
+        fired_count: 0,
+      },
+    ],
+    watchdogJobEvents: [
+      { id: 1, job_id: 1, outcome: 'fired', detail: 'context high', pct: 88, created_at: iso(10) },
+      { id: 2, job_id: 1, outcome: 'fired', detail: 'context high', pct: 85, created_at: iso(40) },
+    ],
     messages: [],
     chatrooms: [],
     chatMessages: [],

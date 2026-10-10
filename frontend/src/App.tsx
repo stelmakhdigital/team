@@ -13,6 +13,7 @@ import HistoryPage from './pages/HistoryPage';
 import TasksPage from './pages/TasksPage';
 import TaskDetailPage from './pages/TaskDetailPage';
 import ProjectsPage from './pages/ProjectsPage';
+import WatchdogJobsPage from './pages/WatchdogJobsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import SessionDetailPage from './pages/SessionDetailPage';
 import SettingsPage from './pages/SettingsPage';
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/workflows/:workflowId" element={<WorkflowEditorPage />} />
         <Route path="/messages" element={<MessagesPage />} />
         <Route path="/library" element={<LibraryPage />} />
+        <Route path="/watchdog/jobs" element={<WatchdogJobsPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFound />} />

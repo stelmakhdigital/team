@@ -93,6 +93,10 @@ import type {
   CreateProjectResponse,
   GetProjectResponse,
   UpdateProjectRequest,
+  WatchdogJob,
+  WatchdogJobDetail,
+  WatchdogJobListResponse,
+  WatchdogJobRegisterRequest,
   // P1.4: Workflow engine
   WorkflowInstance,
   WorkflowInstanceDetail,
@@ -210,5 +214,12 @@ export interface Api {
     get(id: number): Promise<GetProjectResponse>;
     update(id: number, req: UpdateProjectRequest): Promise<ProjectResponse>;
     archive(id: number): Promise<ProjectResponse>;
+  };
+  watchdogJobs: {
+    list: () => Promise<WatchdogJobListResponse>;
+    get: (id: number) => Promise<WatchdogJobDetail>;
+    register: (req: WatchdogJobRegisterRequest) => Promise<WatchdogJob>;
+    stop: (id: number) => Promise<WatchdogJob>;
+    remove: (id: number) => Promise<void>;
   };
 }

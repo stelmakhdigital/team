@@ -171,6 +171,10 @@ function WakePanel({ task, wake, onRefetch }: { task: Task; wake?: TaskWake; onR
               <span className="muted">
                 {wake.fired ? 'fired' : `fires in ${formatRelativeFromSecs(wake.remaining_secs ?? 0)}`}
               </span>
+            ) : wake.kind === 'watchdog' ? (
+              <EntityLink to="/watchdog/jobs" title="Open watchdog jobs">
+                watchdog job #{wake.job_id ?? wake.ref}
+              </EntityLink>
             ) : (
               <EntityLink to={`/tasks/${wake.ref}`} title="Open referenced task">
                 task #{wake.ref}

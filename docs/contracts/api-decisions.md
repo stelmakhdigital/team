@@ -874,3 +874,56 @@ detail?}` (честный per-step отчёт: partial — не скрываем
 - HTTP (`session_handover_handlers_test.go`, 4): compact-plan + RBAC; handover
   dry-run/full/409; 400 (нет reason) + RBAC (viewer 403).
 - attention: `TestAttentionSessionContextWall`.
+
+## P1.6. Watchdog-джобы (T-20261010022307)
+
+Повторяемые проверки по расписанию/состоянию: регистрация джоба с политикой +
+целевой сессией + порогом; loop watchdog; attention; P0.3-wake.
+
+### Сущность
+- **`watchdog_jobs`** (migration 0013): `id, name, policy` (CHECK — v1 только
+  `context-usage-threshold`), `target_session_id` FK→sessions ON DELETE SET NULL,
+  `threshold_pct` (1..100), `message`, `enabled`, `created_by`, `created_at`,
+  `fired_count`, `last_fired_at`, `last_fired_pct`.
+- **`watchdog_job_events`** — история (bounded: последние 20 на дjob): `outcome`
+  (fired/quiet/dead-target/stopped) + `detail` + `pct`.
+- **Порог в pct** (не МБ): переиспользует существующий `context_used_percentage`
+  (live-из transcript). Валидация 1..100.
+
+### Loop + fire-политика
+- `WatchdogService.Scan` → `checkContextThresholdJobs` → enabled-джобы → live
+  context % target-сессии >= порога → fire (алерт + fired_count++ + история +
+  fire parked-wakes).
+- **Дедупликация**: повторный fire только если context вырос > 5 п.п. от
+  `last_fired_pct` (иначе skip). Quiet-скапы НЕ логируются (OpenRIG).
+- **Dead-target**: сессия stopped/failed/отсутствует → `enabled=false` +
+  `dead-target` в историю (без бесконечных алертов).
+- **P0.3-связка**: `task_wakes.kind='watchdog'`, `ref=job_id` (string). При fire —
+  `FireArmedWatchdogWakes(job_id)` разблокирует parked-задачи (аналог timer-fire).
+
+### Attention
+- Новый alert-вид **`watchdog_job`** (high, «Посмотреть сессию», link на
+  `/sessions/{id}`) — добавлен в CHECK `watchdog_events.event_type` (migration 0014:
+  sqlite — пересоздание таблицы, postgres — ALTER CONSTRAINT).
+
+### RBAC
+- Новый перм **`watchdog.update`** (operator+). GET list/show — viewer+
+  (`dashboard.read`). POST register/stop + DELETE — `watchdog.update`.
+
+### API (5 ops, RBAC watchdog.update / dashboard.read)
+| Метод | Path | RBAC | Ответ |
+|---|---|---|---|
+| POST | `/watchdog/jobs` | watchdog.update | 201 JobView; 400/404 |
+| GET | `/watchdog/jobs` | dashboard.read | 200 { jobs[], total } |
+| GET | `/watchdog/jobs/{id}` | dashboard.read | 200 { job, recent_evaluations[] }; 404 |
+| POST | `/watchdog/jobs/{id}/stop` | watchdog.update | 200 JobView (enabled=false); 404 |
+| DELETE | `/watchdog/jobs/{id}` | watchdog.update | 200; 404; 409 (fired>0) |
+
+### Тесты
+- service (`watchdog_job_service_test.go`, 9): register-валидации (name/threshold/
+  policy/session 404), успех, loop-fire (context>=порога → fired_count + alert),
+  дедупликация, dead-target (disabled + событие), stop, delete fired>0→404/409,
+  watchdog-wake разблокировка, wake-kind валидация.
+- HTTP (`watchdog_job_handlers_test.go`, 3): CRUD вертикаль, delete 409 (fired>0),
+  RBAC (viewer read 200 / register 403, operator 201).
+- migration 0014 (sqlite recreate + postgres alter) — watchdog_job в CHECK.
