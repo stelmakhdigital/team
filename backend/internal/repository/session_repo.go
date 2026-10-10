@@ -460,6 +460,14 @@ func (r *WatchdogRepo) ExistsUnread(ctx context.Context, tx DBTX, eventType stri
 	return n > 0, err
 }
 
+// ExistsUnreadByType — есть ли unread-событие данного типа (без привязки к task/session).
+// P1.8: дедуп diagnostics_fail-алерта в Attention.
+func (r *WatchdogRepo) ExistsUnreadByType(ctx context.Context, tx DBTX, eventType string) (bool, error) {
+	var n int
+	err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM watchdog_events WHERE event_type = ? AND is_read = 0`, eventType).Scan(&n)
+	return n > 0, err
+}
+
 func (r *WatchdogRepo) CountBySeverity(ctx context.Context, tx DBTX, severity string) (int, error) {
 	return countQuery(ctx, tx, `SELECT COUNT(*) FROM watchdog_events WHERE severity = ?`, severity)
 }

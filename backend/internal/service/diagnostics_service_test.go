@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"daemon/internal/database"
@@ -131,6 +133,38 @@ func TestDiagnosticsMigrationPending(t *testing.T) {
 	by := e.byName(res)
 	if by["database.migrations"].Status != service.CheckWarn {
 		t.Fatalf("database.migrations = %s (%s), want warn", by["database.migrations"].Status, by["database.migrations"].Detail)
+	}
+}
+
+// Divergence (zombie, reverse): БД говорит stopped, а адаптер — жив → warn.
+func TestDiagnosticsDivergenceZombie(t *testing.T) {
+	e := newDiagEnv(t)
+	teamID, roleA, _ := makeTeamWithRoles(t, e.svc, "diag-zombie")
+	// stopped-сессия (process) с ЖИВЫМ pid (наш процесс) → адаптер скажет Alive=true → zombie
+	if err := e.stores.Sessions.Create(context.Background(), e.db, &models.Session{
+		TeamID: teamID, RoleID: roleA,
+		RuntimeType: "process", State: models.SessionStopped, RuntimeRef: strconv.Itoa(os.Getpid()),
+	}); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	res := e.diag().Run(context.Background())
+	by := e.byName(res)
+	if by["sessions.divergence"].Status != service.CheckWarn {
+		t.Fatalf("sessions.divergence = %s (%s), want warn (zombie)", by["sessions.divergence"].Status, by["sessions.divergence"].Detail)
+	}
+	if !strings.Contains(by["sessions.divergence"].Detail, "zombie") {
+		t.Fatalf("divergence detail should mention zombie: %s", by["sessions.divergence"].Detail)
+	}
+	// structured evidence для UI drill-down (ключ присутствует + непустой)
+	zs, hasZombie := by["sessions.divergence"].Evidence["zombie_sessions"]
+	if !hasZombie {
+		t.Fatalf("zombie_sessions evidence missing: %v", by["sessions.divergence"].Evidence)
+	}
+	if lst, ok := zs.([]map[string]any); ok && len(lst) == 0 {
+		t.Fatal("zombie_sessions empty")
+	}
+	if res.Overall != service.CheckWarn {
+		t.Fatalf("overall = %s, want warn", res.Overall)
 	}
 }
 

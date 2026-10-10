@@ -287,3 +287,27 @@ func TestAttentionSessionContextWall(t *testing.T) {
 		t.Fatalf("session 102 item wrong: %+v (want high)", v)
 	}
 }
+
+// P1.8: diagnostics_fail (fail-чеги Health/Doctor) → critical + link на /diagnostics.
+func TestAttentionDiagnosticsFail(t *testing.T) {
+	db, svc, _, att, watchdog, ctx := setupAttentionEnv(t)
+	teamID, _ := attMakeTeam(t, svc, "att-diag")
+	// unread diagnostics_fail-событие (TeamID обязателен; link → /diagnostics)
+	attMakeAlert(t, db, watchdog, ctx, teamID, "diagnostics_fail", true, time.Now().UTC().Add(-5*time.Minute))
+	res, err := att.List(ctx, 50, 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	var found *AttentionItemView
+	for i := range res.Items {
+		if res.Items[i].Kind == "diagnostics_fail" {
+			found = &AttentionItemView{Severity: res.Items[i].Severity, LinkPath: res.Items[i].Link.Path}
+		}
+	}
+	if found == nil {
+		t.Fatalf("no diagnostics_fail attention item")
+	}
+	if found.Severity != "critical" || found.LinkPath != "/diagnostics" {
+		t.Fatalf("diagnostics_fail item = %+v (want critical + /diagnostics)", found)
+	}
+}

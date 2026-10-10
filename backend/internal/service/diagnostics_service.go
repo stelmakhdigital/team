@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"daemon/internal/database"
+	"daemon/internal/models"
 	"daemon/internal/repository"
 	"daemon/internal/runtime"
 )
@@ -165,60 +166,165 @@ func (s *DiagnosticsService) checkTmux(ctx context.Context) CheckResult {
 	}
 }
 
-// checkSessionDivergence — КЛЮЧЕВОЙ: БД говорит active, а адаптер — мёртв → fail.
+// checkSessionDivergence — КЛЮЧЕВОЙ: где БД-статус расходится с реальной живостью.
+//   - stale: БД active, адаптер — мёртв → fail (показываем «working», но сессии нет).
+//   - zombie: БД stopped/failed, адаптер — жив → warn (утёкший процесс/панель).
+//
+// Бounded: active ≤50, stopped/failed ≤10. Read-only: adapter error → не считаем (conservative).
 func (s *DiagnosticsService) checkSessionDivergence(ctx context.Context) CheckResult {
 	if s.stores == nil || s.stores.Sessions == nil {
 		return CheckResult{Name: "sessions.divergence", Status: CheckWarn, Detail: "session store not wired"}
 	}
-	active, _, err := s.stores.Sessions.List(ctx, s.db, repository.SessionFilter{Active: true, Limit: 50})
-	if err != nil {
-		return CheckResult{Name: "sessions.divergence", Status: CheckFail, Detail: "list active sessions: " + err.Error()}
-	}
-	if len(active) == 0 {
-		return CheckResult{Name: "sessions.divergence", Status: CheckOK, Detail: "no active sessions"}
-	}
 	if s.registry == nil {
+		active, _, err := s.stores.Sessions.List(ctx, s.db, repository.SessionFilter{Active: true, Limit: 50})
+		if err != nil {
+			return CheckResult{Name: "sessions.divergence", Status: CheckFail, Detail: "list active sessions: " + err.Error()}
+		}
 		return CheckResult{Name: "sessions.divergence", Status: CheckWarn,
 			Detail:   fmt.Sprintf("%d active session(s), adapter registry not wired (liveness not checked)", len(active)),
 			Evidence: map[string]any{"active": len(active), "checked": 0}}
 	}
-	var stale []string
+
+	// 1) stale: active в БД, мёртв в адаптере.
+	active, _, err := s.stores.Sessions.List(ctx, s.db, repository.SessionFilter{Active: true, Limit: 50})
+	if err != nil {
+		return CheckResult{Name: "sessions.divergence", Status: CheckFail, Detail: "list active sessions: " + err.Error()}
+	}
+	var staleRefs []string
+	var staleSessions []map[string]any
 	checked := 0
 	for _, sess := range active {
-		if sess.RuntimeRef == "" {
+		alive, ok := s.refAlive(ctx, sess)
+		if !ok {
 			continue
-		}
-		adapter, err := s.registry.Get(sess.RuntimeType)
-		if err != nil {
-			continue
-		}
-		c, cancel := context.WithTimeout(ctx, s.execTimeout)
-		st, err := adapter.Status(c, sess.RuntimeRef)
-		cancel()
-		if err != nil {
-			continue // adapter error — не считаем stale (conservative)
 		}
 		checked++
-		if !st.Alive {
-			stale = append(stale, fmt.Sprintf("#%d(%s)", sess.ID, sess.RuntimeType))
+		if !alive {
+			staleRefs = append(staleRefs, fmt.Sprintf("#%d(%s)", sess.ID, sess.RuntimeType))
+			staleSessions = append(staleSessions, sessEvidence(sess))
 		}
 	}
-	if len(stale) > 0 {
+
+	// 2) zombie: stopped/failed в БД, жив в адаптере (утёкший процесс/панель).
+	var zombieRefs []string
+	var zombieSessions []map[string]any
+	for _, state := range []models.SessionState{models.SessionStopped, models.SessionFailed} {
+		stopped, err := s.stores.Sessions.ListByState(ctx, s.db, state, 10)
+		if err != nil {
+			continue
+		}
+		for _, sess := range stopped {
+			alive, ok := s.refAlive(ctx, sess)
+			if !ok || !alive {
+				continue
+			}
+			zombieRefs = append(zombieRefs, fmt.Sprintf("#%d(%s)", sess.ID, sess.RuntimeType))
+			zombieSessions = append(zombieSessions, sessEvidence(sess))
+			if len(zombieRefs) >= 20 {
+				break
+			}
+		}
+	}
+
+	evidence := map[string]any{"active": len(active), "checked": checked}
+	if len(staleSessions) > 0 {
+		evidence["stale"] = staleRefs
+		evidence["stale_sessions"] = staleSessions
+	}
+	if len(zombieSessions) > 0 {
+		evidence["zombie"] = zombieRefs
+		evidence["zombie_sessions"] = zombieSessions
+	}
+	if len(staleSessions) > 0 {
 		return CheckResult{
-			Name:   "sessions.divergence",
-			Status: CheckFail,
-			Detail: fmt.Sprintf("%d session(s) active in DB but not alive in adapter: %s", len(stale), strings.Join(stale, ", ")),
-			Evidence: map[string]any{
-				"active": len(active), "checked": checked, "stale": stale,
-			},
+			Name: "sessions.divergence", Status: CheckFail,
+			Detail:   fmt.Sprintf("%d session(s) active in DB but not alive in adapter: %s", len(staleSessions), strings.Join(staleRefs, ", ")),
+			Evidence: evidence,
+		}
+	}
+	if len(zombieSessions) > 0 {
+		return CheckResult{
+			Name: "sessions.divergence", Status: CheckWarn,
+			Detail:   fmt.Sprintf("%d session(s) stopped/failed in DB but still alive in adapter (zombie): %s", len(zombieSessions), strings.Join(zombieRefs, ", ")),
+			Evidence: evidence,
 		}
 	}
 	return CheckResult{
-		Name:     "sessions.divergence",
-		Status:   CheckOK,
-		Detail:   fmt.Sprintf("%d active session(s), %d checked, all alive in adapter", len(active), checked),
-		Evidence: map[string]any{"active": len(active), "checked": checked},
+		Name: "sessions.divergence", Status: CheckOK,
+		Detail:   fmt.Sprintf("%d active session(s), %d checked, no divergence", len(active), checked),
+		Evidence: evidence,
 	}
+}
+
+// refAlive — живость runtime_ref через адаптер (false/ok=false если adapter не знает ref).
+func (s *DiagnosticsService) refAlive(ctx context.Context, sess *models.Session) (alive, ok bool) {
+	if sess.RuntimeRef == "" {
+		return false, false
+	}
+	adapter, err := s.registry.Get(sess.RuntimeType)
+	if err != nil {
+		return false, false
+	}
+	c, cancel := context.WithTimeout(ctx, s.execTimeout)
+	defer cancel()
+	st, err := adapter.Status(c, sess.RuntimeRef)
+	if err != nil {
+		return false, false // conservative: adapter error — не считаем расхождением
+	}
+	return st.Alive, true
+}
+
+// sessEvidence — структурированные данные сессии для UI drill-down (EntityLink).
+func sessEvidence(sess *models.Session) map[string]any {
+	return map[string]any{
+		"id":      sess.ID,
+		"runtime": sess.RuntimeType,
+		"label":   fmt.Sprintf("Сессия #%d", sess.ID),
+	}
+}
+
+// FailChecks — список чек'ов с fail-статусом (для алерта в Attention).
+func (r *DiagnosticsResult) FailChecks() []CheckResult {
+	var out []CheckResult
+	for _, c := range r.Checks {
+		if c.Status == CheckFail {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// ReportFail — fail-severity findings → алерт в Attention (P0.1), read-only-безопасно:
+// при наличии fail-чек'ов создаёт ОДИН unread watchdog-event diagnostics_fail
+// (critical, link на /health). Дедуп: если уже есть unread diagnostics_fail — не дублирует.
+// Возвращает id созданного события (0 — не создавал: нет fail или уже есть).
+func (s *DiagnosticsService) ReportFail(ctx context.Context, res *DiagnosticsResult) (int64, error) {
+	fails := res.FailChecks()
+	if len(fails) == 0 || s.stores == nil || s.stores.Watchdog == nil {
+		return 0, nil
+	}
+	exists, err := s.stores.Watchdog.ExistsUnreadByType(ctx, s.db, "diagnostics_fail")
+	if err != nil {
+		return 0, fmt.Errorf("diagnostics report: exists-unread: %w", err)
+	}
+	if exists {
+		return 0, nil // дедуп: алерт уже в Attention
+	}
+	var names []string
+	for _, c := range fails {
+		names = append(names, c.Name)
+	}
+	evt := &models.WatchdogEvent{
+		EventType:      "diagnostics_fail",
+		Severity:       "critical",
+		Description:    fmt.Sprintf("Diagnostics: %d check(s) failed: %s", len(fails), strings.Join(names, ", ")),
+		IsRead:         false,
+		RequiresAction: true,
+	}
+	if err := s.stores.Watchdog.Create(ctx, s.db, evt); err != nil {
+		return 0, fmt.Errorf("diagnostics report: create event: %w", err)
+	}
+	return evt.ID, nil
 }
 
 // checkLogsDir — logs-dir существует + writable.

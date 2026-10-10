@@ -35,6 +35,7 @@ const (
 	AttentionKindWorkflowAttention  = "workflow_attention"
 	AttentionKindSessionFailed      = "session_failed"
 	AttentionKindSessionContextWall = "session_context_wall" // P1.5: сессия у контекст-стены
+	AttentionKindDiagnosticsFail    = "diagnostics_fail"     // P1.8: fail-чеги Health/Doctor (critical, link /health)
 )
 
 // AttentionLink — целевая деталка для UI-CTA (EntityLink → path).
@@ -265,8 +266,12 @@ func (s *AttentionService) alertItem(ctx context.Context, a *models.WatchdogEven
 		detail = teamName + " · " + detail
 	}
 	detail = detail + " · " + humanDuration(s.now().Sub(a.CreatedAt))
+	kind := AttentionKindAlertUnread
 	var link AttentionLink
 	switch {
+	case a.EventType == "diagnostics_fail": // P1.8: fail-чеги → link на Health/Doctor
+		kind = AttentionKindDiagnosticsFail
+		link = AttentionLink{Path: "/diagnostics", Label: "Health/Doctor"}
 	case a.SessionID != nil:
 		link = AttentionLink{Path: fmt.Sprintf("/sessions/%d", *a.SessionID), Label: "Сессия " + strconv.FormatInt(*a.SessionID, 10)}
 	case a.QueueTaskID != nil:
@@ -275,7 +280,7 @@ func (s *AttentionService) alertItem(ctx context.Context, a *models.WatchdogEven
 		link = AttentionLink{Path: "/dashboard", Label: "Дашборд"}
 	}
 	return AttentionItem{
-		Kind:            AttentionKindAlertUnread,
+		Kind:            kind,
 		ID:              strconv.FormatInt(a.ID, 10),
 		Severity:        severity,
 		Title:           "Watchdog: " + a.EventType,
@@ -370,6 +375,8 @@ func alertSeverityAndAction(eventType string) (severity, action string) {
 		return "critical", "Разобрать блокировку"
 	case "watchdog_job": // P1.6: сработал watchdog-джоб (context-threshold)
 		return "high", "Посмотреть сессию"
+	case "diagnostics_fail": // P1.8: fail-чеги Health/Doctor → critical
+		return "critical", "Открыть Health/Doctor"
 	case "stale":
 		return "high", "Проверить сессию"
 	default:

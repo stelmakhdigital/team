@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -18,8 +19,10 @@ import (
 // ---------- P1.8: Health/Doctor-панель (HTTP: /diagnostics, RBAC) ----------
 
 type diagServer struct {
-	srv  *httptest.Server
-	auth *service.AuthService
+	srv    *httptest.Server
+	auth   *service.AuthService
+	db     *sql.DB
+	stores *repository.Stores
 }
 
 func newDiagnosticsTestServer(t *testing.T) *diagServer {
@@ -53,7 +56,7 @@ func newDiagnosticsTestServer(t *testing.T) *diagServer {
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	return &diagServer{srv: srv, auth: auth}
+	return &diagServer{srv: srv, auth: auth, db: db, stores: stores}
 }
 
 func TestDiagnosticsHTTP(t *testing.T) {
@@ -87,6 +90,44 @@ func TestDiagnosticsHTTP(t *testing.T) {
 	st2, out2, _ := do(t, "POST", s.srv.URL+"/api/v1/diagnostics/run", nil, admin)
 	if st2 != http.StatusOK {
 		t.Fatalf("POST run: want 200, got %d %v", st2, out2)
+	}
+}
+
+// P1.8: POST /run → fail-чеги → unread diagnostics_fail-событие (в Attention).
+// В test-server logs-dir отсутствует → logs.dir fail → ReportFail создаёт событие.
+func TestDiagnosticsRunReportsFail(t *testing.T) {
+	s := newDiagnosticsTestServer(t)
+	admin := map[string]string{"X-API-Key": "env-admin"}
+	// POST /run
+	st, out, _ := do(t, "POST", s.srv.URL+"/api/v1/diagnostics/run", nil, admin)
+	if st != http.StatusOK {
+		t.Fatalf("POST run: want 200, got %d %v", st, out)
+	}
+	// в watchdog_events появилось unread diagnostics_fail (critical)
+	evs, _, err := s.stores.Watchdog.List(context.Background(), s.db, repository.AlertFilter{UnreadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, e := range evs {
+		if e.EventType == "diagnostics_fail" && e.Severity == "critical" && !e.IsRead {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("no unread critical diagnostics_fail event after POST /run")
+	}
+	// второй POST /run → не дублирует (dedup)
+	do(t, "POST", s.srv.URL+"/api/v1/diagnostics/run", nil, admin)
+	ev2, _, _ := s.stores.Watchdog.List(context.Background(), s.db, repository.AlertFilter{UnreadOnly: true})
+	n := 0
+	for _, e := range ev2 {
+		if e.EventType == "diagnostics_fail" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("diagnostics_fail events = %d, want 1 (dedup)", n)
 	}
 }
 
