@@ -124,6 +124,9 @@ func run() error {
 	// P1.7 — Session briefing (startup context): сборщик + func для CreateSession.
 	briefing := service.NewBriefingService(db, stores)
 	ssvc.BriefingFunc = briefing.Build
+	// P3.12 — agent_image: снапшот сессии (library + versions).
+	ssvc.SetLibraryRepo(stores.Library)
+	ssvc.SetLibraryVersionRepo(stores.LibraryVersions)
 	// P1.8 — Health/Doctor-панель (diagnostics, read-only): daemon/БД/tmux/сессии/logs/git + divergence.
 	diagnostics := service.NewDiagnosticsService(db, stores, rtRegistry, cfg.Dialect(), cfg.LogsDir, "0.1.0")
 	alerts := &service.AlertStoreRef{Events: stores.Watchdog, Teams: stores.Teams, DB: db}

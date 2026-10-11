@@ -6,15 +6,16 @@ import "time"
 type LibraryItemType string
 
 const (
-	LibTeam     LibraryItemType = "team"
-	LibWorkflow LibraryItemType = "workflow"
-	LibRole     LibraryItemType = "role"
-	LibSegment  LibraryItemType = "segment"
+	LibTeam       LibraryItemType = "team"
+	LibWorkflow   LibraryItemType = "workflow"
+	LibRole       LibraryItemType = "role"
+	LibSegment    LibraryItemType = "segment"
+	LibAgentImage LibraryItemType = "agent_image" // P3.12: snapshot продуктивного состояния сессии
 )
 
 func (t LibraryItemType) Valid() bool {
 	switch t {
-	case LibTeam, LibWorkflow, LibRole, LibSegment:
+	case LibTeam, LibWorkflow, LibRole, LibSegment, LibAgentImage:
 		return true
 	}
 	return false
@@ -31,6 +32,7 @@ type LibraryItem struct {
 	Author         *string
 	IsPublic       bool
 	IsStarter      bool // P2.13: pin-стартер (готовый набор, apply в один клик)
+	IsPinned       bool // P3.12: пользовательский pin (защита от prune, agent_image)
 	DownloadsCount int
 	Tags           []string
 	Thumbnail      *string

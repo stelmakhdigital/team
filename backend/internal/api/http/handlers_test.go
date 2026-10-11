@@ -75,6 +75,10 @@ func newTestServerSeeded(t *testing.T, apiKeys []string, seedStarters bool) *htt
 	// P2.14: cost tracking (оценка стоимости)
 	ssvc.SetCostService(service.NewCostService(cvc))
 	msvcMetrics.CostSeries = ssvc.CostSeries
+	// P3.12: agent_image (снапшот сессии)
+	ssvc.SetLibraryRepo(repository.NewStores(db).Library)
+	ssvc.SetLibraryVersionRepo(repository.NewStores(db).LibraryVersions)
+
 	attention := service.NewAttentionService(db, repository.NewStores(db))
 	bus := service.NewEventBus()
 	tsvc.Bus = bus

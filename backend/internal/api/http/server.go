@@ -124,6 +124,8 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("GET /api/v1/sessions/{id}/capture", h.CaptureSession)
 	// P2.11: send to session + verify — POST, operator+ (sessions.update)
 	mux.HandleFunc("POST /api/v1/sessions/{id}/send", h.SendSession)
+	// P3.12: snapshot сессии → agent_image — POST, operator+ (sessions.update)
+	mux.HandleFunc("POST /api/v1/sessions/{id}/snapshot", h.SnapshotSession)
 	// P2.9: Pulse feed — unified event feed (GET /events, dashboard.read, viewer-ok)
 	mux.HandleFunc("GET /api/v1/events", h.ListEvents)
 	mux.HandleFunc("GET /api/v1/compact-plan", h.CompactPlan)                // P1.5
@@ -176,6 +178,11 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("GET /api/v1/library/{id}", h.GetLibraryItem)
 	mux.HandleFunc("PATCH /api/v1/library/{id}", h.UpdateLibraryItem) // U3-rename
 	mux.HandleFunc("POST /api/v1/library/{id}/apply", h.ApplyLibraryItem)
+	// P3.12: agent_image — pin/unpin (library.create), prune (DELETE), launch (sessions.update)
+	mux.HandleFunc("POST /api/v1/library/{id}/pin", h.PinLibraryItem)
+	mux.HandleFunc("POST /api/v1/library/{id}/unpin", h.UnpinLibraryItem)
+	mux.HandleFunc("DELETE /api/v1/library/{id}", h.DeleteLibraryItem)
+	mux.HandleFunc("POST /api/v1/library/{id}/launch", h.LaunchLibraryItem)
 
 	// Slice 5b — History Viewer: audit log + metrics
 	mux.HandleFunc("GET /api/v1/audit", h.ListAudit)

@@ -16,7 +16,8 @@ type LibraryRepo struct{ db *sql.DB }
 
 const libraryItemSelect = `
 	SELECT id, type, name, description, group_name, version, author, is_public,
-	       downloads_count, tags, thumbnail, source_type, source_id, spec, created_at, updated_at, is_starter
+	       downloads_count, tags, thumbnail, source_type, source_id, spec, created_at, updated_at,
+	       is_starter, is_pinned
 	FROM library_items`
 
 func (r *LibraryRepo) Create(ctx context.Context, tx DBTX, it *models.LibraryItem) error {
@@ -38,10 +39,10 @@ func (r *LibraryRepo) Create(ctx context.Context, tx DBTX, it *models.LibraryIte
 	it.CreatedAt, it.UpdatedAt = ts, ts
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO library_items (type, name, description, group_name, version, author,
-			is_public, tags, thumbnail, source_type, source_id, spec, created_at, updated_at, is_starter)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			is_public, tags, thumbnail, source_type, source_id, spec, created_at, updated_at, is_starter, is_pinned)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		string(it.Type), it.Name, it.Description, it.Group, it.Version, it.Author,
-		it.IsPublic, string(tags), it.Thumbnail, it.SourceType, it.SourceID, spec, tsStr, tsStr, it.IsStarter)
+		it.IsPublic, string(tags), it.Thumbnail, it.SourceType, it.SourceID, spec, tsStr, tsStr, it.IsStarter, it.IsPinned)
 	if err != nil {
 		return err
 	}
@@ -151,6 +152,35 @@ func (r *LibraryRepo) IncrementDownloads(ctx context.Context, tx DBTX, id int64)
 	return nil
 }
 
+// SetPinned — P3.12: меняет is_pinned (agent_image). ErrNotFound, если id не существует.
+func (r *LibraryRepo) SetPinned(ctx context.Context, tx DBTX, id int64, pinned bool) error {
+	res, err := tx.ExecContext(ctx,
+		`UPDATE library_items SET is_pinned = ?, updated_at = ? WHERE id = ?`,
+		boolToInt(pinned), nowStr(), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// Delete — P3.12: prune (удаление library-элемента). ErrNotFound, если id не существует.
+// (Вызывается только для agent_image — проверка в service.)
+func (r *LibraryRepo) Delete(ctx context.Context, tx DBTX, id int64) error {
+	res, err := tx.ExecContext(ctx, `DELETE FROM library_items WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // GroupCounts — counts по группам (контракт: groups).
 func (r *LibraryRepo) GroupCounts(ctx context.Context, tx DBTX, f LibraryFilter) (map[string]int, error) {
 	conds := []string{}
@@ -189,6 +219,7 @@ func scanLibraryItem(s teamScanner) (*models.LibraryItem, error) {
 		author  sql.NullString
 		pub     int
 		starter int
+		pinned  int
 		tags    string
 		thumb   sql.NullString
 		srcType sql.NullString
@@ -197,7 +228,7 @@ func scanLibraryItem(s teamScanner) (*models.LibraryItem, error) {
 		ca, ua  string
 	)
 	err := s.Scan(&it.ID, &it.Type, &it.Name, &desc, &it.Group, &it.Version, &author, &pub,
-		&it.DownloadsCount, &tags, &thumb, &srcType, &srcID, &spec, &ca, &ua, &starter)
+		&it.DownloadsCount, &tags, &thumb, &srcType, &srcID, &spec, &ca, &ua, &starter, &pinned)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -212,6 +243,7 @@ func scanLibraryItem(s teamScanner) (*models.LibraryItem, error) {
 	}
 	it.IsPublic = pub != 0
 	it.IsStarter = starter != 0
+	it.IsPinned = pinned != 0
 	if err := json.Unmarshal([]byte(tags), &it.Tags); err != nil || it.Tags == nil {
 		it.Tags = []string{}
 	}

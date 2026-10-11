@@ -116,6 +116,80 @@ func (h *handlers) ApplyLibraryItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
+// ---------- P3.12: agent_image — pin / unpin / prune / launch ----------
+
+// PinLibraryItem — POST /api/v1/library/{id}/pin (is_pinned = true; agent_image).
+func (h *handlers) PinLibraryItem(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	view, err := h.lsvc.Pin(r.Context(), id)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": view.ID, "is_pinned": view.IsPinned, "status": "pinned"})
+}
+
+// UnpinLibraryItem — POST /api/v1/library/{id}/unpin (is_pinned = false).
+func (h *handlers) UnpinLibraryItem(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	view, err := h.lsvc.Unpin(r.Context(), id)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": view.ID, "is_pinned": view.IsPinned, "status": "unpinned"})
+}
+
+// DeleteLibraryItem — DELETE /api/v1/library/{id} (prune; только agent_image, не-pinned).
+func (h *handlers) DeleteLibraryItem(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	if _, err := h.lsvc.Prune(r.Context(), id); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "status": "deleted"})
+}
+
+// LaunchLibraryItem — POST /api/v1/library/{id}/launch (создать сессию из agent_image).
+// Body: {team_id (обязат.), project_id?}. Только type=agent_image.
+func (h *handlers) LaunchLibraryItem(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body struct {
+		TeamID    int64  `json:"team_id"`
+		ProjectID *int64 `json:"project_id"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, service.NewValidation("invalid body"))
+		return
+	}
+	sess, err := h.ssvc.LaunchFromSnapshot(r.Context(), id, service.LaunchRequest{
+		TeamID: body.TeamID, ProjectID: body.ProjectID,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id": sess.ID, "state": string(sess.State), "status": "started",
+	})
+}
+
 // ---------- Audit log (slice 5b, контракт 20 §6.3) ----------
 
 // ListAudit — GET /api/v1/audit

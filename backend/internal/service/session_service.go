@@ -53,6 +53,10 @@ type SessionService struct {
 	ContextWallPctFunc func(ctx context.Context) (int, error)
 	// P2.14 — cost: оценка стоимости сессий (nil = стоимость не считается).
 	cost *CostService
+	// P3.12 — agent_image: снапшот сессии (создаёт library-элемент type=agent_image).
+	// nil = snapshot недоступен (404/501 в handler).
+	library         *repository.LibraryRepo
+	libraryVersions *repository.LibraryVersionRepo // P3.12: append-only версии снапшота
 	// P1.5 — handover: переиспользуем существующую механику handoff задачи
 	// (TaskService.HandoffTask). nil = task-шаг handover skipped.
 	TaskHandoffFunc func(ctx context.Context, req HandoffTaskRequest) (*HandoffTaskResult, error)
@@ -76,6 +80,14 @@ func NewSessionService(db *sql.DB, s *repository.Stores, rt *runtime.Registry) *
 
 // SetCostService — P2.14: подключить расчёт стоимости (оценка по токенам).
 func (s *SessionService) SetCostService(c *CostService) { s.cost = c }
+
+// SetLibraryRepo — P3.12: подключить LibraryRepo (для снапшота сессии в agent_image).
+func (s *SessionService) SetLibraryRepo(r *repository.LibraryRepo) { s.library = r }
+
+// SetLibraryVersionRepo — P3.12: подключить LibraryVersionRepo (версии снапшота).
+func (s *SessionService) SetLibraryVersionRepo(r *repository.LibraryVersionRepo) {
+	s.libraryVersions = r
+}
 
 type CreateSessionRequest struct {
 	RoleID      int64          `json:"role_id"`
@@ -238,6 +250,16 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 		}
 		if p, ok := sess.Config["system_prompt"].(string); ok {
 			fields.SystemPrompt = p
+		}
+		if t, ok := sess.Config["thinking"].(string); ok {
+			fields.Thinking = t
+		}
+		// P3.12: skills/tools из config (launch из agent_image / явная настройка).
+		if sk := stringSliceFromAny(sess.Config["skills"]); len(sk) > 0 {
+			fields.Skills = sk
+		}
+		if tl := stringSliceFromAny(sess.Config["tools"]); len(tl) > 0 {
+			fields.Tools = tl
 		}
 		if err := runtime.WriteSessionConfig(configFile, fields); err != nil {
 			return nil, err

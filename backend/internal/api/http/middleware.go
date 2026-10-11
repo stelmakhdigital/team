@@ -175,6 +175,12 @@ func requiredPermission(method, path string) string {
 			return "workflows.update" // P1.4: actions = workflows.update
 		case res == "library" && id != "" && sub == "apply":
 			return "library.apply"
+		case res == "sessions" && id != "" && sub == "snapshot": // P3.12: snapshot = sessions.update (operator+)
+			return "sessions.update"
+		case res == "library" && id != "" && sub == "launch": // P3.12: launch из снапшота = sessions.update (operator+)
+			return "sessions.update"
+		case res == "library" && id != "" && (sub == "pin" || sub == "unpin"): // P3.12: pin/unpin = library.write (library.create)
+			return "library.create"
 		case res == "watchdog" && id == "jobs": // P1.6: register/stop джобов = watchdog.update
 			return "watchdog.update"
 		case res == "watchdog":
@@ -223,6 +229,8 @@ func requiredPermission(method, path string) string {
 			return "teams.delete"
 		case "sessions":
 			return "sessions.stop"
+		case "library": // P3.12: prune agent_image = library.write (library.create)
+			return "library.create"
 		case "config": // U4: DELETE /api/v1/config/{key} — reset override
 			return "config.update"
 		case "relatives":

@@ -233,6 +233,38 @@ func (h *handlers) SendSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
+// ---------- P3.12: snapshot сессии (agent_image) ----------
+
+// SnapshotSession — POST /api/v1/sessions/{id}/snapshot (RBAC sessions.update, operator+).
+// Body: {name (обязат.), summary?, description?}. Захват продуктивного состояния
+// сессии (агент-конфиг + резюме) → Library-элемент type=agent_image.
+func (h *handlers) SnapshotSession(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body struct {
+		Name        string  `json:"name"`
+		Summary     *string `json:"summary"`
+		Description *string `json:"description"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, service.NewValidation("invalid body"))
+		return
+	}
+	it, err := h.ssvc.SnapshotSession(r.Context(), id, service.SnapshotRequest{
+		Name: body.Name, Summary: body.Summary, Description: body.Description,
+	})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id": it.ID, "type": "agent_image", "name": it.Name, "status": "created",
+	})
+}
+
 // ---------- P2.7: поиск по транскриптам ----------
 
 // SearchSessions — GET /api/v1/sessions/search?q=&role_id=&team_id=&state=&limit=&offset=

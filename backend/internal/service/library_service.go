@@ -54,6 +54,7 @@ type LibraryItemView struct {
 	Author         *string  `json:"author,omitempty"`
 	IsPublic       bool     `json:"is_public"`
 	IsStarter      bool     `json:"is_starter"` // P2.13: pin-стартер
+	IsPinned       bool     `json:"is_pinned"`  // P3.12: пользовательский pin (agent_image)
 	DownloadsCount int      `json:"downloads_count"`
 	Tags           []string `json:"tags,omitempty"`
 	Thumbnail      *string  `json:"thumbnail,omitempty"`
@@ -73,7 +74,7 @@ func libraryItemView(it *models.LibraryItem) *LibraryItemView {
 	return &LibraryItemView{
 		ID: it.ID, Type: string(it.Type), Name: it.Name, Description: it.Description,
 		Group: groupPtr, Version: it.Version, Author: it.Author,
-		IsPublic: it.IsPublic, IsStarter: it.IsStarter, DownloadsCount: it.DownloadsCount, Tags: it.Tags,
+		IsPublic: it.IsPublic, IsStarter: it.IsStarter, IsPinned: it.IsPinned, DownloadsCount: it.DownloadsCount, Tags: it.Tags,
 		Thumbnail: it.Thumbnail,
 		CreatedAt: it.CreatedAt.Format(rfc3339), UpdatedAt: it.UpdatedAt.Format(rfc3339),
 	}
@@ -202,6 +203,60 @@ func (s *LibraryService) Update(ctx context.Context, req UpdateLibraryRequest) (
 	}
 	it.Name = req.Name
 	it.Description = desc
+	return libraryItemView(it), nil
+}
+
+// ---------- P3.12: agent_image — pin / unpin / prune ----------
+
+// Pin — POST /library/{id}/pin: is_pinned = true (agent_image). Возвращает view.
+func (s *LibraryService) Pin(ctx context.Context, id int64) (*LibraryItemView, error) {
+	return s.setPinned(ctx, id, true)
+}
+
+// Unpin — POST /library/{id}/unpin: is_pinned = false.
+func (s *LibraryService) Unpin(ctx context.Context, id int64) (*LibraryItemView, error) {
+	return s.setPinned(ctx, id, false)
+}
+
+func (s *LibraryService) setPinned(ctx context.Context, id int64, pinned bool) (*LibraryItemView, error) {
+	it, err := s.items.GetByID(ctx, s.db, id)
+	if err != nil {
+		return nil, wrapRepositoryNotFound(err, "library item")
+	}
+	if it.Type != models.LibAgentImage {
+		return nil, &AppError{Code: "validation_failed", Status: 400,
+			Message: fmt.Sprintf("pin/unpin is only supported for agent_image (got %s)", it.Type)}
+	}
+	if err := s.items.SetPinned(ctx, s.db, id, pinned); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, NewNotFound("library item")
+		}
+		return nil, err
+	}
+	it.IsPinned = pinned
+	return libraryItemView(it), nil
+}
+
+// Prune — DELETE /library/{id}: удаление снапшота. Только для agent_image;
+// pinned → 409; другой тип → 400. Возвращает view удалённого элемента.
+func (s *LibraryService) Prune(ctx context.Context, id int64) (*LibraryItemView, error) {
+	it, err := s.items.GetByID(ctx, s.db, id)
+	if err != nil {
+		return nil, wrapRepositoryNotFound(err, "library item")
+	}
+	if it.Type != models.LibAgentImage {
+		return nil, &AppError{Code: "validation_failed", Status: 400,
+			Message: fmt.Sprintf("prune (DELETE) is only supported for agent_image (got %s)", it.Type)}
+	}
+	if it.IsPinned {
+		return nil, NewConflict(fmt.Sprintf("agent image %q is pinned and cannot be pruned", it.Name))
+	}
+	if err := s.items.Delete(ctx, s.db, id); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, NewNotFound("library item")
+		}
+		return nil, err
+	}
 	return libraryItemView(it), nil
 }
 
