@@ -7,6 +7,7 @@ export interface Team {
   description?: string;
   state: 'active' | 'archived' | 'stopped';
   project_id?: number; // P1.0
+  posture?: Posture; // P3.16: delegated (default) | human_led
   segments_count: number;
   roles_count: number;
   created_at: string;
@@ -748,6 +749,10 @@ export interface Session {
   briefing_text?: string; // detail: полный текст
   // P2.14: стоимость сессии (оценка); undefined/null = «нет данных»
   estimated_cost?: CostInfo | null;
+  // P3.16: Mode/permission posture
+  posture?: Posture | null; // override (null/undefined = наследует от команды)
+  effective_posture?: Posture; // resolved (badge)
+  team_posture?: Posture; // postura команды (для "inherit")
 }
 
 export interface GetSessionsResponse {
@@ -791,7 +796,8 @@ export type AttentionKind =
   | 'workflow_attention'
   | 'session_context_wall'
   | 'diagnostics_fail'
-  | 'session_failed';
+  | 'session_failed'
+  | 'human_request'; // P3.16: pending sensitive-op (human-led)
 export type AttentionSeverity = 'critical' | 'high' | 'normal';
 export interface AttentionLink {
   path: string;
@@ -897,6 +903,10 @@ export interface SessionDetail {
   briefing_text?: string;
   // P2.14: стоимость (оценка); undefined/null = «нет данных»
   estimated_cost?: CostInfo | null;
+  // P3.16: Mode/permission posture
+  posture?: Posture | null; // override (null/undefined = наследует от команды)
+  effective_posture?: Posture; // resolved (badge)
+  team_posture?: Posture; // postura команды (для "inherit")
 }
 
 export interface ListSessionsParams {
@@ -1778,4 +1788,55 @@ export interface WatchdogJobRegisterRequest {
 export interface WatchdogJobListResponse {
   jobs: WatchdogJob[];
   total: number;
+}
+
+// ---- P3.16: Mode/permission posture (delegated vs human-led) ----
+
+export type Posture = 'delegated' | 'human_led';
+
+export type HumanRequestStatus =
+  | 'pending'
+  | 'approved'
+  | 'denied'
+  | 'replayed'
+  | 'expired';
+
+export interface HumanRequest {
+  id: number;
+  scope_type: 'team' | 'session' | 'global';
+  scope_id?: number | null;
+  team_id?: number | null;
+  method: string;
+  path: string;
+  body?: string | null;
+  operation: string;
+  reversible: boolean;
+  status: HumanRequestStatus;
+  decision_reason?: string | null;
+  decided_by?: string | null;
+  decided_at?: string | null;
+  replay_status?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SetPostureResponse {
+  id: number;
+  posture: Posture | null;
+  status: string;
+}
+
+export interface HumanRequestDecideResponse {
+  // полный HumanRequest (после decide + replay)
+  [key: string]: unknown;
+  id: number;
+  status: HumanRequestStatus;
+  replay_status?: number | null;
+}
+
+export interface ParkedResponse {
+  parked: boolean;
+  human_request_id: number;
+  operation: string;
+  message: string;
 }

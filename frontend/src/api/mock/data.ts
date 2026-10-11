@@ -20,6 +20,7 @@ import type {
   Task,
   TaskEvidence,
   Walk,
+  HumanRequest, // P3.16: mode/permission posture
   TaskHistoryEntry,
   TaskWake,
   Team,
@@ -69,6 +70,7 @@ interface DB {
   taskHistory: TaskHistoryEntry[];
   taskEvidence: TaskEvidence[]; // P3.13: proof/evidence
   walks: Walk[]; // P3.14: paced-доставка контекста в сессию
+  humanRequests: HumanRequest[]; // P3.16: паркованные чувствительные операции
   configOverrides: Record<string, unknown>;
   seq: number;
 }
@@ -162,6 +164,7 @@ function seed(): DB {
     taskHistory: [],
     taskEvidence: [],
     walks: [],
+    humanRequests: [],
     configOverrides: {},
     seq: 1000,
   };
@@ -207,6 +210,7 @@ function seed(): DB {
       name: 'Dev Team',
       description: 'Backend + review topology',
       state: 'active',
+      posture: 'human_led', // P3.16: demo — чувствительные операции паркуются
       segments_count: 2,
       roles_count: 4,
       created_at: iso(60 * 24 * 3),
@@ -749,6 +753,23 @@ function seed(): DB {
         { id: 2, seq: 2, content: 'Текущая задача + что уже сделано в этой сессии.', state: 'staged', send_status: 'staged', sent_at: iso(12) },
         { id: 3, seq: 3, content: 'Где посмотреть статус (dashboard, tasks, sessions).', state: 'pending' },
       ],
+    },
+  ];
+
+  // P3.16: pending human_request (human-led team 1) — требует подтверждения.
+  t.humanRequests = [
+    {
+      id: 1,
+      scope_type: 'session',
+      scope_id: 1,
+      team_id: 1,
+      method: 'DELETE',
+      path: '/api/v1/sessions/1',
+      operation: 'session.stop',
+      reversible: false,
+      status: 'pending',
+      created_at: iso(20),
+      updated_at: iso(20),
     },
   ];
 

@@ -474,6 +474,21 @@ func (s *SessionService) GetSessionView(ctx context.Context, id int64) (*Session
 		if bt := cfgStr(sess.Config, "briefing_text"); bt != "" {
 			v.BriefingText = bt
 		}
+		// P3.16: posture (override сессии + effective + postura команды).
+		if sess.Posture != nil {
+			p := string(*sess.Posture)
+			v.Posture = &p
+		}
+		teamPosture := models.PostureDelegated
+		if team, terr := s.teams.GetByID(ctx, s.db, sess.TeamID); terr == nil && team.Posture.Valid() {
+			teamPosture = team.Posture
+		}
+		v.TeamPosture = string(teamPosture)
+		if sess.Posture != nil && sess.Posture.Valid() {
+			v.EffectivePosture = string(*sess.Posture)
+		} else {
+			v.EffectivePosture = string(teamPosture)
+		}
 	}
 	return views[0], nil
 }
@@ -595,6 +610,10 @@ type SessionView struct {
 	BriefingApplied string `json:"briefing_applied,omitempty"` // builtin|override|none
 	BriefingPath    string `json:"briefing_path,omitempty"`    // файл (process/tmux)
 	BriefingText    string `json:"briefing_text,omitempty"`    // canonical markdown (detail)
+	// P3.16 — Mode/permission posture (delegated vs human-led).
+	Posture          *string `json:"posture,omitempty"` // override сессии (null = наследует от команды)
+	EffectivePosture string  `json:"effective_posture"` // resolved (badge)
+	TeamPosture      string  `json:"team_posture"`      // postura команды (для "inherit")
 }
 
 func (s *SessionService) viewsFor(ctx context.Context, sessions []*models.Session) ([]*SessionView, error) {

@@ -1707,3 +1707,127 @@ GET evidence → `dashboard.read` (viewer-ok); POST evidence + verdict → `task
   create/advance, 200 get).
 - **Frontend vitest** (5): list+статус+progress, advance→completed, create-форма,
   retained→paused, pause/resume.
+
+---
+
+## P3.16. Mode/permission posture — delegated vs human-led (T-20261011092843)
+
+Оператор выбирает **posture** (режим доверия) на уровне команды (база) + сессии
+(override). **delegated** = чувствительные операции выполняются сразу (авто);
+**human_led** = чувствительные операции **паркуются** → `human_request`
+(approve/deny → **replay** оригинального запроса один раз).
+
+### Модель (Migration 0025, sqlite + postgres)
+- `teams.posture` TEXT NOT NULL DEFAULT 'delegated' CHECK IN
+  ('delegated','human_led') — база.
+- `sessions.posture` TEXT (nullable) CHECK IN ('delegated','human_led') — override;
+  **NULL = наследует от команды**.
+- `human_requests` (новая таблица): `scope_type` (team/session/global),
+  `scope_id`, `team_id`, `method`, `path`, `body` (bounded ≤ 64KB), `auth_key`
+  (API-ключ оригинала для replay-auth), `operation` ("session.stop" и т.д.),
+  `reversible` (ADR-002), `status` (pending/approved/denied/replayed/expired),
+  `decision_reason`, `decided_by`, `decided_at`, `replay_status` (HTTP-статус
+  replay), created/updated. Индексы: status, (scope_type, scope_id).
+- **`models.Posture`** + `Valid()`, `models.HumanRequest` + `HumanRequestStatus`.
+
+### Sensitive-реестр (что считается чувствительным)
+`service/sensitive_registry.go` — `MatchSensitive(method, path) → (operation,
+reversible, ok)`. Правила (порядок — специфичные перед обобщённым):
+- `PUT /config/{key}` → `config.set` (reversible)
+- `POST /workflow-instances/{id}/abort` → `workflow.abort` (irreversible)
+- `DELETE /sessions/{id}` → `session.stop` (irreversible)
+- `POST /sessions/{id}/handover` → `session.handover` (reversible)
+- `DELETE /library/{id}` → `library.prune` (irreversible)
+- `DELETE /*` (обобщённый) → `delete` (irreversible: stop/прune/archive/relatives).
+- **`decide`-endpoint НЕ sensitive** (иначе рекурсия).
+
+### Scope resolution (effective posture)
+`PostureService.resolve(path)`:
+- **session scope** (`/sessions/{id}`) → `session.posture` если задано, иначе
+  `team.posture` (от `session.team_id`).
+- **team scope** (`/teams/{id}`) → `team.posture`.
+- **task scope** (`/tasks/{id}`) → `team.posture` (от `task.team_id`).
+- **global scope** (config/workflow-instances/library/прочее) → config
+  `posture.default` (default `delegated`).
+
+### PostureService (Check + Decide)
+- **`Check(method, path, body, apiKey)`** → `(park, reqID, operation, err)`.
+  Не sensitive → не паркуем. delegated → не паркуем. **human_led + sensitive →
+  park**: создаём `human_request` (pending). **Дедуп**: если уже есть pending на
+  ту же (method, path) → возвращаем его (не создаём дубль).
+- **`Decide(id, decision, reason, decidedBy)`** → approve/deny. **Только из
+  pending** (повтор → **409**); invalid decision → **400**; 404. Атрибуция
+  `decided_by` + `decided_at`; audit `human_request.decided`.
+- **`SetTeamPosture`** (admin) / **`SetSessionPosture`** (operator+, NULL =
+  inherit). 404 team/session; invalid posture → 400.
+
+### Интерцептор (postureMW) + replay
+- **`postureMW`** вставляется **между auth и audit** (в `server.go`):
+  - GET → пропуск. **`X-Posture-Approved: <id>`** → bypass (replay, one-time:
+    `MarkReplayed` approved→replayed; иначе 403).
+  - Не sensitive → пропуск. **human_led + sensitive → 202** (park) с
+    `{parked, human_request_id, operation, message}`; **не выполняем**.
+  - **fail-open**: при ошибке проверки (не RBAC) → log + пропуск (не блокируем).
+- **Replay** (`DecideHumanRequest`, approve): реконструирует оригинальный
+  запрос (method/path/body + `auth_key` → X-API-Key + `X-Posture-Approved`) и
+  прогоняет через **полный chain** (`h.SetChain`). **auth+RBAC выполняются как
+  обычно** (bypass только park) → `replay_status` = HTTP-статус replay. **Один
+  раз** (MarkReplayed атомарный `WHERE status='approved'`).
+- **RBAC не обходится**: replay с viewer-ключом → 403 (viewer не имеет права на
+  операцию) — даже если human_request approved.
+
+### Config (M5)
+- `posture.default` (section `posture`, StrType, default `delegated`,
+  Editable, `requires_restart=false` — читается на момент park/decide) — daemon
+  default для global scope.
+
+### Attention (M6)
+- Pending `human_requests` → `AttentionItem{Kind:"human_request", Severity:"high"}`
+  (source #7 в `AttentionService.List`). Live: EventBus `human_request.parked` /
+  `human_request.decided` (channels team:{id} + dashboard).
+
+### RBAC
+- `PATCH /teams/{id}/posture` → **config.update** (admin-only, базовый режим
+  команды).
+- `PATCH /sessions/{id}/posture` → **sessions.update** (operator+).
+- `GET /human-requests` + `GET /human-requests/{id}` → **dashboard.read**
+  (viewer-ok).
+- `POST /human-requests/{id}/decide` → **tasks.update** (operator+).
+- **Нет новых пермиссий** (reuse существующих).
+
+### Frontend
+- **PosturePanel** (reusable): team (TeamBuilderPage) + session (SessionDetailPage).
+  Effective-posture **бейдж** (🤖 Delegated / 👤 Human-led) + radio (team:
+  delegated/human_led; session: inherit/delegated/human_led). **Optimistic** update
+  (revert при ошибке).
+- **Session detail**: `posture` (override) + `effective_posture` + `team_posture`
+  в SessionView; `posture` в TeamView.
+- **Attention**: pending human_request → строка с кнопками **Approve/Deny**
+  (`HumanRequestActions`, reason через prompt) + link.
+- **API client**: `posture.setTeam/setSession/getHumanRequest/
+  decideHumanRequest/listHumanRequests`.
+
+### Ключевые решения
+- **Park до выполнения** (interceptor между auth и audit): sensitive op в
+  human-led scope **не выполняется** до approve. delegated — как раньше.
+- **Replay через полный chain** (auth+RBAC, bypass только park) → **RBAC не
+  обходится**; one-time (MarkReplayed атомарный).
+- **Scope по path** (session→team, task→team, team, global): global → config
+  `posture.default` (default delegated).
+- **Дедуп park**: повторный sensitive-запрос на ту же операцию → тот же
+  human_request (не дубль).
+- **fail-open** при ошибке проверки (не блокируем при сбое posture-check; RBAC/
+  auth не трогаем).
+
+### Тесты
+- **Service**: matchSensitive (sensitive/non-sensitive + operations), scope
+  resolution (session→team, task→team, global default), Check (delegated no-park,
+  human_led park, non-sensitive, dedup), Decide (approve/deny, repeat 409, 404,
+  invalid 400).
+- **HTTP**: interceptor park (202) + replay (approve→200+replayed+replay_status=
+  200, команда заархивирована), delegated no-park (200, сразу), deny (no replay,
+  status=denied), **RBAC-not-bypassed** (approved от viewer → replay_status=403,
+  команда НЕ изменена).
+- **Frontend vitest** (4): team panel (badge + toggle optimistic+persist), session
+  inherit→effective=team, human-request approve→replayed, mock setSession
+  override+reset.

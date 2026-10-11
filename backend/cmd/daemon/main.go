@@ -206,6 +206,7 @@ func run() error {
 
 	// P3.16 Posture (delegated vs human-led; park sensitive ops → human_request)
 	postureSvc := service.NewPostureService(db, stores, cvc, aservice)
+	postureSvc.SetBus(bus)
 
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger: logger, DB: db,

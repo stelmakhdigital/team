@@ -737,6 +737,40 @@ summary. Из снимка можно **запустить новую сесси
 - **Retained** — guard: если в сессии интерактивный prompt, walk ставится на паузу,
   чтобы не «надавить» Enter в не то место.
 
+### 6.11. Mode/permission posture — delegated vs human-led (P3.16)
+
+**Posture** (режим доверия) — как система исполняет **чувствительные операции**
+(stop сессии, handover, abort воркфлоу, prune, config, DELETE):
+- **Delegated** (авто) — чувствительные операции выполняются сразу (как раньше).
+- **Human-led** — чувствительные операции **паркуются** (не выполняются) →
+  `human_request` в **Attention** → оператор **Approve/Deny** → approve **replay'ит**
+  операцию один раз (через auth+RBAC), deny — не выполняется.
+
+**Где выбрать posture**:
+- **Team Builder** (top, над topology) → блок **Posture**: effective-posture-бейдж
+  (🤖 Delegated / 👤 Human-led) + переключатель (delegated/human-led). Это **база**
+  для команды.
+- **Session Detail** (после Walk) → блок **Posture**: **override** для сессии
+  (Inherit / Delegated / Human-led). Inherit = наследует от команды.
+
+**Effective posture** = override сессии (если задан), иначе postura команды; без
+команды/сессии (config, workflow-instances, library) → daemon default (Settings →
+Posture → `posture.default`, по умолчанию delegated).
+
+**Механика (human-led)**:
+- Оператор (или агент) вызывает чувствительную операцию → **202 (parked)** +
+  `human_request_id`. Операция **не выполняется**.
+- В **Attention** появляется строка **high** «Подтвердить: <operation>» с кнопками
+  **Approve / Deny** (reason — опционально).
+- **Approve** → replay оригинального запроса (один раз) → операция выполняется
+  (auth+RBAC как обычно). **Deny** → без replay. Повторное decide → 409.
+- **RBAC не обходится**: replay идёт с оригинальным ключом → если у него нет права на
+  операцию → replay 403 (даже если human_request approved).
+
+**Чувствительные операции** (v1): `session.stop`, `session.handover`, `workflow.abort`,
+`library.prune`, `config.set`, и обобщённо любой `DELETE` (archive/relatives). Остальные
+операции (create/update/read) — не чувствительные, не паркуются.
+
 ---
 
 ## 7. Безопасность (ключи и RBAC)

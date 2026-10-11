@@ -200,6 +200,21 @@ func (h *handlers) GetHumanRequest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, humanRequestView(hr))
 }
 
+// ListHumanRequests — GET /api/v1/human-requests (RBAC dashboard.read, viewer-ok).
+// Только pending (требуют решения).
+func (h *handlers) ListHumanRequests(w http.ResponseWriter, r *http.Request) {
+	items, err := h.posture.ListPending(r.Context())
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	views := make([]HumanRequestView, 0, len(items))
+	for _, hr := range items {
+		views = append(views, humanRequestView(hr))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"human_requests": views, "total": len(views)})
+}
+
 type decideBody struct {
 	Decision string  `json:"decision"` // approve | deny
 	Reason   *string `json:"reason"`

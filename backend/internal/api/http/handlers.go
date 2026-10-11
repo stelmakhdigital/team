@@ -96,6 +96,7 @@ func (h *handlers) ListTeams(w http.ResponseWriter, r *http.Request) {
 		Description   string `json:"description,omitempty"`
 		State         string `json:"state"`
 		ProjectID     *int64 `json:"project_id,omitempty"` // P1.0
+		Posture       string `json:"posture"`              // P3.16: delegated|human_led
 		SegmentsCount int    `json:"segments_count"`
 		RolesCount    int    `json:"roles_count"`
 		CreatedAt     string `json:"created_at"`
@@ -105,7 +106,7 @@ func (h *handlers) ListTeams(w http.ResponseWriter, r *http.Request) {
 	for _, t := range teams {
 		out = append(out, teamView{
 			ID: t.ID, Name: t.Name, Description: t.Description, State: string(t.State), ProjectID: t.ProjectID,
-			SegmentsCount: t.SegmentsCount, RolesCount: t.RolesCount,
+			Posture: string(t.Posture), SegmentsCount: t.SegmentsCount, RolesCount: t.RolesCount,
 			CreatedAt: t.CreatedAt.Format(rfc3339), UpdatedAt: t.UpdatedAt.Format(rfc3339),
 		})
 	}
@@ -235,6 +236,7 @@ func (h *handlers) GetTeam(w http.ResponseWriter, r *http.Request) {
 		"team": map[string]any{
 			"id": detail.Team.ID, "name": detail.Team.Name,
 			"description": detail.Team.Description, "state": string(detail.Team.State),
+			"posture":        string(detail.Team.Posture),
 			"segments_count": len(detail.Segments), "roles_count": len(detail.Roles),
 			"created_at": detail.Team.CreatedAt.Format(rfc3339),
 			"updated_at": detail.Team.UpdatedAt.Format(rfc3339),
@@ -664,6 +666,7 @@ func topologyView(t *service.Topology) map[string]any {
 		"team": map[string]any{
 			"id": t.Team.ID, "name": t.Team.Name,
 			"description": t.Team.Description, "state": string(t.Team.State),
+			"posture":        string(t.Team.Posture),
 			"segments_count": len(t.Segments), "roles_count": len(t.Roles),
 			"created_at": t.Team.CreatedAt.Format(rfc3339),
 			"updated_at": t.Team.UpdatedAt.Format(rfc3339),

@@ -152,6 +152,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("PATCH /api/v1/teams/{id}/posture", h.SetTeamPosture)            // (config.update, admin)
 	mux.HandleFunc("PATCH /api/v1/sessions/{id}/posture", h.SetSessionPosture)      // (sessions.update, operator+)
 	mux.HandleFunc("GET /api/v1/human-requests/{id}", h.GetHumanRequest)            // (dashboard.read, viewer-ok)
+	mux.HandleFunc("GET /api/v1/human-requests", h.ListHumanRequests)               // (dashboard.read, viewer-ok)
 	mux.HandleFunc("POST /api/v1/human-requests/{id}/decide", h.DecideHumanRequest) // (tasks.update, operator+)
 	// P2.9: Pulse feed — unified event feed (GET /events, dashboard.read, viewer-ok)
 	mux.HandleFunc("GET /api/v1/events", h.ListEvents)

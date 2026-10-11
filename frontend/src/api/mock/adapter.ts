@@ -132,6 +132,10 @@ function toSessionDetail(s: Session): SessionDetail {
     briefing_applied: s.briefing_applied,
     briefing_path: s.briefing_path,
     briefing_text: s.briefing_text,
+    // P3.16: posture (override + effective + team)
+    posture: s.posture,
+    effective_posture: s.effective_posture,
+    team_posture: s.team_posture,
   };
 }
 function clone<T>(v: T): T {
@@ -1031,6 +1035,18 @@ export function createMockAdapter(): Api {
             link,
           });
         }
+        // P3.16: pending human_requests (human-led sensitive ops) -> high
+        for (const hr of db.humanRequests) {
+          if (hr.status !== 'pending') continue;
+          items.push({
+            kind: 'human_request', id: `hreq-${hr.id}`, severity: 'high',
+            title: `Подтвердить: ${hr.operation}`,
+            detail: `${hr.method} ${hr.path}`,
+            created_at: hr.created_at,
+            suggested_action: hr.reversible ? 'Approve / Deny' : 'Подтвердить (irreversible)',
+            link: { path: `/attention/human-requests/${hr.id}`, label: `Подтвердить: ${hr.operation}` },
+          });
+        }
         const rank: Record<string, number> = { critical: 0, high: 1, normal: 2 };
         items.sort((x, y) => {
           if (rank[x.severity] !== rank[y.severity]) return rank[x.severity] - rank[y.severity];
@@ -1874,6 +1890,60 @@ export function createMockAdapter(): Api {
         w.progress = w.sent_count + '/' + w.total;
         w.updated_at = now();
         return clone(w);
+      },
+    },
+
+    // P3.16: Mode/permission posture (delegated vs human-led)
+    posture: {
+      async setTeam(teamId, posture) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const team = db.teams.find((t) => t.id === teamId);
+        if (!team) throw new ApiClientError(404, 'not_found', 'Team not found');
+        team.posture = posture;
+        team.updated_at = now();
+        return { id: teamId, posture, status: 'updated' };
+      },
+      async setSession(sessionId, posture) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const sess = db.sessions.find((s) => s.id === sessionId);
+        if (!sess) throw new ApiClientError(404, 'not_found', 'Session not found');
+        sess.posture = posture;
+        sess.effective_posture = posture ?? sess.effective_posture ?? 'delegated';
+        return { id: sessionId, posture, status: 'updated' };
+      },
+      async getHumanRequest(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const hr = db.humanRequests.find((x) => x.id === id);
+        if (!hr) throw new ApiClientError(404, 'not_found', 'human_request not found');
+        return clone(hr);
+      },
+      async decideHumanRequest(id, decision, reason) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const hr = db.humanRequests.find((x) => x.id === id);
+        if (!hr) throw new ApiClientError(404, 'not_found', 'human_request not found');
+        if (hr.status !== 'pending') throw new ApiClientError(409, 'conflict', `human_request is ${hr.status}, cannot decide`);
+        hr.status = decision === 'approve' ? 'replayed' : 'denied';
+        hr.decided_by = 'mock-human';
+        hr.decided_at = now();
+        if (reason) hr.decision_reason = reason;
+        if (decision === 'approve') hr.replay_status = 200;
+        hr.updated_at = now();
+        return clone(hr);
+      },
+      async listHumanRequests() {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const pending = db.humanRequests.filter((x) => x.status === 'pending');
+        return { human_requests: clone(pending), total: pending.length };
       },
     },
 

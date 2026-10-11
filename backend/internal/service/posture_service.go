@@ -64,6 +64,7 @@ type PostureService struct {
 	tasks    *repository.TaskRepo
 	config   *ConfigService
 	audit    *AuditService
+	bus      *EventBus // P3.16: human_request.parked / human_request.decided (live Attention)
 }
 
 // NewPostureService — конструктор.
@@ -71,6 +72,9 @@ func NewPostureService(db *sql.DB, stores *repository.Stores, config *ConfigServ
 	return &PostureService{db: db, hr: stores.HumanRequests, teams: stores.Teams,
 		sessions: stores.Sessions, tasks: stores.Tasks, config: config, audit: audit}
 }
+
+// SetBus — EventBus (Pulse: human_request.parked / human_request.decided), nil-safe.
+func (s *PostureService) SetBus(b *EventBus) { s.bus = b }
 
 // resolve — effective posture + scope из request path.
 func (s *PostureService) resolve(ctx context.Context, sc requestScope) (scopeInfo, error) {
@@ -183,6 +187,7 @@ func (s *PostureService) Check(ctx context.Context, method, path, body, apiKey s
 	if err := s.hr.Create(ctx, s.db, hr); err != nil {
 		return false, 0, "", err
 	}
+	s.publishParked(hr)
 	return true, hr.ID, operation, nil
 }
 
@@ -225,6 +230,7 @@ func (s *PostureService) Decide(ctx context.Context, id int64, decision, reason,
 	hr.DecidedBy = &by
 	hr.DecidedAt = &now
 	hr.DecisionReason = reasonPtr
+	s.publishDecided(hr, decision)
 	return hr, nil
 }
 
@@ -287,4 +293,30 @@ func strOrNil(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// publishParked — P3.16: human_request.parked (live Attention).
+func (s *PostureService) publishParked(hr *models.HumanRequest) {
+	if s.bus == nil {
+		return
+	}
+	data := map[string]any{"human_request_id": hr.ID, "operation": hr.Operation, "scope_type": hr.ScopeType}
+	chans := []string{}
+	if hr.TeamID != nil {
+		chans = append(chans, fmt.Sprintf("team:%d", *hr.TeamID))
+	}
+	s.bus.Publish(newEvent("human_request.parked", data, chans...))
+}
+
+// publishDecided — P3.16: human_request.decided (live Attention).
+func (s *PostureService) publishDecided(hr *models.HumanRequest, decision string) {
+	if s.bus == nil {
+		return
+	}
+	data := map[string]any{"human_request_id": hr.ID, "operation": hr.Operation, "decision": decision}
+	chans := []string{}
+	if hr.TeamID != nil {
+		chans = append(chans, fmt.Sprintf("team:%d", *hr.TeamID))
+	}
+	s.bus.Publish(newEvent("human_request.decided", data, chans...))
 }

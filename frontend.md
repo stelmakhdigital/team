@@ -702,6 +702,26 @@ Paced-доставка контекста: Walk-блок в Session Detail (crea
 Скриншоты @2560: `session-walk-2560x1440.png` (Session #1: Walk-блок — create-редактор
 + существующий walk (active, 2/3, delivered/staged/pending + Advance/Pause/Skip)).
 
+### 3y. Mode/permission posture (P3.16, 2026-10-11)
+Posture (delegated/human-led) на team + session + human-request approve/deny в Attention.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/types/api.ts` | `Posture`, `HumanRequest`, `HumanRequestStatus`, `SetPostureResponse`, `ParkedResponse`; `Team.posture`, `Session.posture/effective_posture/team_posture`; `AttentionKind` + 'human_request' |
+| `frontend/src/api/types.ts` + `real.ts` | `posture.setTeam/setSession/getHumanRequest/decideHumanRequest/listHumanRequests` |
+| `frontend/src/components/PosturePanel.tsx` (NEW) | effective-posture-бейдж (🤖/👤) + radio (team: delegated/human_led; session: inherit/delegated/human_led); optimistic (revert при ошибке) |
+| `frontend/src/components/HumanRequestActions.tsx` (NEW) | Approve/Deny (reason через prompt) + error |
+| `frontend/src/pages/TeamBuilderPage.tsx` | `<PosturePanel kind="team" .../>` (top, над topology) |
+| `frontend/src/pages/SessionDetailPage.tsx` | `<PosturePanel kind="session" .../>` (после Walk) |
+| `frontend/src/pages/AttentionPage.tsx` | human_request → строка с Approve/Deny + live-события human_request.* |
+| `frontend/src/styles.css` | `.posture-*` (card, badge delegated/human_led, controls, opt, 320px), `.hreq-actions` |
+| `frontend/src/api/mock/*` | mock posture (setTeam/setSession/get/decide/list; 404/409) + human_requests seed (team 1 human_led, 1 pending) + toSessionDetail (posture) + attention source (human_request) |
+| `frontend/tests/posture.test.tsx` (NEW) | 4: team panel (badge+toggle optimistic+persist), session inherit→effective=team, human-request approve→replayed, mock setSession override+reset |
+
+Скриншоты @2560: `posture-team-2560x1440.png` (Team Builder: Posture-панель, Human-led
+бейдж + radio), `posture-attention-2560x1440.png` (Attention: pending human_request
+"Подтвердить: session.stop" + Approve/Deny).
+
 ## 5. Команды
 ```bash
 cd frontend

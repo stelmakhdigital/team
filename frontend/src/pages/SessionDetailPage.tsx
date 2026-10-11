@@ -7,6 +7,7 @@ import HandoverModal from '../components/HandoverModal';
 import CaptureModal from '../components/CaptureModal';
 import SendToSession from '../components/SendToSession';
 import WalkPanel from '../components/WalkPanel';
+import PosturePanel from '../components/PosturePanel';
 import SnapshotModal from '../components/SnapshotModal';
 import { formatRelative, formatCost } from '../lib/format';
 
@@ -102,6 +103,8 @@ export default function SessionDetailPage() {
           )}
 
           <WalkPanel sessionId={s.id} />
+
+          <PosturePanel kind="session" id={s.id} current={s.posture ?? null} teamPosture={s.team_posture} />
 
           <div className="card">
             <div className="card-head">

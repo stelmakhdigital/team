@@ -147,6 +147,17 @@ export function createRealAdapter(): Api {
       resume: (id) => http(`${B}/walks/${id}/resume`, { method: 'POST' }),
       skip: (id) => http(`${B}/walks/${id}/skip`, { method: 'POST' }),
     },
+    // P3.16: Mode/permission posture (delegated vs human-led)
+    posture: {
+      setTeam: (teamId, posture) =>
+        http(`${B}/teams/${teamId}/posture`, { method: 'PATCH', body: { posture } }),
+      setSession: (sessionId, posture) =>
+        http(`${B}/sessions/${sessionId}/posture`, { method: 'PATCH', body: { posture } }),
+      getHumanRequest: (id) => http(`${B}/human-requests/${id}`),
+      decideHumanRequest: (id, decision, reason) =>
+        http(`${B}/human-requests/${id}/decide`, { method: 'POST', body: { decision, reason: reason ?? null } }),
+      listHumanRequests: () => http(`${B}/human-requests`),
+    },
     library: {
       getLibrary: (params) =>
         http(`${B}/library${toQuery({

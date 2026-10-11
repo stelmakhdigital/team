@@ -356,7 +356,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Критерии**: модель, API, UI (панель входящих на сессии/роли), тесты,
   OpenAPI, docs.
 
-### P3.16 Mode/permission posture (ориентир OpenRIG rig mode) — `in_progress`
+### P3.16 Mode/permission posture (ориентир OpenRIG rig mode) — `done` (T-20261011092843, 1 раунд; teams/sessions.posture, human_requests, sensitive-registry, interceptor park+replay, 116 ops)
 - **Контекст**: у OpenRIG — осознанное переключение «кто рулит»: human-led vs
   delegated по скоупам, effective-mode цитируем. Наш ответ на «агенты не
   спрашивают, но важные решения — должны».
@@ -370,6 +370,19 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   (тесты: delegated проходит, human-led паркует + approve продолжает), UI
   (переключатель + human-request-деталка), OpenAPI, api-decisions.md.
 - **Зависимости**: P0.1 (Attention с human-request).
+- **Реализовано** (T-20261011092843 R1): Migration 0025 (teams/sessions.posture +
+  human_requests); models (Posture, HumanRequest); sensitive-registry
+  (MatchSensitive: config.set/workflow.abort/session.stop/handover/library.prune/
+  DELETE-any); PostureService (scope session→team→global, Check park+dedup, Decide
+  approve/deny, SetTeam/SessionPosture); postureMW (interceptor между auth/audit,
+  park 202, bypass X-Posture-Approved, fail-open); replay (approved → через полный
+  chain, auth+RBAC, one-time, replay_status); config posture.default; Attention
+  source (human_request, high) + EventBus; 5 endpoints (RBAC: team posture=admin,
+  session posture=operator+, GET=viewer-ok, decide=operator+); frontend
+  (PosturePanel team+session + effective-бейдж, HumanRequestActions в Attention,
+  mock, 4 vitest). go test + tsc + vitest + contrast + OpenAPI 116/116 зелёные.
+  - **Docs**: OpenAPI 116/116; api-decisions §P3.16; backend §3y; frontend §3y;
+    USAGE §6.11.
 
 ---
 

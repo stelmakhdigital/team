@@ -686,6 +686,39 @@ sessions.update (operator+); list/get = dashboard.read (viewer-ok). 404/400/409.
 pause/resume/skip, AdvanceDue interval+clock+pacing+manual, get/list/404) + HTTP (3:
 create/get/advance 409+404, list, RBAC viewer 403/200).
 
+### 3y. P3.16 — Mode/permission posture (delegated vs human-led) (backend, 2026-10-11)
+Posture (режим доверия) на уровне команды (база) + сессии (override). delegated =
+чувствительные операции сразу; human_led = sensitive-операции **паркуются** →
+`human_request` (approve/deny → **replay** один раз).
+
+| Файл | Что |
+|------|-----|
+| `migrations/{sqlite,postgres}/0025_posture.sql` (NEW) | `teams.posture` (default delegated) + `sessions.posture` (nullable, NULL=inherit) + `human_requests` (scope/method/path/body/auth_key/operation/reversible/status/decided_*/replay_status) + индексы |
+| `models/posture.go` (NEW) | `Posture` (delegated/human_led) + `Valid()`, `HumanRequestStatus`, `HumanRequest` |
+| `models/{models,session}.go` | `Team.Posture`, `Session.Posture *Posture` |
+| `service/sensitive_registry.go` (NEW) | `MatchSensitive(method, path) → (operation, reversible, ok)` (config.set/workflow.abort/session.stop/handover/library.prune/DELETE-any) |
+| `repository/human_request_repo.go` (NEW) | Create, GetByID, ListPending, ListPendingByOperation, SetDecision, MarkReplayed (one-time), SetReplayStatus |
+| `repository/{team,session}_repo.go` | posture в SELECT/scan + SetPosture (team), SetPosture (session, NULL=inherit) |
+| `service/posture_service.go` (NEW) | scope resolution (session→team, task→team, global→config), Check (park+dedup), Decide (approve/deny, 409/400/404), SetTeamPosture/SetSessionPosture; EventBus human_request.parked/decided |
+| `service/config_service.go` | `posture.default` (section posture, default delegated, runtime) |
+| `service/attention_service.go` | source #7: pending human_requests → kind=human_request, high |
+| `api/http/posture_handlers.go` (NEW) | `postureMW` (interceptor: park 202, bypass X-Posture-Approved, fail-open) + SetTeamPosture/SetSessionPosture/GetHumanRequest/ListHumanRequests/DecideHumanRequest (replay через chain) |
+| `api/http/{server,handlers,middleware}.go` | 5 routes + Options.Posture + postureMW между auth/audit + RBAC + SetChain |
+| `cmd/daemon/main.go` | PostureService + SetBus |
+
+**API**: `PATCH /teams/{id}/posture` (config.update, admin), `PATCH /sessions/{id}/posture`
+(sessions.update, operator+; null=inherit), `GET /human-requests`, `GET /human-requests/{id}`
+(dashboard.read, viewer-ok), `POST /human-requests/{id}/decide` (tasks.update, operator+).
+
+**Решения** (см. `api-decisions.md` §P3.16): park до выполнения (interceptor между auth
+и audit); replay через полный chain (auth+RBAC, bypass только park, one-time) → RBAC не
+обходится; scope по path (session→team, task→team, global→config default); дедуп park;
+fail-open при ошибке проверки.
+
+**Тесты**: service (matchSensitive, scope resolution, Check delegated/human_led/dedup,
+Decide approve/deny/409/400/404) + HTTP (park 202 + replay 200+replayed, delegated no-park,
+deny no-replay, **RBAC-not-bypassed** replay 403).
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

@@ -73,6 +73,10 @@ import type {
   Walk,
   CreateWalkRequest,
   ListWalksResponse,
+  // P3.16: Mode/permission posture
+  Posture,
+  HumanRequest,
+  SetPostureResponse,
   ApplyLibraryItemRequest,
   ApplyLibraryItemResponse,
   SnapshotSessionRequest,
@@ -240,6 +244,14 @@ export interface Api {
     pause(id: number): Promise<Walk>;
     resume(id: number): Promise<Walk>;
     skip(id: number): Promise<Walk>;
+  };
+  // P3.16: Mode/permission posture (delegated vs human-led)
+  posture: {
+    setTeam(teamId: number, posture: Posture): Promise<SetPostureResponse>;
+    setSession(sessionId: number, posture: Posture | null): Promise<SetPostureResponse>;
+    getHumanRequest(id: number): Promise<HumanRequest>;
+    decideHumanRequest(id: number, decision: 'approve' | 'deny', reason?: string): Promise<HumanRequest>;
+    listHumanRequests(): Promise<{ human_requests: HumanRequest[]; total: number }>;
   };
   library: {
     getLibrary(params?: GetLibraryParams): Promise<GetLibraryResponse>;

@@ -1314,3 +1314,27 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   .walk-actions { gap: 6px; }
   .walk-step { flex-wrap: wrap; }
 }
+
+/* P3.16 — Mode/permission posture (delegated vs human-led) */
+.posture-card { margin-top: 12px; }
+.posture-card .card-head { display: flex; align-items: center; gap: 10px; }
+.posture-badge {
+  font-size: 0.8rem; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--border); white-space: nowrap;
+}
+.posture-badge--delegated { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.posture-badge--human_led { color: var(--yellow); border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.posture-hint { margin: 6px 0 10px; }
+.posture-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.posture-opt {
+  display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; min-width: 150px;
+  border: 1px solid var(--border); border-radius: 8px; cursor: pointer; background: var(--bg-panel);
+}
+.posture-opt.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--bg-panel)); }
+.posture-opt input { margin: 0; }
+.posture-opt > span:first-of-type { font-weight: 600; }
+.posture-pending { margin-top: 8px; }
+
+/* P3.16 — human-request approve/deny (Attention) */
+.hreq-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.hreq-actions .form-error { width: 100%; }

@@ -48,6 +48,7 @@ describe('P0.1: Attention view «Что требует меня»', () => {
     const db = getDb();
     db.tasks = [];
     db.alerts = [];
+    db.humanRequests = []; // P3.16: иначе pending human_request не даст empty-state
     renderAt('/attention');
     expect(await screen.findByRole('heading', { name: 'Внимание' }, { timeout: 10_000 })).toBeInTheDocument();
     expect(await screen.findByText('Всё спокойно', {}, { timeout: 10_000 })).toBeInTheDocument();

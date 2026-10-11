@@ -3,6 +3,7 @@ import { useQuery } from '../hooks/useQuery';
 import { api } from '../api';
 import { Badge, EmptyState, ErrorState, PageSkeleton } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
+import HumanRequestActions from '../components/HumanRequestActions';
 import { useWebSocket } from '../hooks/useWebSocket';
 
 // P0.1 — Attention view «Что требует меня»: единый список всего, что требует
@@ -14,6 +15,8 @@ const ATTENTION_EVENTS = new Set([
   'session.stopped',
   'session.failed',
   'alert.created',
+  'human_request.parked', // P3.16: pending sensitive-op (human-led)
+  'human_request.decided',
 ]);
 
 // «normal» отображаем существующим accent-классом (badge-sev-info), чтобы не
@@ -108,7 +111,17 @@ export default function AttentionPage() {
                       <div className="muted small attention-detail">{it.detail}</div>
                     </td>
                     <td className="muted small attention-elapsed">{humanElapsed(it.created_at)}</td>
-                    <td className="attention-action">{it.suggested_action}</td>
+                    <td className="attention-action">
+                      {it.kind === 'human_request' ? (
+                        <HumanRequestActions
+                          id={parseInt(it.id.replace('hreq-', ''), 10)}
+                          operation={it.title}
+                          onDecided={() => q.refetch()}
+                        />
+                      ) : (
+                        it.suggested_action
+                      )}
+                    </td>
                     <td className="row-actions">
                       <EntityLink to={it.link.path} title={it.link.label}>
                         {it.link.label}

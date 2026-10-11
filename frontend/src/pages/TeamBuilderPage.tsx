@@ -16,6 +16,7 @@ import Toolbar from '../components/TeamBuilder/Toolbar';
 import SpecYamlPanel from '../components/TeamBuilder/SpecYamlPanel';
 import ConfigPanel, { type ConfigSelection } from '../components/TeamBuilder/ConfigPanel';
 import BottomPanel from '../components/TeamBuilder/BottomPanel';
+import PosturePanel from '../components/PosturePanel';
 
 export default function TeamBuilderPage() {
   const { teamId } = useParams();
@@ -312,6 +313,8 @@ export default function TeamBuilderPage() {
           </div>
         </div>
       )}
+
+      <PosturePanel kind="team" id={id} current={data.team.posture} />
 
       <div className={`${editMode ? 'builder builder--edit' : 'builder'} ${drawer === 'config' ? 'drawer-open' : ''} ${drawer === 'palette' ? 'drawer-open-palette' : ''}`}>
         {editMode && <Toolbar connectType={connectType} onConnectType={(t) => setConnectType(t as RelativeType)} />}

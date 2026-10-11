@@ -2380,6 +2380,129 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  # ---- P3.16: Mode/permission posture (delegated vs human-led) ----
+  /api/v1/teams/{id}/posture:
+    patch:
+      operationId: setTeamPosture
+      summary: Сменить posture команды (delegated|human_led)
+      description: >
+        P3.16. База posture команды. Session наследует, если нет своего override.
+        admin-only (config.update).
+      tags: [posture]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/Key' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetPostureRequest' }
+      responses:
+        '200':
+          description: Posture обновлён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SetPostureResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/sessions/{id}/posture:
+    patch:
+      operationId: setSessionPosture
+      summary: Сменить posture сессии (override команды; null = наследует)
+      description: >
+        P3.16. Override posture для сессии. null = наследует от команды.
+        operator+ (sessions.update).
+      tags: [posture]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/Key' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetPostureRequest' }
+      responses:
+        '200':
+          description: Posture обновлён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SetPostureResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/human-requests:
+    get:
+      operationId: listHumanRequests
+      summary: Pending human_requests (требуют решения)
+      description: P3.16. Только pending (нужно approve/deny). viewer-ok (dashboard.read).
+      tags: [posture]
+      responses:
+        '200':
+          description: Список pending human_requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  human_requests:
+                    type: array
+                    items: { $ref: '#/components/schemas/HumanRequest' }
+                  total: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/human-requests/{id}:
+    get:
+      operationId: getHumanRequest
+      summary: Детали human_request (паркованная sensitive-операция)
+      description: P3.16. viewer-ok (dashboard.read).
+      tags: [posture]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: human_request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HumanRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/human-requests/{id}/decide:
+    post:
+      operationId: decideHumanRequest
+      summary: Approve/deny pending human_request
+      description: >
+        P3.16. approve → replay оригинального запроса (через auth+RBAC, bypass
+        только park; один раз). deny → без replay. operator+ (tasks.update).
+      tags: [posture]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/Key' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecideHumanRequestRequest' }
+      responses:
+        '200':
+          description: human_request (после decide; при approve + replay — status=replayed)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HumanRequest' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
 components:
   securitySchemes:
     apiKeyAuth:
@@ -3528,6 +3651,63 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Walk' }
         total: { type: integer }
+
+    # ---- P3.16: Mode/permission posture (delegated vs human-led) ----
+    Posture:
+      type: string
+      enum: [delegated, human_led]
+      description: delegated = авто (без подтверждения); human_led = park sensitive-операций → human_request
+    SetPostureRequest:
+      type: object
+      required: [posture]
+      properties:
+        posture:
+          oneOf:
+            - { $ref: '#/components/schemas/Posture' }
+            - type: 'null'
+          description: posture команды/сессии; null = сессия наследует от команды
+    SetPostureResponse:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: integer, format: int64 }
+        posture:
+          oneOf:
+            - { $ref: '#/components/schemas/Posture' }
+            - type: 'null'
+        status: { type: string, example: updated }
+    HumanRequest:
+      type: object
+      required: [id, scope_type, method, path, operation, reversible, status, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        scope_type:
+          type: string
+          enum: [team, session, global]
+        scope_id: { type: integer, format: int64, nullable: true }
+        team_id: { type: integer, format: int64, nullable: true }
+        method: { type: string, description: HTTP-метод оригинала }
+        path: { type: string, description: HTTP-path оригинала }
+        body: { type: string, nullable: true, description: body оригинала (bounded ≤ 64KB) }
+        operation: { type: string, description: "Напр. session.stop / workflow.abort / config.set" }
+        reversible: { type: boolean, description: "ADR-002: reversible-классификация" }
+        status:
+          type: string
+          enum: [pending, approved, denied, replayed, expired]
+        decision_reason: { type: string, nullable: true }
+        decided_by: { type: string, nullable: true }
+        decided_at: { type: string, nullable: true }
+        replay_status: { type: integer, nullable: true, description: HTTP-статус replay (после approve) }
+        created_at: { type: string }
+        updated_at: { type: string }
+    DecideHumanRequestRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approve, deny]
+        reason: { type: string, description: Опционально (записывается в decision_reason) }
 
     # ---- alerts / watchdog ----
     WatchdogAlert:
