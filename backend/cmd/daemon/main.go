@@ -124,6 +124,11 @@ func run() error {
 	// P1.7 — Session briefing (startup context): сборщик + func для CreateSession.
 	briefing := service.NewBriefingService(db, stores)
 	ssvc.BriefingFunc = briefing.Build
+	// QA-fix: runtime_type/model из agent-spec роли (briefing-launch без явного runtime).
+	ssvc.RoleSpecFunc = func(specPath string) *service.AgentSpec {
+		spec, _ := svc.LoadAgentSpec(specPath)
+		return spec
+	}
 	// P3.12 — agent_image: снапшот сессии (library + versions).
 	ssvc.SetLibraryRepo(stores.Library)
 	ssvc.SetLibraryVersionRepo(stores.LibraryVersions)

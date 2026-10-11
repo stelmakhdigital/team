@@ -27,11 +27,16 @@ func (a *TMuxAdapter) Start(ctx context.Context, spec Spec) (string, error) {
 	if len(spec.Args) > 0 {
 		full += " " + strings.Join(quoteArgs(spec.Args), " ")
 	}
-	if spec.ConfigFile != "" {
-		full += " --config " + quoteArgs([]string{spec.ConfigFile})[0]
+	// QA-fix: `--config` убран — pi CLI его не поддерживает; pi-адаптер сам строит
+	// корректные флаги (--model/--system-prompt/...) и кладёт их в spec.Args.
+	// DirectTTY (TUI-агенты, напр. pi): запускать без пайпа — stdout остаётся TTY
+	// (иначе TUI не рендерится). Транскрипт — через capture-pane. Иначе: pipe в лог.
+	var cmdLine string
+	if spec.DirectTTY {
+		cmdLine = full
+	} else {
+		cmdLine = fmt.Sprintf("%s 2>&1 | tee -a %q", full, spec.OutputFile)
 	}
-	// detached; stdout/stderr — в transcript-файл
-	cmdLine := fmt.Sprintf("%s 2>&1 | tee -a %q", full, spec.OutputFile)
 	if _, err := a.Process.Start(ctx, Spec{
 		SessionID:  spec.SessionID,
 		WorkingDir: spec.WorkingDir,
@@ -51,10 +56,11 @@ func (a *TMuxAdapter) Stop(ctx context.Context, runtimeRef string) error {
 	if err == nil {
 		return nil
 	}
-	if strings.Contains(string(out), "no session") {
-		return nil // уже остановлена — идемпотентно
+	o := strings.TrimSpace(string(out))
+	if strings.Contains(o, "no session") || strings.Contains(o, "can't find session") || strings.Contains(o, "no such session") {
+		return nil // уже остановлена/отсутствует — идемпотентно
 	}
-	return fmt.Errorf("tmux kill-session: %s", strings.TrimSpace(string(out)))
+	return fmt.Errorf("tmux kill-session: %s", o)
 }
 
 func (a *TMuxAdapter) Status(ctx context.Context, runtimeRef string) (*Status, error) {

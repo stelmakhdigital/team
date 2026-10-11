@@ -63,6 +63,11 @@ type SessionService struct {
 	// P1.7 — briefing builder (nil = briefing выключен для сессии). Возвращает
 	// собранный брифинг (Text + Data) по role/task/project.
 	BriefingFunc func(ctx context.Context, p BriefingParams) *Briefing
+	// RoleSpecFunc — резолвит agent_spec роли (путь) в AgentSpec (nil если не найден).
+	// QA-fix: в CreateSession, если runtime_type не задан в запросе, определяется из spec
+	// (pi_config.model → pi; иначе spec.runtime.type), а model подставляется в config.
+	// nil = runtime определяется только из запроса (старое поведение).
+	RoleSpecFunc func(specPath string) *AgentSpec
 	// tails — tailer'ы session.output (live-терминал, slice 7); tailMu — защита.
 	tailMu sync.Mutex
 	tails  map[int64]*tailState
@@ -117,13 +122,35 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 		return nil, err
 	}
 	rtType := req.RuntimeType
-	if rtType == "" {
-		rtType = "process"
-	}
-	if req.Config != nil {
+	if rtType == "" && req.Config != nil {
 		if v, ok := req.Config["runtime_type"].(string); ok && v != "" {
 			rtType = v
 		}
+	}
+	// QA-fix: runtime_type не задан в запросе → резолвим из agent-spec роли
+	// (pi_config.model → pi; иначе spec.runtime.type). model из spec подставляем в config
+	// (нужен для pi-конфига). Без этого briefing-launch падал 400 (дефолт process без command).
+	if s.RoleSpecFunc != nil && role.AgentSpec != "" {
+		if spec := s.RoleSpecFunc(role.AgentSpec); spec != nil {
+			if rtType == "" {
+				if spec.PiConfig.Model != "" {
+					rtType = "pi"
+				} else if spec.Runtime.Type != "" {
+					rtType = spec.Runtime.Type
+				}
+			}
+			if spec.PiConfig.Model != "" {
+				if req.Config == nil {
+					req.Config = map[string]any{}
+				}
+				if _, ok := req.Config["model"]; !ok {
+					req.Config["model"] = spec.PiConfig.Model
+				}
+			}
+		}
+	}
+	if rtType == "" {
+		rtType = "process"
 	}
 	adapter, err := s.runt.Get(rtType)
 	if err != nil {
@@ -242,6 +269,7 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 
 	// конфиг для pi
 	var configFile string
+	var piFields *runtime.AgentSpecFields
 	if rtType == "pi" {
 		configFile = filepath.Join(s.ConfigsDir, fmt.Sprintf("session-%d.yaml", sess.ID))
 		fields := runtime.AgentSpecFields{Name: role.Name}
@@ -261,9 +289,16 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 		if tl := stringSliceFromAny(sess.Config["tools"]); len(tl) > 0 {
 			fields.Tools = tl
 		}
+		if sl := cfgStr(sess.Config, "sandbox_level"); sl != "" {
+			fields.SandboxLevel = sl
+		}
+		if ne, _ := sess.Config["no_extensions"].(bool); ne {
+			fields.NoExtensions = true
+		}
 		if err := runtime.WriteSessionConfig(configFile, fields); err != nil {
 			return nil, err
 		}
+		piFields = &fields // QA-fix: передаём поля адаптеру (строит pi CLI-флаги)
 	}
 
 	outFile := filepath.Join(s.LogsDir, fmt.Sprintf("session-%d.log", sess.ID))
@@ -280,6 +315,7 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 		OutputFile: outFile,
 		ConfigFile: configFile,
 		ConfigsDir: s.ConfigsDir,
+		Pi:         piFields, // QA-fix: pi-адаптер строит --model/--system-prompt/... из полей
 	})
 	if err != nil {
 		_, _ = s.markSessionState(ctx, sess, models.SessionFailed, nil, "start failed: "+err.Error())

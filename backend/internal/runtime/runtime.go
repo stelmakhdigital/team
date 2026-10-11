@@ -32,8 +32,13 @@ type Spec struct {
 	Args       []string // аргументы (process)
 	Env        []string // K=V
 	OutputFile string   // куда писать stdout+stderr (transcript)
-	ConfigFile string   // путь к сгенерированному конфиг-файлу (pi)
+	ConfigFile string   // путь к сгенерированному конфиг-файлу (pi, для справки)
 	ConfigsDir string
+	Pi *AgentSpecFields // QA-fix: поля agent spec для pi — адаптер строит из них CLI-флаги
+	// DirectTTY — запускать команду без пайпа в лог-файл (stdout = TTY).
+	// QA-fix: TUI-приложения (pi) требуют TTY на stdout; `| tee` ломает их.
+	// Для DirectTTY транскрипт берётся через capture-pane, не через лог-файл.
+	DirectTTY bool
 }
 
 // Status — состояние хендла.

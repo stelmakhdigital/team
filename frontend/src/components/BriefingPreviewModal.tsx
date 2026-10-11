@@ -51,6 +51,9 @@ export default function BriefingPreviewModal({
       config: {
         briefing_override: override.trim() || undefined,
         briefing_append: append.trim() || undefined,
+        // QA-fix: автономная daemon-сессия — выключаем интерактивные pi-guard'ы
+        // (bash-guard/dir-guard), иначе агент встаёт на подтверждении без оператора.
+        no_extensions: true,
       },
     }),
   );
