@@ -580,3 +580,150 @@ func TestSessionDeadRuntimeCleanExit(t *testing.T) {
 		t.Errorf("no session.stopped event, got %v", eventTypes)
 	}
 }
+
+// ---------- T2: transcript — pi DirectTTY (on-the-fly capture) ----------
+
+// mockCaptureAdapter — тестовый адаптер: Capture возвращает заданные строки.
+type mockCaptureAdapter struct{ lines []string }
+
+func (m *mockCaptureAdapter) Name() string { return "mock" }
+func (m *mockCaptureAdapter) Start(ctx context.Context, spec runtime.Spec) (string, error) {
+	return "mock-ref", nil
+}
+func (m *mockCaptureAdapter) Stop(ctx context.Context, ref string) error { return nil }
+func (m *mockCaptureAdapter) Status(ctx context.Context, ref string) (*runtime.Status, error) {
+	return &runtime.Status{Alive: true, State: runtime.StateRunning}, nil
+}
+func (m *mockCaptureAdapter) Capture(ctx context.Context, ref string, lines int) ([]string, error) {
+	return m.lines, nil
+}
+func (m *mockCaptureAdapter) Send(ctx context.Context, ref, text string, submit bool) (runtime.SendResult, error) {
+	return runtime.SendResult{}, runtime.ErrNoScreen
+}
+
+// T2: пустой лог-файл (pi DirectTTY) → GetTranscript делает on-the-fly capture.
+func TestTranscriptCaptureOnEmptyLog(t *testing.T) {
+	e := setupTranscriptEnv(t, &mockCaptureAdapter{lines: []string{"screen-line-1", "screen-line-2"}})
+	teamID, roleID := e.teamWithRole(t, "s-t2-capture")
+
+	sess := &models.Session{
+		TeamID: teamID, RoleID: roleID,
+		RuntimeType: "other", RuntimeRef: "mock-ref",
+		State: models.SessionRunning, WorkingDir: "/tmp",
+	}
+	if err := e.stores.Sessions.Create(e.ctx, e.db, sess); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	tr, total, _, err := e.ssvc.GetTranscript(e.ctx, sess.ID, 100)
+	if err != nil {
+		t.Fatalf("transcript: %v", err)
+	}
+	if total != 2 || len(tr) != 2 {
+		t.Fatalf("total = %d (len %d), want 2 (captured lines)", total, len(tr))
+	}
+	if tr[0].Content != "screen-line-1" || tr[1].Content != "screen-line-2" {
+		t.Errorf("captured lines = %q/%q, want screen-line-1/2", tr[0].Content, tr[1].Content)
+	}
+}
+
+// T2: НЕ дублировать — если лог-файл уже есть, читать его (capture не вызывается).
+func TestTranscriptLogFileTakesPrecedence(t *testing.T) {
+	var captured bool
+	e := setupTranscriptEnv(t, &captureRecordingAdapter{
+		inner:    &mockCaptureAdapter{lines: []string{"SHOULD-NOT-APPEAR"}},
+		captured: &captured,
+	})
+	teamID, roleID := e.teamWithRole(t, "s-t2-prec")
+
+	sess := &models.Session{
+		TeamID: teamID, RoleID: roleID,
+		RuntimeType: "other", RuntimeRef: "mock-ref",
+		State: models.SessionRunning, WorkingDir: "/tmp",
+	}
+	if err := e.stores.Sessions.Create(e.ctx, e.db, sess); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	// пишем непустой лог-файл
+	if err := os.MkdirAll(e.ssvc.LogsDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(e.ssvc.LogsDir, fmt.Sprintf("session-%d.log", sess.ID)),
+		[]byte("log-line-1\nlog-line-2\n"), 0o644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+
+	tr, total, _, err := e.ssvc.GetTranscript(e.ctx, sess.ID, 100)
+	if err != nil {
+		t.Fatalf("transcript: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("total = %d, want 2 (log lines)", total)
+	}
+	if tr[0].Content != "log-line-1" {
+		t.Errorf("line = %q, want log-line-1 (from log-file, not capture)", tr[0].Content)
+	}
+	if captured {
+		t.Error("capture was called, want NOT called (log-file has content)")
+	}
+}
+
+// setupTranscriptEnv — окружение с кастомным runtime-registry (мок-адаптер под
+// тип "mock") для тестов transcript-capture.
+func setupTranscriptEnv(t *testing.T, mock runtime.Adapter) *sessionEnv {
+	t.Helper()
+	db, err := database.Open("sqlite::memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { db.Close() })
+	if err := database.Migrate(context.Background(), db, "sqlite"); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	stores := repository.NewStores(db)
+	svc := service.NewTeamService(db, stores)
+	svc.SpecsDir = t.TempDir()
+	if err := os.MkdirAll(filepath.Join(svc.SpecsDir, "agents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"role_a.yaml", "role_b.yaml"} {
+		if err := os.WriteFile(filepath.Join(svc.SpecsDir, "agents", n), []byte("name: "+n+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runt := runtime.NewRegistry()
+	runt.SetOverride("other", mock)
+	ssvc := service.NewSessionService(db, stores, runt)
+	logDir := t.TempDir()
+	ssvc.LogsDir = filepath.Join(logDir, "logs")
+	ssvc.ConfigsDir = filepath.Join(logDir, "configs")
+	return &sessionEnv{
+		svc: svc, tsvc: service.NewTaskService(db, stores), ssvc: ssvc,
+		ctx: context.Background(), db: db, stores: stores,
+	}
+}
+
+// captureRecordingAdapter — обёртка, которая фиксирует вызов Capture.
+type captureRecordingAdapter struct {
+	inner    *mockCaptureAdapter
+	captured *bool
+}
+
+func (c *captureRecordingAdapter) Name() string { return c.inner.Name() }
+func (c *captureRecordingAdapter) Start(ctx context.Context, spec runtime.Spec) (string, error) {
+	return c.inner.Start(ctx, spec)
+}
+func (c *captureRecordingAdapter) Stop(ctx context.Context, ref string) error {
+	return c.inner.Stop(ctx, ref)
+}
+func (c *captureRecordingAdapter) Status(ctx context.Context, ref string) (*runtime.Status, error) {
+	return c.inner.Status(ctx, ref)
+}
+func (c *captureRecordingAdapter) Capture(ctx context.Context, ref string, lines int) ([]string, error) {
+	*c.captured = true
+	return c.inner.Capture(ctx, ref, lines)
+}
+func (c *captureRecordingAdapter) Send(ctx context.Context, ref, text string, submit bool) (runtime.SendResult, error) {
+	return c.inner.Send(ctx, ref, text, submit)
+}

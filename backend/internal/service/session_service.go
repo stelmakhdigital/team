@@ -832,18 +832,22 @@ type TranscriptEntry struct {
 // GetTranscript — последние `limit` непустых строк transcript-файла.
 // process/tmux/pi пишут stdout+stderr в logs/sessions/<id>.log.
 func (s *SessionService) GetTranscript(ctx context.Context, id int64, limit int) ([]*TranscriptEntry, int, bool, error) {
-	if _, err := s.getSession(ctx, id); err != nil {
+	sess, err := s.getSession(ctx, id)
+	if err != nil {
 		return nil, 0, false, err
 	}
 	path := filepath.Join(s.LogsDir, fmt.Sprintf("session-%d.log", id))
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []*TranscriptEntry{}, 0, false, nil
-		}
-		return nil, 0, false, err
+	data, rerr := os.ReadFile(path)
+	var lines []string
+	if rerr == nil && len(data) > 0 {
+		lines = splitNonEmpty(string(data))
+	} else if rerr == nil || os.IsNotExist(rerr) {
+		// T2: лог-файл пуст/отсутствует (pi DirectTTY — TUI не пишет в лог) →
+		// capture on-the-fly. process → ErrNoScreen → пусто (как раньше).
+		lines = s.captureTranscript(ctx, sess, 200)
+	} else {
+		return nil, 0, false, rerr
 	}
-	lines := splitNonEmpty(string(data))
 	total := len(lines)
 	hasMore := false
 	start := 0
@@ -861,6 +865,24 @@ func (s *SessionService) GetTranscript(ctx context.Context, id int64, limit int)
 		})
 	}
 	return out, total, hasMore, nil
+}
+
+// captureTranscript — on-the-fly capture текущего экрана сессии (pi DirectTTY / tmux).
+// Используется, когда лог-файл пуст (TUI не пишет в лог). process → ErrNoScreen → nil;
+// мёртвая сессия → ошибка → nil (пусто, как раньше).
+func (s *SessionService) captureTranscript(ctx context.Context, sess *models.Session, lines int) []string {
+	if sess.RuntimeRef == "" {
+		return nil
+	}
+	adapter, err := s.runt.Get(sess.RuntimeType)
+	if err != nil {
+		return nil
+	}
+	captured, err := adapter.Capture(ctx, sess.RuntimeRef, lines)
+	if err != nil {
+		return nil
+	}
+	return captured
 }
 
 func splitNonEmpty(s string) []string {
