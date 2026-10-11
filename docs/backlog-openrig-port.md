@@ -319,13 +319,13 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   frontmatter (type, verdict, candidate-sha) + `judge` (accept/reject/withdraw с причиной,
   атрибутированно); readiness задачи; «closure ≠ acceptance».
 
-### P3.14 Walk — поэтапная онбординг-подача — `new`
+### P3.14 Walk — поэтапная онбординг-подача — `in_progress`
 - **Scope**: `walk` — последовательная (paced) доставка контекстных кусков в
   сессию (онбординг агента без «одного дампа»); UI: редактор последовательности
   + статус доставки.
 - **Критерии**: логика pacing, тесты, UI, OpenAPI, docs.
 
-### P3.15 Inbox/outbox — `in_progress` (T-20261011063105, R1; реализовано, ожидает approve; 104 ops)
+### P3.15 Inbox/outbox — `done` (T-20261011063105, 1 раунд; ack_state absorb/deny/drop, inbox/outbox, undelivered, 104 ops) (T-20261011063105, R1; реализовано, ожидает approve; 104 ops)
 - **Scope (реализовано)**: `messages.ack_state` (Migration 0023: pending/absorbed/
   denied/dropped + acked_by/acked_at); **Inbox** (direct ToRoleID + undelivered_count),
   **Outbox** (FromRoleID), **ack** (absorb/deny/drop, атрибуция, повторный→409);
