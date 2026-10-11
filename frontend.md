@@ -668,6 +668,23 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 Скриншоты @2560: `task-evidence-2560x1440.png` (панель, task 1 ready/accepted),
 `task-evidence-done-pending-2560x1440.png` (task 5: done + acceptance: pending).
 
+### 3w. Inbox/outbox (P3.15, 2026-10-11)
+Mailbox-семантика: входящие (direct) требуют подтверждения (absorb/deny/drop),
+исходящие — запись; undelivered = pending.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/types/api.ts` | `Message.ack_state/acked_by/acked_at?`; `AckState`/`AckAction`; `InboxResponse`/`OutboxResponse`/`AckRequest` |
+| `frontend/src/api/types.ts` + `real.ts` | `mailbox.getInbox(roleId, params)`, `mailbox.getOutbox(roleId, params)`, `mailbox.ack(messageId, action)` |
+| `frontend/src/components/MailboxPanel.tsx` (NEW) | панель: inbox (pending выделен + undelivered-счётчик + Absorb/Deny/Drop + acked_by) + outbox (read-only) |
+| `frontend/src/pages/MessagesPage.tsx` | `MailboxSection` (селектор команды + роли → MailboxPanel); ack_state-бейдж в ленте direct |
+| `frontend/src/styles.css` | `.mailbox-*`, `.mb-*` (ack-бейджи, undelivered, items, actions) |
+| `frontend/src/api/mock/*` | mock `getInbox` (direct + undelivered_count), `getOutbox`, `ack` (409/422); seed (role ids + ack_state) |
+| `frontend/tests/mailbox.test.tsx` (NEW) | 3: inbox pending+undelivered, ack absorb→бейдж, outbox-list |
+
+Скриншоты @2560: `role-inbox-2560x1440.png` (Role Mailbox: Worker — inbox pending +
+undelivered + ack-кнопки + outbox).
+
 ## 5. Команды
 ```bash
 cd frontend

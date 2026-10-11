@@ -412,6 +412,45 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
+  # P3.15 — Mailbox: inbox/outbox роли (dashboard.read, viewer-ok)
+  /api/v1/roles/{id}/inbox:
+    get:
+      operationId: getRoleInbox
+      summary: Входящие роли (direct) + undelivered_count (P3.15 mailbox)
+      tags: [messages]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { in: query, name: limit, schema: { type: integer, default: 50, maximum: 200 } }
+        - { in: query, name: offset, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: Inbox роли (direct-входящие) + undelivered_count
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboxResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/roles/{id}/outbox:
+    get:
+      operationId: getRoleOutbox
+      summary: Исходящие роли (FromRoleID) — запись (P3.15 mailbox)
+      tags: [messages]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { in: query, name: limit, schema: { type: integer, default: 50, maximum: 200 } }
+        - { in: query, name: offset, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: Outbox роли (исходящие)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutboxResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/relatives/{id}/layout:
     patch:
       operationId: updateRelativeLayout
@@ -1175,6 +1214,30 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/messages/{id}/ack:
+    post:
+      operationId: ackMessage
+      summary: Подтверждение входящего (absorb/deny/drop) — P3.15 mailbox
+      tags: [messages]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AckRequest' }
+      responses:
+        '200':
+          description: ack применён (ack_state обновлён)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/chatrooms:
     get:
@@ -3298,6 +3361,35 @@ components:
         created_at: { type: string, format: date-time }
         is_mine: { type: boolean }
         requires_reply: { type: boolean }
+        # P3.15: mailbox-семантика (orthogonal к is_read)
+        ack_state: { type: string, enum: [pending, absorbed, denied, dropped], description: "P3.15: mailbox-подтверждение входящего (read = прочитано в ленте; ack_state = подтверждение)" }
+        acked_by: { type: string, nullable: true, description: "P3.15: атрибуция подтвердившего" }
+        acked_at: { type: string, format: date-time, nullable: true, description: "P3.15: время подтверждения" }
+    # P3.15: Mailbox (inbox/outbox + ack)
+    InboxResponse:
+      type: object
+      required: [messages, total, undelivered_count, has_more]
+      properties:
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/Message' }
+        total: { type: integer }
+        undelivered_count: { type: integer, description: "число pending-входящих (undelivered)" }
+        has_more: { type: boolean }
+    OutboxResponse:
+      type: object
+      required: [messages, total, has_more]
+      properties:
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/Message' }
+        total: { type: integer }
+        has_more: { type: boolean }
+    AckRequest:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [absorb, deny, drop], description: "absorb = принял; deny = отказ; drop = сброс" }
     MessagesResponse:
       type: object
       required: [messages, total, has_more]

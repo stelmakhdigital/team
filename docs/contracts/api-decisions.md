@@ -1570,3 +1570,59 @@ GET evidence → `dashboard.read` (viewer-ok); POST evidence + verdict → `task
 - **HTTP** (4 evidence): submit 201, list 200, verdict 200, RBAC viewer 403/200.
 - **Frontend vitest** (5): panel + readiness/acceptance, list artifacts, closure≠acceptance
   (done + pending), add evidence, judge accept.
+
+---
+
+## P3.15. Inbox/outbox — mailbox-семантика (T-20261011063105)
+
+Сообщения — не просто лента, а **mailbox**: входящие (direct) требуют
+**подтверждения** (absorb/deny/drop), исходящие — с записью (outbox).
+**undelivered** = pending (неподтверждённые) входящие.
+
+### Модель (Migration 0023, sqlite + postgres)
+- `messages.ack_state` TEXT NOT NULL DEFAULT 'pending' CHECK IN
+  ('pending','absorbed','denied','dropped') + `acked_by` (атрибуция) +
+  `acked_at`. Существующие сообщения → 'pending'.
+  - **sqlite**: CHECK не добавляется in-place → **REBUILD** таблицы (как 0021:
+    messages_new → copy → drop → rename). Индексы: to_role, from_role, ack_state.
+  - **pg**: ADD COLUMN + ADD CONSTRAINT in-place.
+- `models.Message` + `AckState` (pending/absorbed/denied/dropped) + `AckAction`
+  (absorb/deny/drop, `State()` → итоговое состояние) + `Valid()`.
+- **`IsRead` не трогаем** (orthogonal): `is_read` = прочитано в ленте; `ack_state` =
+  mailbox-подтверждение входящего. Разница задокументирована.
+- **Скоуп inbox = direct-сообщения** (ToRoleID = роль, type=direct). **broadcast/segment
+  НЕ в inbox** (идут в chatroom) — inbox это то, что адресовано именно роли и требует
+  её реакции.
+
+### Endpoints
+- **`GET /roles/{id}/inbox`** (RBAC dashboard.read, viewer-ok): direct-входящие роли
+  (ToRoleID=id, type=direct), bounded; + **`undelivered_count`** (число pending).
+- **`POST /messages/{id}/ack`** (RBAC messages.update, operator+): body
+  `{ action: absorb|deny|drop }`. `acked_by` (атрибуция из auth), `acked_at=now`,
+  `ack_state` → absorbed/denied/dropped. Правила: **ack только из pending** (повторный
+  → **409**); invalid action → **400**; 404 (нет сообщения).
+- **`GET /roles/{id}/outbox`** (RBAC dashboard.read, viewer-ok): исходящие роли
+  (FromRoleID=id), bounded, запись (как list).
+
+### RBAC
+- Новая пермиссия **`messages.update`** (operator+): оператор может ack'ить от имени
+  роли (атрибуция фиксируется). **viewer не получает** (viewer = только `%.read`).
+  - inbox/outbox (GET) → `dashboard.read` (viewer-ok); ack (POST) → `messages.update`.
+- `res == "roles" && (sub=="inbox"||sub=="outbox")` → dashboard.read;
+  `res=="messages" && sub=="ack"` → messages.update.
+
+### Frontend
+- **Messages page → Mailbox-секция**: селектор команды + роли → **MailboxPanel**.
+- **Inbox**: каждый входящий с ack_state-бейджем; **pending выделен** (жёлтая
+  рамка); счётчик **undelivered** (pending); на pending — кнопки **Absorb/Deny/Drop**
+  → POST ack; показана атрибуция (acked_by + when).
+- **Outbox**: исходящие (read-only list).
+- В ленте direct-сообщений — ack_state-бейдж (опц.).
+- API client: `mailbox.getInbox/getOutbox/ack`.
+
+### Тесты
+- **Service** (5): inbox direct-only+undelivered (broadcast/segment не в inbox),
+  bounded+404, ack absorb/deny/drop (статус + атрибуция), повторный 409+invalid 400+404,
+  outbox+404.
+- **HTTP** (4): inbox, ack, outbox, RBAC (viewer inbox/outbox 200, ack 403).
+- **Frontend vitest** (3): inbox pending+undelivered, ack absorb→бейдж меняется, outbox.

@@ -635,6 +635,30 @@ OpenRIG-вдохновлённая фича: сессию можно сохра�
   `api-decisions.md` §P3.13): отдельная таблица task_evidence; batched агрегация (без N+1);
   closure ≠ acceptance (done ≠ accepted).
 
+### 3w. P3.15 — Inbox/outbox (mailbox-семантика) (backend, 2026-10-11)
+Сообщения — **mailbox**: входящие (direct) требуют подтверждения (absorb/deny/drop),
+исходящие — с записью (outbox); undelivered = pending.
+- **Migration 0023** (sqlite+pg): `messages.ack_state` (CHECK pending/absorbed/
+  denied/dropped) + `acked_by` + `acked_at`. **sqlite** — REBUILD таблицы (как 0021,
+  CHECK не в-place); **pg** — ADD COLUMN + ADD CONSTRAINT. Индексы: to_role, from_role,
+  ack_state. RBAC пермиссия `messages.update` (operator+; viewer не получает).
+- **Model** (`models/message.go`): `AckState` (pending/absorbed/denied/dropped) +
+  `AckAction` (absorb/deny/drop, `State()`) + `Valid()`; `Message` + `AckState`/
+  `AckedBy`/`AckedAt` (orthogonal к `IsRead`).
+- **Repo** (`message_repo.go`): `messageSelect`/`scanMessageRow` +ack поля;
+  `CountPendingInbox` (undelivered: direct + pending); `SetAck`.
+- **Service** (`message_service.go`): `MessageView` + `ack_state/acked_by/acked_at`;
+  `Inbox` (direct ToRoleID, bounded, undelivered_count; broadcast/segment не в inbox),
+  `Outbox` (FromRoleID, bounded), `AckMessage` (absorb/deny/drop, атрибуция, повторный
+  → 409, invalid → 400, 404).
+- **HTTP** (`message_handlers.go` + `server.go` + `middleware.go`):
+  `GET /roles/{id}/inbox`, `GET /roles/{id}/outbox` (dashboard.read, viewer-ok),
+  `POST /messages/{id}/ack` (messages.update, operator+). Атрибуция: `actorName(r)`.
+- **Тесты**: service (5: inbox direct-only+undelivered, bounded+404, ack
+  absorb/deny/drop, repeat-409+invalid-400+404, outbox+404) + HTTP (4: inbox, ack,
+  outbox, RBAC viewer 200/403). **Решения** (см. `api-decisions.md` §P3.15): inbox =
+  direct-only; read vs ack_state (orthogonal); новая пермиссия messages.update.
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

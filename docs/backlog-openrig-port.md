@@ -325,10 +325,21 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   + статус доставки.
 - **Критерии**: логика pacing, тесты, UI, OpenAPI, docs.
 
-### P3.15 Inbox/outbox — `in_progress`
-- **Scope**: mailbox-семантика: входящие с подтверждением (pending-входящие,
-  absorb/deny/drop), исходящие с записью (outbox-record/list); `undelivered`
-  (P0.2) подтягивается сюда.
+### P3.15 Inbox/outbox — `in_progress` (T-20261011063105, R1; реализовано, ожидает approve; 104 ops)
+- **Scope (реализовано)**: `messages.ack_state` (Migration 0023: pending/absorbed/
+  denied/dropped + acked_by/acked_at); **Inbox** (direct ToRoleID + undelivered_count),
+  **Outbox** (FromRoleID), **ack** (absorb/deny/drop, атрибуция, повторный→409);
+  **undelivered** = pending; broadcast/segment не в inbox; RBAC `messages.update`
+  (operator+).
+- **API**: `GET /roles/{id}/inbox`, `GET /roles/{id}/outbox` (dashboard.read),
+  `POST /messages/{id}/ack` (messages.update).
+- **UI**: Messages → Role Mailbox (селектор команды + роли → MailboxPanel: inbox
+  pending+undelivered+Absorb/Deny/Drop + outbox); ack_state-бейдж в ленте.
+- **Docs**: OpenAPI 104/104; api-decisions §P3.15; backend §3w; frontend §3w; USAGE §6.9.
+- **Тесты**: service 5 + HTTP 4 (RBAC) + vitest 3. Скриншот: role-inbox-2560x1440.png.
+- **Scope (изначальный)**: mailbox-семантика: входящие с подтверждением (pending-входящие,
+  absorb/deny/drop), исходящие с записью (outbox-record/list); `undelivered` (P0.2)
+  подтягивается сюда.
 - **Критерии**: модель, API, UI (панель входящих на сессии/роли), тесты,
   OpenAPI, docs.
 
