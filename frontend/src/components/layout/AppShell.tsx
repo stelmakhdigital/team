@@ -14,6 +14,7 @@ const NAV = [
   { to: '/teams', label: 'Teams', icon: '⬡' },
   { to: '/projects', label: 'Projects', icon: '▣' },
   { to: '/tasks', label: 'Tasks', icon: '☰' },
+  { to: '/sessions', label: 'Sessions', icon: '◉' },
   { to: '/workflows', label: 'Workflows', icon: '⑃' },
   { to: '/watchdog/jobs', label: 'Watchdog', icon: '⏰' },
   { to: '/messages', label: 'Messages', icon: '✉' },

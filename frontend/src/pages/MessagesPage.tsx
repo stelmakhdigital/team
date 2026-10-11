@@ -8,16 +8,23 @@ import MailboxPanel from '../components/MailboxPanel';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 
+// T3: 2-панная раскладка (как в мессенджере): слева — диалоги, сгруппированные в
+// «Direct» и «Rooms»; справа — сообщения выбранного диалога + ввод. Direct — по
+// P3.15 (role inbox/outbox) если доступно; Rooms — чат-румы.
+type Dialog = { kind: 'room'; id: number } | { kind: 'direct'; roleId: number; roleName: string };
+
 export default function MessagesPage() {
-  const messages = useQuery('messages.list', () => api.messages.getMessages({ limit: 50 }));
+  const messages = useQuery('messages.list', () => api.messages.getMessages({ limit: 200 }));
   const chatrooms = useQuery('messages.chatrooms', () => api.messages.getChatrooms());
-  const [activeRoom, setActiveRoom] = useState<number | null>(null);
+  const [dialog, setDialog] = useState<Dialog | null>(null);
+  const activeRoom = dialog?.kind === 'room' ? dialog.id : null;
+
   const roomMessages = useQuery(activeRoom ? `messages.room.${activeRoom}` : 'messages.room.none', () =>
     activeRoom ? api.messages.getChatroomMessages(activeRoom) : Promise.resolve({ messages: [], has_more: false }),
     [activeRoom],
   );
   const send = useMutation((body: string) => {
-    if (!activeRoom) throw new Error('No chatroom selected');
+    if (activeRoom == null) throw new Error('No chatroom selected');
     return api.messages.sendChatroomMessage(activeRoom, { body });
   });
   const { toast } = useToast();
@@ -37,6 +44,26 @@ export default function MessagesPage() {
     }
   };
 
+  // Direct-диалоги: группируем direct-сообщения по отправителю (from_role).
+  const directConversations = (() => {
+    const map = new Map<number, { roleId: number; roleName: string; count: number }>();
+    for (const m of messages.data?.messages ?? []) {
+      const id = m.from_role_id ?? 0;
+      const name = m.from_role_name ?? 'system';
+      const cur = map.get(id) ?? { roleId: id, roleName: name, count: 0 };
+      cur.count += 1;
+      map.set(id, cur);
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count);
+  })();
+
+  const directUnavailable = messages.error != null && isNotFoundError(messages.error);
+  const directMessages = dialog?.kind === 'direct'
+    ? (messages.data?.messages ?? []).filter((m) => m.from_role_id === dialog.roleId)
+    : [];
+
+  const activeChatroom = chatrooms.data?.chatrooms.find((c) => c.id === activeRoom);
+
   return (
     <div className="page">
       <div className="page-head">
@@ -44,72 +71,83 @@ export default function MessagesPage() {
       </div>
       {/* P3.15: Mailbox (role inbox/outbox + ack) */}
       <MailboxSection />
-      <div className="messages-layout">
-        <div className="card">
-          <h2>Direct messages</h2>
-          {messages.loading && <Spinner />}
-          {messages.error &&
-          (isNotFoundError(messages.error) ? (
-            <Unavailable feature="Direct messages" hint="The messages endpoint is not implemented in the backend yet (planned)." />
-          ) : (
-            <ErrorState error={messages.error} onRetry={messages.refetch} />
-          ))}
-          {messages.data && messages.data.messages.length === 0 && (
-            <EmptyState title="No direct messages" hint="Direct messages between roles will appear here." />
-          )}
-          <ul className="message-list">
-            {messages.data?.messages.map((m) => (
-              <li key={m.id} className={`message${m.is_mine ? ' message-mine' : ''}${m.type === 'watchdog' ? ' message-watchdog' : ''}`}>
-                <div className="message-head">
-                  <strong>{m.from_role_name ?? 'system'}</strong>
-                  {m.to_role_name && <span className="muted">→ {m.to_role_name}</span>}
-                  <span className="badge">{m.type}</span>
-                  {m.ack_state && <span className={`badge mb-ack mb-ack--${m.ack_state}`} title={`ack_state: ${m.ack_state}`}>{m.ack_state}</span>}
-                  <span className="muted small">{formatRelative(m.created_at)}</span>
-                </div>
-                <div className="message-body">{m.body}</div>
-                {m.queue_task_id && (
-                  <div className="small">
-                    related task: <EntityLink to={`/tasks/${m.queue_task_id}`} title="Open related task">#{m.queue_task_id}</EntityLink>
-                  </div>
-                )}
-              </li>
+      <div className="messages-2panel">
+        {/* ЛЕВАЯ ПАНЕЛЬ: диалоги (Direct + Rooms) */}
+        <div className="card dialog-list">
+          <div className="dialog-section">
+            <h3 className="dialog-section-title">Direct</h3>
+            {messages.loading && <Spinner />}
+            {directUnavailable ? (
+              <Unavailable feature="Direct messages" hint="Direct-сообщения появятся позже (P3.15 mailbox выше)." />
+            ) : messages.error ? (
+              <ErrorState error={messages.error} onRetry={messages.refetch} />
+            ) : directConversations.length === 0 ? (
+              <p className="muted small dialog-empty-section">Direct messages: coming soon</p>
+            ) : (
+              <ul className="dialog-list-items">
+                {directConversations.map((c) => (
+                  <li key={c.roleId}>
+                    <button
+                      className={`dialog-item${dialog?.kind === 'direct' && dialog.roleId === c.roleId ? ' dialog-item-active' : ''}`}
+                      onClick={() => setDialog({ kind: 'direct', roleId: c.roleId, roleName: c.roleName })}
+                      aria-pressed={dialog?.kind === 'direct' && dialog.roleId === c.roleId}
+                    >
+                      <span className="dialog-item-name">{c.roleName}</span>
+                      <span className="dialog-item-count">{c.count}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="dialog-section">
+            <h3 className="dialog-section-title">Rooms</h3>
+            {chatrooms.loading && <Spinner />}
+            {chatrooms.error &&
+            (isNotFoundError(chatrooms.error) ? (
+              <Unavailable feature="Chatrooms" hint="The chatrooms endpoint is not implemented in the backend yet (planned)." />
+            ) : (
+              <ErrorState error={chatrooms.error} onRetry={chatrooms.refetch} />
             ))}
-          </ul>
+            {chatrooms.data && chatrooms.data.chatrooms.length === 0 && (
+              <p className="muted small dialog-empty-section">No rooms yet</p>
+            )}
+            {chatrooms.data && chatrooms.data.chatrooms.length > 0 && (
+              <ul className="dialog-list-items">
+                {chatrooms.data.chatrooms.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      className={`dialog-item${dialog?.kind === 'room' && dialog.id === c.id ? ' dialog-item-active' : ''}`}
+                      onClick={() => setDialog({ kind: 'room', id: c.id })}
+                      aria-pressed={dialog?.kind === 'room' && dialog.id === c.id}
+                      data-testid="room-dialog"
+                    >
+                      <div>
+                        <span className="dialog-item-name">{c.name}</span>
+                        {c.topic && <div className="muted small">{c.topic}</div>}
+                      </div>
+                      <div className="muted small">
+                        {c.last_message ? c.last_message.body.slice(0, 32) : 'no messages'}
+                        {c.unread_count > 0 && <Badge kind="warn">{c.unread_count} new</Badge>}
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
-        <div className="card">
-          <h2>Chatrooms</h2>
-          {chatrooms.loading && <Spinner />}
-          {chatrooms.error &&
-          (isNotFoundError(chatrooms.error) ? (
-            <Unavailable feature="Chatrooms" hint="The chatrooms endpoint is not implemented in the backend yet (planned)." />
-          ) : (
-            <ErrorState error={chatrooms.error} onRetry={chatrooms.refetch} />
-          ))}
-          {chatrooms.data && chatrooms.data.chatrooms.length === 0 && (
-            <EmptyState title="No chatrooms" hint="Team chatrooms appear once agents are wired up." />
+        {/* ПРАВАЯ ПАНЕЛЬ: сообщения выбранного диалога + ввод */}
+        <div className="card dialog-view">
+          {dialog == null && (
+            <EmptyState title="Select a conversation" hint="Выберите диалог слева (Direct или Room), чтобы увидеть сообщения." />
           )}
-          <ul className="chatroom-list">
-            {chatrooms.data?.chatrooms.map((c) => (
-              <li key={c.id}>
-                <button className="chatroom" onClick={() => setActiveRoom(c.id)} aria-pressed={activeRoom === c.id}>
-                  <div>
-                    <strong>{c.name}</strong>
-                    {c.topic && <div className="muted small">{c.topic}</div>}
-                  </div>
-                  <div className="muted small">
-                    {c.last_message ? `${c.last_message.from_role_name}: ${c.last_message.body.slice(0, 40)}` : 'no messages'}
-                    {c.unread_count > 0 && <Badge kind="warn">{c.unread_count} new</Badge>}
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
 
-          {activeRoom !== null && (
-            <div className="chat-view">
-              <h3>#{chatrooms.data?.chatrooms.find((c) => c.id === activeRoom)?.name ?? activeRoom}</h3>
+          {dialog?.kind === 'room' && (
+            <>
+              <h3 className="dialog-view-title">#{activeChatroom?.name ?? dialog.id}</h3>
               <div className="chat-scroll">
                 {roomMessages.loading && <Spinner />}
                 {roomMessages.data && roomMessages.data.messages.length === 0 && (
@@ -130,7 +168,28 @@ export default function MessagesPage() {
                   Send
                 </button>
               </form>
-            </div>
+            </>
+          )}
+
+          {dialog?.kind === 'direct' && (
+            <>
+              <h3 className="dialog-view-title">{dialog.roleName}</h3>
+              <div className="chat-scroll">
+                {directMessages.length === 0 && <p className="muted small chat-empty">No direct messages.</p>}
+                {directMessages.map((m) => (
+                  <div key={m.id} className={`chat-bubble${m.is_mine ? ' chat-mine' : ''}`}>
+                    <div className="muted small">
+                      {m.from_role_name ?? 'system'}
+                      {m.to_role_name ? ` → ${m.to_role_name}` : ''} · {formatRelative(m.created_at)}
+                      {m.queue_task_id && (
+                        <> · <EntityLink to={`/tasks/${m.queue_task_id}`} title="Open related task">#{m.queue_task_id}</EntityLink></>
+                      )}
+                    </div>
+                    {m.body}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>

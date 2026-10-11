@@ -36,8 +36,9 @@ describe('P0.1: Attention view «Что требует меня»', () => {
   it('CTA EntityLink navigates to the target entity (task detail)', async () => {
     renderAt('/attention');
     await screen.findByRole('heading', { name: 'Внимание' }, { timeout: 10_000 });
-    // the blocked-task item's CTA links to /tasks/4 (labelled with the title)
-    const link = await screen.findByRole('link', { name: 'Fix flaky CI job' }, { timeout: 10_000 });
+    // T3: «Suggested action» — действие (ссылка); текст — из suggested_action
+    // (blocked-task → «Разблокировать»), ведёт на /tasks/4 («Fix flaky CI job»).
+    const link = await screen.findByRole('link', { name: 'Разблокировать' }, { timeout: 10_000 });
     fireEvent.click(link);
     // TaskDetailPage h1 = "Tasks / <title>"
     expect(await screen.findByRole('heading', { name: /Fix flaky CI job/ }, { timeout: 10_000 })).toBeInTheDocument();

@@ -95,7 +95,6 @@ export default function AttentionPage() {
                   <th>Item</th>
                   <th className="atd-w-elapsed">Elapsed</th>
                   <th className="atd-w-action">Suggested action</th>
-                  <th aria-label="Открыть" />
                 </tr>
               </thead>
               <tbody>
@@ -119,13 +118,12 @@ export default function AttentionPage() {
                           onDecided={() => q.refetch()}
                         />
                       ) : (
-                        it.suggested_action
+                        // T3: «Suggested action» — действие (ссылка на entity), без
+                        // отдельной безымянной колонки «Открыть».
+                        <EntityLink to={it.link.path} title={`${it.suggested_action} → ${it.link.label}`}>
+                          {it.suggested_action}
+                        </EntityLink>
                       )}
-                    </td>
-                    <td className="row-actions">
-                      <EntityLink to={it.link.path} title={it.link.label}>
-                        {it.link.label}
-                      </EntityLink>
                     </td>
                   </tr>
                 ))}

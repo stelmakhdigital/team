@@ -44,7 +44,9 @@ describe('P2.14: cost tracking (frontend)', () => {
 
   it('dashboard metrics include an LLM cost (USD) series', async () => {
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
-    expect(await screen.findByText('LLM cost (USD)', {}, { timeout: 10_000 })).toBeInTheDocument();
+    // T3: label «LLM cost» + единицы «USD» отдельно (значения + min/max + единицы)
+    expect(await screen.findByText('LLM cost', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getAllByText('USD').length).toBeGreaterThan(0);
     // старая серия LLM tokens осталась
     expect(screen.getByText('LLM tokens')).toBeInTheDocument();
   }, 20_000);

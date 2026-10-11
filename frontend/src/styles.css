@@ -152,7 +152,10 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 .attention-title { font-weight: 600; }
 .attention-detail { margin-top: 2px; }
 .attention-elapsed { white-space: nowrap; }
-.attention-action { color: var(--text-dim); }
+/* T3: «Suggested action» — действие (ссылка на entity); accent + right, без осиротевшей колонки */
+.attention-action { text-align: right; }
+.attention-action .entity-link { color: var(--accent); font-weight: 500; }
+.attention-action .entity-link:hover { color: var(--accent-bright, var(--accent)); text-decoration: underline; }
 .atd-w-sev { width: 92px; }
 .atd-w-elapsed { width: 96px; }
 .atd-w-action { min-width: 150px; }
@@ -282,7 +285,12 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 
 .metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
 .metric-label { font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+/* T3: значение + единицы + min/max на каждой карточке метрики */
+.metric-value { font-size: 1.25rem; font-weight: 600; color: var(--text); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.metric-unit { font-size: 0.72rem; font-weight: 400; color: var(--muted); }
+.metric-range { margin-top: 4px; font-variant-numeric: tabular-nums; }
 .sparkline { display: block; }
+.spark-point { cursor: crosshair; }
 
 .ws-badge { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--border); padding: 2px 8px; border-radius: 999px; }
 .ws-mock { color: var(--yellow); border-color: var(--yellow); }
@@ -651,6 +659,36 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .chat-mine { border-color: var(--accent); align-self: flex-end; }
 .chat-form { display: flex; gap: 8px; }
 .chat-form input { flex: 1; }
+
+/* T3: Messages — 2-панная раскладка (мессенджер): слева диалоги (Direct/Rooms), справа — сообщения */
+.messages-2panel { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .messages-2panel { grid-template-columns: 1fr; } }
+.dialog-list { display: flex; flex-direction: column; gap: 16px; }
+.dialog-section-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 8px; }
+.dialog-list-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dialog-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.dialog-item:hover { border-color: var(--accent); }
+.dialog-item-active, .dialog-item[aria-pressed='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-panel-2)); }
+.dialog-item-name { font-weight: 600; }
+.dialog-item-count { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dialog-empty-section { padding: 4px 0; }
+.dialog-view { min-height: 320px; }
+.dialog-view-title { margin: 0 0 12px; }
+/* в 2-панели chat-scroll занимает доступную высоту (в карточке справа) */
+.dialog-view .chat-scroll { max-height: 460px; }
 
 /* ---------- library ---------- */
 

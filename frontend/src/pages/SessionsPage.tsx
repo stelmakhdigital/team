@@ -1,0 +1,171 @@
+import { useState, useRef, useCallback } from 'react';
+import { api } from '../api';
+import { useQuery } from '../hooks/useQuery';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { Badge, EmptyState, ErrorState, PageSkeleton, Spinner } from '../components/ui/States';
+import EntityLink from '../components/ui/EntityLink';
+import { formatDateTime } from '../lib/format';
+import type { SessionState } from '../types/api';
+
+const STATE_FILTERS: (SessionState | 'all')[] = ['all', 'starting', 'running', 'idle', 'stopping', 'stopped', 'failed'];
+
+// T3: экран /sessions — таблица списка сессий (id, role, team, state, runtime,
+// model, started) + фильтры (team, state, role) + live-обновление по WS.
+// Клик по сессии → /sessions/{id} (существующая detail).
+export default function SessionsPage() {
+  const [teamFilter, setTeamFilter] = useState<number | 'all'>('all');
+  const [stateFilter, setStateFilter] = useState<SessionState | 'all'>('all');
+  const [roleFilter, setRoleFilter] = useState<number | 'all'>('all');
+
+  const teams = useQuery('sessions.teams', () => api.teams.getTeams());
+  const roles = useQuery(
+    teamFilter !== 'all' ? `sessions.roles.${teamFilter}` : 'sessions.roles.none',
+    () => (teamFilter !== 'all' ? api.teams.getTeam(teamFilter) : Promise.resolve(null)),
+    [teamFilter],
+  );
+
+  const list = useQuery(
+    `sessions.list.${teamFilter}.${stateFilter}.${roleFilter}`,
+    () =>
+      api.sessions.list({
+        team_id: teamFilter === 'all' ? undefined : teamFilter,
+        state: stateFilter === 'all' ? undefined : stateFilter,
+        role_id: roleFilter === 'all' ? undefined : roleFilter,
+      }),
+    [teamFilter, stateFilter, roleFilter],
+  );
+
+  // live-refetch по WS session.-событиям (стандарт X3, как AttentionPage/TasksPage).
+  const { onMessage } = useWebSocket([]);
+  const listRef = useRef(list.refetch);
+  listRef.current = list.refetch;
+  const wsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsLast = useRef(0);
+  const onWsEvent = useCallback((m: { type: string }) => {
+    if (!m.type.startsWith('session.')) return;
+    const now = Date.now();
+    if (now - wsLast.current < 3000) return;
+    wsLast.current = now;
+    if (wsTimer.current) clearTimeout(wsTimer.current);
+    wsTimer.current = setTimeout(() => listRef.current(), 300);
+  }, []);
+  onMessage(onWsEvent);
+
+  const sessions = list.data?.sessions ?? [];
+  const teamRoles = (teamFilter !== 'all' ? roles.data?.roles ?? [] : []);
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <h1>Sessions</h1>
+        <span className="muted small">{list.data?.total ?? 0} total</span>
+      </div>
+
+      <div className="filters">
+        <label>
+          Team
+          <select
+            value={String(teamFilter)}
+            onChange={(e) => {
+              setTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value));
+              setRoleFilter('all');
+            }}
+          >
+            <option value="all">All teams</option>
+            {teams.data?.teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          State
+          <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value as SessionState | 'all')}>
+            {STATE_FILTERS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Role
+          <select
+            value={String(roleFilter)}
+            onChange={(e) => setRoleFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            disabled={teamFilter === 'all'}
+            title={teamFilter === 'all' ? 'Select a team to filter by role' : undefined}
+          >
+            <option value="all">All roles</option>
+            {teamRoles.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {list.loading && <PageSkeleton label="Loading sessions…" />}
+      {list.error && <ErrorState error={list.error} onRetry={list.refetch} />}
+      {list.data && sessions.length === 0 && (
+        <div className="card">
+          <EmptyState
+            title={teamFilter === 'all' && stateFilter === 'all' ? 'No sessions' : 'No sessions match the filters'}
+            hint="Sessions appear once agents are launched, or clear the filters above."
+          />
+        </div>
+      )}
+      {list.data && sessions.length > 0 && (
+        <div className="card">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Role</th>
+                  <th>Team</th>
+                  <th>State</th>
+                  <th>Runtime</th>
+                  <th>Model</th>
+                  <th>Started</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.map((s) => (
+                  <tr key={s.id}>
+                    <td className="muted">
+                      <EntityLink to={`/sessions/${s.id}`} title={`Open session ${s.id}`}>
+                        {s.id}
+                      </EntityLink>
+                    </td>
+                    <td>
+                      <EntityLink to={`/sessions/${s.id}`} title={`Open session ${s.id}`}>
+                        {s.role_name}
+                      </EntityLink>
+                    </td>
+                    <td className="muted">
+                      <EntityLink to={`/teams/${s.team_id}`} title="Open team">
+                        {s.team_name}
+                      </EntityLink>
+                    </td>
+                    <td>
+                      <Badge kind="task" value={s.state}>
+                        {s.state}
+                      </Badge>
+                    </td>
+                    <td className="muted">{s.runtime_type}</td>
+                    <td className="muted">{s.model ?? '—'}</td>
+                    <td className="muted">{s.created_at ? formatDateTime(s.created_at) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {roles.loading && teamFilter !== 'all' && <Spinner label="Loading roles…" />}
+    </div>
+  );
+}

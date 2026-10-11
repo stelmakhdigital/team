@@ -19,6 +19,7 @@ import DiagnosticsPage from './pages/DiagnosticsPage';
 import TranscriptSearchPage from './pages/TranscriptSearchPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import SessionDetailPage from './pages/SessionDetailPage';
+import SessionsPage from './pages/SessionsPage';
 import SettingsPage from './pages/SettingsPage';
 import { EmptyState } from './components/ui/States';
 
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+        <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/sessions/:sessionId" element={<SessionDetailPage />} />
         <Route path="/workflows" element={<WorkflowsPage />} />
         <Route path="/workflows/:workflowId/instances/:instanceId" element={<WorkflowInstancePage />} />
