@@ -319,10 +319,23 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   frontmatter (type, verdict, candidate-sha) + `judge` (accept/reject/withdraw с причиной,
   атрибутированно); readiness задачи; «closure ≠ acceptance».
 
-### P3.14 Walk — поэтапная онбординг-подача — `in_progress`
-- **Scope**: `walk` — последовательная (paced) доставка контекстных кусков в
-  сессию (онбординг агента без «одного дампа»); UI: редактор последовательности
-  + статус доставки.
+### P3.14 Walk — поэтапная онбординг-подача — `in_progress` (T-20261011074706, R1; реализовано, ожидает approve; 111 ops)
+- **Scope (реализовано)**: `walks`+`walk_steps` (Migration 0024: mode interval/manual,
+  status active/paused/completed/failed, current_seq; steps seq/state/send_status/
+  note/sent_at); WalkService (Sender=SessionService.Send, WalkClock injectable):
+  CreateWalk (валидация+404), Advance (delivered/staged→seq++; retained→paused;
+  failed; completed), AdvanceDue (interval pacing, reaper-piggyback), Pause/Resume/Skip,
+  GetWalk/ListWalks; события walk.step_sent/walk.completed.
+- **API**: `POST /sessions/{id}/walks` (201), `GET /sessions/{id}/walks`,
+  `GET /walks/{id}`, `POST /walks/{id}/advance|pause|resume|skip`. RBAC: create/advance/
+  pause/resume/skip = sessions.update (operator+); list/get = dashboard.read (viewer-ok).
+- **UI**: Session Detail → Walk-блок (create-форма + редактор шагов; список walk'ов:
+  status-бейдж, progress, шаги с state-бейджами, Advance/Pause/Resume/Skip).
+- **Docs**: OpenAPI 111/111; api-decisions §P3.14; backend §3x; frontend §3x; USAGE §6.10.
+- **Тесты**: service 7 + HTTP 3 + vitest 5. Скриншот: session-walk-2560x1440.png.
+- **Scope (изначальный)**: `walk` — последовательная (paced) доставка контекстных кусков
+  в сессию (онбординг агента без «одного дампа»); UI: редактор последовательности +
+  статус доставки.
 - **Критерии**: логика pacing, тесты, UI, OpenAPI, docs.
 
 ### P3.15 Inbox/outbox — `done` (T-20261011063105, 1 раунд; ack_state absorb/deny/drop, inbox/outbox, undelivered, 104 ops) (T-20261011063105, R1; реализовано, ожидает approve; 104 ops)

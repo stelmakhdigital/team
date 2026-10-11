@@ -1143,6 +1143,147 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  # ---- walks (P3.14: paced-доставка контекста в сессию) ----
+  /api/v1/sessions/{id}/walks:
+    post:
+      operationId: createWalk
+      summary: Создать walk (последовательность шагов в сессию, P3.14)
+      description: >-
+        Создаёт именованную упорядоченную последовательность текстовых шагов,
+        доставляемых в сессию по одному через Send (P2.11). mode: interval (авто,
+        не чаще poll) или manual (вручную). RBAC sessions.update (operator+).
+        Валидация: session (404), ≥1 шаг, mode valid, interval_secs>0 если interval,
+        content непустой ≤ 2000.
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWalkRequest' }
+      responses:
+        '201':
+          description: Walk создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Walk' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    get:
+      operationId: listWalks
+      summary: Список walk'ов сессии
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Список walk'ов
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WalkListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/walks/{id}:
+    get:
+      operationId: getWalk
+      summary: Walk + шаги + progress (деталь, P3.14)
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Walk
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Walk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/walks/{id}/advance:
+    post:
+      operationId: advanceWalk
+      summary: Отправить следующий шаг walk'а (Send, P3.14)
+      description: >-
+        Отправляет следующий шаг через Send. delivered/staged → current_seq++;
+        retained (guard) → walk paused (нужен человек); Send-ошибка → walk failed;
+        все шаги → completed. RBAC sessions.update (operator+). paused/completed/
+        failed → 409.
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Walk после advance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Walk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/walks/{id}/pause:
+    post:
+      operationId: pauseWalk
+      summary: Пауза walk'а (active → paused, P3.14)
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Walk
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Walk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/walks/{id}/resume:
+    post:
+      operationId: resumeWalk
+      summary: Возобновить walk (paused → active, P3.14)
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Walk
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Walk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/walks/{id}/skip:
+    post:
+      operationId: skipWalk
+      summary: Пропустить текущий шаг (skipped, current_seq++, без Send, P3.14)
+      tags: [sessions]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Walk
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Walk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   # ---- watchdog ----
   /api/v1/watchdog/events:
     get:
@@ -3315,6 +3456,78 @@ components:
           items: { type: string }
           description: Последние строки capture при verified
         sent_at: { type: string, description: RFC3339Nano }
+
+    # ---- walks (P3.14: paced-доставка контекста в сессию) ----
+    WalkStep:
+      type: object
+      required: [id, seq, content, state]
+      properties:
+        id: { type: integer, format: int64 }
+        seq: { type: integer, description: 1-based порядок }
+        content: { type: string, description: Текст шага (≤ 2000) }
+        state:
+          type: string
+          enum: [pending, sent, delivered, staged, retained, failed, skipped]
+          description: >-
+            pending (не отправлен) / delivered (подтверждено) / staged (введено, не
+            подтверждено) / retained (guard — не отправлено, walk paused) / failed
+            (Send-ошибка) / skipped (пропущен)
+        send_status: { type: string, description: delivered/staged/retained (из Send) }
+        note: { type: string, description: guard/ошибка }
+        sent_at: { type: string, description: RFC3339Nano }
+    Walk:
+      type: object
+      required: [id, session_id, name, mode, status, current_seq, progress, sent_count, total, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        session_id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        mode:
+          type: string
+          enum: [interval, manual]
+          description: interval (авто, не чаще poll) / manual (вручную)
+        interval_secs: { type: integer, description: Для mode=interval; для manual null }
+        status:
+          type: string
+          enum: [active, paused, completed, failed]
+          description: >-
+            active / paused (retained guard — нужен человек) / completed (все шаги)
+            / failed (Send-ошибка)
+        current_seq: { type: integer, description: Следующий к отправке (1-based) }
+        last_sent_at: { type: string, description: RFC3339Nano }
+        progress: { type: string, description: "sent/total" }
+        sent_count: { type: integer }
+        total: { type: integer }
+        created_at: { type: string, description: RFC3339Nano }
+        updated_at: { type: string, description: RFC3339Nano }
+        steps:
+          type: array
+          items: { $ref: '#/components/schemas/WalkStep' }
+          description: Только в GetWalk (деталь); в ListWalks — нет
+    CreateWalkRequest:
+      type: object
+      required: [name, mode, steps]
+      properties:
+        name: { type: string, minLength: 1 }
+        description: { type: string }
+        mode:
+          type: string
+          enum: [interval, manual]
+        interval_secs: { type: integer, minimum: 1, description: Требует для mode=interval }
+        steps:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 2000 }
+          minItems: 1
+          description: Порядок шагов (1-based)
+    WalkListResponse:
+      type: object
+      required: [walks, total]
+      properties:
+        walks:
+          type: array
+          items: { $ref: '#/components/schemas/Walk' }
+        total: { type: integer }
 
     # ---- alerts / watchdog ----
     WatchdogAlert:

@@ -1626,3 +1626,84 @@ GET evidence → `dashboard.read` (viewer-ok); POST evidence + verdict → `task
   outbox+404.
 - **HTTP** (4): inbox, ack, outbox, RBAC (viewer inbox/outbox 200, ack 403).
 - **Frontend vitest** (3): inbox pending+undelivered, ack absorb→бейдж меняется, outbox.
+
+---
+
+## P3.14. Walk — paced-доставка контекста в сессию (T-20261011074706)
+
+**Проблема**: онбординг нового агента «одним дампом» нечитаем и теряется. **Walk** —
+именованная **упорядоченная последовательность текстовых шагов**, доставляемых в
+сессию **по одному** через существующий `SessionService.Send` (P2.11). Pacing =
+**interval** (авто, из reaper-loop, не чаще poll) или **manual** (вручную).
+
+### Модель (Migration 0024, sqlite + pg)
+- **`walks`**: `session_id` (FK sessions, CASCADE), `name`, `description`, `mode`
+  (CHECK interval/manual), `interval_secs` (для interval; NULL для manual), `status`
+  (CHECK active/paused/completed/failed, default active), `current_seq` (следующий к
+  отправке, default 1), `last_sent_at`. Индекс: `session_id`.
+- **`walk_steps`**: `walk_id` (FK walks, CASCADE), `seq` (1-based), `content`, `state`
+  (CHECK pending/sent/delivered/staged/retained/failed/skipped, default pending),
+  `send_status` (delivered/staged/retained, из Send), `note` (guard/ошибка), `sent_at`.
+  Индекс: `walk_id, seq`.
+- Timestamps — TEXT RFC3339Nano (project-конвенция). Модель: `Walk`/`WalkStep` +
+  `WalkMode`/`WalkStatus`/`WalkStepState` + `Valid()`.
+
+### Service (WalkService)
+- **`Sender`-интерфейс** (`Send(ctx, sessionID, text, submit)`): реализует
+  `*SessionService`; в тестах — mock. **`WalkClock`** (injectable, для AdvanceDue).
+- **`CreateWalk(session_id, name, mode, interval_secs, steps[])`**: валидация
+  (session 404, ≥1 шаг, mode valid, interval_secs>0 если interval, content непустой
+  ≤ 2000). Создаёт walk (active, current_seq 1) + steps (pending, seq 1..N) в tx.
+- **`Advance(walkID)`**: `Send` следующего шага → step.state из `Send.status`:
+  - **delivered/staged** → step sent, `current_seq++`, `last_sent_at=now`;
+  - **retained** (guard: интерактивный prompt) → step retained + **walk paused**
+    (current_seq **не** меняется — retry того же шага при resume);
+  - **Send-ошибка** (409/нет экрана/мёртв) → step failed (note) + **walk failed**;
+  - все шаги отправлены (current_seq > max) → **walk completed**.
+  - paused/completed/failed → **409**.
+- **`AdvanceDue(ctx)`** (interval-режим, из reaper-loop): по каждому active
+  interval-walk — due, если `current_seq==1 && now-created_at ≥ interval` ИЛИ
+  `current_seq>1 && now-last_sent_at ≥ interval` → **один шаг за тик** (pacing).
+  manual-walks не трогаются.
+- **`Pause/Resume`** (active↔paused; completed/failed → 409). **`Skip`**: текущий
+  шаг → skipped, `current_seq++` (без Send). **`GetWalk`** (+ steps + progress),
+  **`ListWalks`** (без steps, чтобы не N+1).
+- **Progress** = `sent/total`, где sent = шаги с delivery-статусом
+  (delivered/staged/retained/sent).
+
+### Reaper-loop (piggyback)
+- В `runReaper` (рядом с `ssvc.Reap`) каждый тик — `walkSvc.AdvanceDue(ctx)`.
+  Pacing = не чаще poll-interval (не отдельный цикл).
+
+### API + RBAC
+- `POST /sessions/{id}/walks` (sessions.update, operator+) — create (201).
+- `GET /sessions/{id}/walks` (dashboard.read, viewer-ok) — list.
+- `GET /walks/{id}` (dashboard.read, viewer-ok) — detail (+ steps + progress).
+- `POST /walks/{id}/advance|pause|resume|skip` (sessions.update, operator+).
+- 404/400/409 честные. События (Pulse, P2.9): `walk.step_sent`, `walk.completed`.
+
+### Frontend
+- **Session Detail → Walk-блок** (`WalkPanel`): create-форма (name, mode
+  manual/interval, interval_secs, **редактор последовательности** — добавить/удалить/
+  изменить шаги, порядок) + список walk'ов (status-бейдж active/paused/completed/
+  failed, progress `sent/total`, шаги с state-бейджами + sent_at + note (guard),
+  действия Advance/Pause/Resume/Skip; при interval — пометка «авто (каждые Ns)»).
+
+### Ключевые решения
+- **retained → paused, current_seq не меняется**: guard-шаг не отправлен → при resume
+  ретраим тот же шаг (prompt уже разобран). failed/current_seq — аналогично (шаг не
+  сдвигается).
+- **Sender/Clock — injectable**: тесты без runtime (mock Send) + детерминированный
+  pacing (fake clock).
+- **Нет новых RBAC-пермиссий**: reuse sessions.update (create/advance/pause/resume/
+  skip) + dashboard.read (list/get) — как у Send/capture.
+
+### Тесты
+- **Service** (7): create (валидация + 404 сессии + whitespace-шаг), advance
+  (delivered→seq++→completed), retained→paused (+retry при resume), failed, pause/
+  resume/skip, AdvanceDue (interval due/not-due, clock, pacing, manual не авто),
+  get/list/404.
+- **HTTP** (3): create/get/advance (409 completed, 404), list, RBAC (viewer 403
+  create/advance, 200 get).
+- **Frontend vitest** (5): list+статус+progress, advance→completed, create-форма,
+  retained→paused, pause/resume.

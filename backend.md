@@ -659,6 +659,33 @@ OpenRIG-вдохновлённая фича: сессию можно сохра�
   outbox, RBAC viewer 200/403). **Решения** (см. `api-decisions.md` §P3.15): inbox =
   direct-only; read vs ack_state (orthogonal); новая пермиссия messages.update.
 
+### 3x. P3.14 — Walk (paced-доставка контекста в сессию) (backend, 2026-10-11)
+Walk — именованная последовательность шагов, доставляемых в сессию по одному через
+`Send` (P2.11); pacing = interval (reaper-loop) или manual.
+
+| Файл | Что |
+|------|-----|
+| `migrations/{sqlite,postgres}/0024_walks.sql` (NEW) | `walks` + `walk_steps` (mode/status CHECK, current_seq; steps seq/state/send_status/note/sent_at) + индексы |
+| `models/walk.go` (NEW) | `Walk`/`WalkStep` + `WalkMode`/`WalkStatus`/`WalkStepState` + `Valid()` |
+| `repository/walk_repo.go` (NEW) | CreateWalk/CreateSteps, GetWalk, ListWalksBySession, ListActiveIntervalWalks, GetStepBySeq, ListStepsByWalk, CountSteps, UpdateWalkStatus/Advance/Seq, UpdateStep |
+| `service/walk_service.go` (NEW) | `Sender` (SessionService.Send) + `WalkClock` (injectable); CreateWalk, Advance (delivered/staged→seq++; retained→paused; failed; completed), AdvanceDue (interval, pacing), Pause/Resume/Skip, GetWalk/ListWalks; события walk.step_sent/walk.completed |
+| `cmd/daemon/main.go` | WalkService (sender=ssvc) + reaper-loop: `walkSvc.AdvanceDue` каждый тик |
+| `api/http/walk_handlers.go` (NEW) | CreateWalk/ListWalks/GetWalk/AdvanceWalk/PauseWalk/ResumeWalk/SkipWalk |
+| `api/http/{server,handlers,middleware}.go` | 7 routes + Options.Walk + RBAC |
+
+**API**: `POST /sessions/{id}/walks` (201), `GET /sessions/{id}/walks`, `GET /walks/{id}`,
+`POST /walks/{id}/advance|pause|resume|skip`. RBAC: create/advance/pause/resume/skip =
+sessions.update (operator+); list/get = dashboard.read (viewer-ok). 404/400/409.
+
+**Решения** (см. `api-decisions.md` §P3.14): retained→paused + current_seq не меняется
+(retry при resume); failed/current_seq не сдвигаются; progress = sent/total (delivery-
+статусы); Sender/Clock injectable (mock + fake clock в тестах); pacing = reaper-piggyback
+(не чаще poll).
+
+**Тесты**: service (7: create-валидация+404, advance delivered/retained/failed/completed,
+pause/resume/skip, AdvanceDue interval+clock+pacing+manual, get/list/404) + HTTP (3:
+create/get/advance 409+404, list, RBAC viewer 403/200).
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

@@ -685,6 +685,23 @@ Mailbox-семантика: входящие (direct) требуют подтв�
 Скриншоты @2560: `role-inbox-2560x1440.png` (Role Mailbox: Worker — inbox pending +
 undelivered + ack-кнопки + outbox).
 
+### 3x. Walk (P3.14, 2026-10-11)
+Paced-доставка контекста: Walk-блок в Session Detail (create-форма + список walk'ов +
+шаги + действия).
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/types/api.ts` | `Walk`/`WalkStep`; `WalkMode`/`WalkStatus`/`WalkStepState`; `CreateWalkRequest`; `ListWalksResponse` |
+| `frontend/src/api/types.ts` + `real.ts` | `walks.list(sessionId)`, `walks.get(id)`, `walks.create(sessionId, req)`, `walks.advance/pause/resume/skip(id)` |
+| `frontend/src/components/WalkPanel.tsx` (NEW) | create-форма (name, mode manual/interval, interval_secs, редактор шагов add/remove/edit) + список walk'ов (status-бейдж, progress, шаги с state-бейджами+sent_at+note, Advance/Pause/Resume/Skip) |
+| `frontend/src/pages/SessionDetailPage.tsx` | интеграция `<WalkPanel sessionId={id} />` |
+| `frontend/src/styles.css` | `.walk-*` (create-форма, steps-editor, items, status/step-бейджи, actions, 320px) |
+| `frontend/src/api/mock/*` | mock `list/get/create/advance/pause/resume/skip` (404/422/409; `[retain]`→retained→paused); seed (session 1: 1 walk, 2/3) |
+| `frontend/tests/walk.test.tsx` (NEW) | 5: list+статус+progress, advance→completed, create-форма, retained→paused, pause/resume |
+
+Скриншоты @2560: `session-walk-2560x1440.png` (Session #1: Walk-блок — create-редактор
++ существующий walk (active, 2/3, delivered/staged/pending + Advance/Pause/Skip)).
+
 ## 5. Команды
 ```bash
 cd frontend
