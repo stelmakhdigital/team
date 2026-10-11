@@ -280,7 +280,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ## P3 — долгосрочные проекты (если направление подтвердится)
 
-### P3.12 Agent images / session snapshots — `new`
+### P3.12 Agent images / session snapshots — `in_progress`
 - **Scope**: захват продуктивного состояния сессии (промпт/скиллы/накопленное
   резюме) как «изображение агента»: create/list/pin/prune/preview; запуск
   новой сессии из снимка. Интеграция с Library (тип `agent-image`).
