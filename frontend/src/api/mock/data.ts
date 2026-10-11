@@ -581,6 +581,19 @@ function seed(): DB {
       is_read: true,
       requires_action: false,
     },
+    // T2: drift-алерт для мёртвой (failed) сессии — автодетекция watchdog.
+    {
+      id: 4,
+      team_id: 2,
+      team_name: 'Platform Team',
+      event_type: 'drift',
+      severity: 'high',
+      description: 'Session 4: runtime died (process not alive; state=failed, exit_code=137) — watchdog',
+      session_id: 4,
+      created_at: iso(10),
+      is_read: false,
+      requires_action: true,
+    },
   ];
 
   // P3.15: name→role id (mock) для from_role_id/to_role_id (mailbox inbox/outbox).

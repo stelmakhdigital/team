@@ -48,6 +48,9 @@ type SessionService struct {
 	ConfigsDir string
 	// Bus — real-time события (session.started/session.stopped); nil = без событий.
 	Bus *EventBus
+	// WatchdogEvents — drift-алерт при обнаружении мёртвого runtime (Reap).
+	// nil = алерты не создаются (только transition + событие).
+	WatchdogEvents *repository.WatchdogRepo
 	// P1.5 — compact-plan: sessions.context_wall_pct в рантайме (layered config).
 	// nil = дефолт 80.
 	ContextWallPctFunc func(ctx context.Context) (int, error)
@@ -430,7 +433,13 @@ func (s *SessionService) markSessionState(ctx context.Context, sess *models.Sess
 		if exitCode != nil {
 			data["exit_code"] = *exitCode
 		}
-		s.Bus.Publish(newEvent("session.stopped", data,
+		// T2: корректное событие — session.failed для failed, session.stopped для stopped.
+		// (раньше всегда session.stopped, даже для failed)
+		evt := "session.stopped"
+		if to == models.SessionFailed {
+			evt = "session.failed"
+		}
+		s.Bus.Publish(newEvent(evt, data,
 			fmt.Sprintf("team:%d", sess.TeamID), fmt.Sprintf("session:%d", sess.ID)))
 	}
 	return &updated, nil
@@ -463,13 +472,44 @@ func (s *SessionService) Reap(ctx context.Context) (int, error) {
 				to = models.SessionFailed
 			}
 			if _, err := s.markSessionState(ctx, sess, to, st.ExitCode,
-				fmt.Sprintf("reaped: runtime exited (state=%s)", st.State)); err != nil {
+				"runtime died / watchdog: process not alive"); err != nil {
 				continue
+			}
+			// T2: drift-алерт (attention-item) при обнаружении мёртвого runtime.
+			// Только если НЕ остановлена пользователем (StoppedByUs): user-stop —
+			// ожидаемо, не «смерть». Дедуп по unread drift на сессию.
+			if !st.StoppedByUs {
+				s.createDeadRuntimeAlert(ctx, sess, to, st.ExitCode)
 			}
 			count++
 		}
 	}
 	return count, nil
+}
+
+// createDeadRuntimeAlert — drift-алерт (attention-item) при обнаружении мёртвого
+// runtime (Reap). Type "drift", high, RequiresAction. Дедуп: если уже есть unread
+// drift-алерт на эту сессию — не дублируем. nil WatchdogEvents = без алерта.
+func (s *SessionService) createDeadRuntimeAlert(ctx context.Context, sess *models.Session, to models.SessionState, exitCode *int) {
+	if s.WatchdogEvents == nil {
+		return
+	}
+	if exists, err := s.WatchdogEvents.ExistsUnread(ctx, s.db, "drift", sess.QueueTaskID, &sess.ID); err == nil && exists {
+		return
+	}
+	code := "n/a"
+	if exitCode != nil {
+		code = fmt.Sprint(*exitCode)
+	}
+	desc := fmt.Sprintf("session %d: runtime died (process not alive; state=%s, exit_code=%s) — watchdog",
+		sess.ID, to, code)
+	ev := &models.WatchdogEvent{
+		TeamID: sess.TeamID, SessionID: &sess.ID, RoleID: &sess.RoleID,
+		QueueTaskID: sess.QueueTaskID,
+		EventType:   "drift", Severity: "high",
+		Description: desc, RequiresAction: true,
+	}
+	_ = s.WatchdogEvents.Create(ctx, s.db, ev)
 }
 
 func (s *SessionService) getSession(ctx context.Context, id int64) (*models.Session, error) {

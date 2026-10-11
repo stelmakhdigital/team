@@ -52,6 +52,7 @@ func setupSessionEnv(t *testing.T) *sessionEnv {
 	}
 	tsvc := service.NewTaskService(db, stores)
 	ssvc := service.NewSessionService(db, stores, runtime.NewRegistry())
+	ssvc.WatchdogEvents = stores.Watchdog
 	logDir := t.TempDir()
 	ssvc.LogsDir = filepath.Join(logDir, "logs")
 	ssvc.ConfigsDir = filepath.Join(logDir, "configs")
@@ -248,15 +249,21 @@ func TestSessionFailedProcessAndWatchdog(t *testing.T) {
 		t.Errorf("exit code = %v, want 3", view.ExitCode)
 	}
 
-	// watchdog: drift-алерт на failed сессию
-	n := e.wd.Scan(e.ctx)
-	if n == 0 {
-		t.Fatal("watchdog scan created no alerts")
+	// T2: Reap (reaper-loop) создаёт drift-алерт при обнаружении мёртвого (failed) runtime.
+	countDrift := func() int {
+		var n int
+		if err := e.db.QueryRowContext(e.ctx, "SELECT count(*) FROM watchdog_events WHERE event_type='drift'").Scan(&n); err != nil {
+			t.Fatalf("count drift: %v", err)
+		}
+		return n
 	}
-	// повторный скан — дедупликация (нет непрочитанного drift на эту сессию)
-	n = e.wd.Scan(e.ctx)
-	if n != 0 {
-		t.Errorf("watchdog duplicate alerts: %d", n)
+	if c := countDrift(); c != 1 {
+		t.Fatalf("drift alerts after reap = %d, want 1 (Reap creates it on dead-runtime detection)", c)
+	}
+	// повторный скан watchdog — дедупликация (не дублирует drift-алерт Reap)
+	_ = e.wd.Scan(e.ctx)
+	if c := countDrift(); c != 1 {
+		t.Fatalf("drift alerts after watchdog scan = %d, want 1 (dedup)", c)
 	}
 }
 
@@ -469,5 +476,107 @@ func TestSessionLiveMetricsNoUsage(t *testing.T) {
 	}
 	if _, err := e.ssvc.StopSession(e.ctx, sess.ID); err != nil {
 		t.Fatalf("StopSession: %v", err)
+	}
+}
+
+// ---------- T2: dead-runtime detection (drift-алерт + корректное событие) ----------
+
+func driftAlertCount(t *testing.T, e *sessionEnv) int {
+	t.Helper()
+	var n int
+	if err := e.db.QueryRowContext(e.ctx, "SELECT count(*) FROM watchdog_events WHERE event_type='drift'").Scan(&n); err != nil {
+		t.Fatalf("count drift: %v", err)
+	}
+	return n
+}
+
+// T2: мёртвый runtime (crash, exit != 0) → failed + drift-алерт (Reap) + событие
+// session.failed (не session.stopped).
+func TestSessionDeadRuntimeCrash(t *testing.T) {
+	e := setupSessionEnv(t)
+	teamID, roleID := e.teamWithRole(t, "s-dead-crash")
+
+	bus := service.NewEventBus()
+	var eventTypes []string
+	bus.SetSink(func(ev service.WSEvent) { eventTypes = append(eventTypes, ev.Type) })
+	e.ssvc.Bus = bus
+
+	sess, err := e.ssvc.CreateSession(e.ctx, teamID, service.CreateSessionRequest{
+		RoleID: roleID, Command: "sh", Args: []string{"-c", "exit 7"},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		_, _ = e.ssvc.Reap(e.ctx)
+		if v, err := e.ssvc.GetSessionView(e.ctx, sess.ID); err == nil && v.State == "failed" {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	view, _ := e.ssvc.GetSessionView(e.ctx, sess.ID)
+	if view.State != "failed" {
+		t.Fatalf("state = %s, want failed", view.State)
+	}
+	if view.ExitCode == nil || *view.ExitCode != 7 {
+		t.Fatalf("exit = %v, want 7", view.ExitCode)
+	}
+	// drift-алерт (Reap создаёт при обнаружении мёртвого runtime)
+	if c := driftAlertCount(t, e); c != 1 {
+		t.Errorf("drift alerts = %d, want 1", c)
+	}
+	// событие session.failed (не session.stopped)
+	found := false
+	for _, et := range eventTypes {
+		if et == "session.failed" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no session.failed event, got %v", eventTypes)
+	}
+}
+
+// T2: чистое завершение (exit 0, не user-stop) → stopped + drift-алерт + событие
+// session.stopped.
+func TestSessionDeadRuntimeCleanExit(t *testing.T) {
+	e := setupSessionEnv(t)
+	teamID, roleID := e.teamWithRole(t, "s-dead-clean")
+
+	bus := service.NewEventBus()
+	var eventTypes []string
+	bus.SetSink(func(ev service.WSEvent) { eventTypes = append(eventTypes, ev.Type) })
+	e.ssvc.Bus = bus
+
+	sess, err := e.ssvc.CreateSession(e.ctx, teamID, service.CreateSessionRequest{
+		RoleID: roleID, Command: "sh", Args: []string{"-c", "exit 0"},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		_, _ = e.ssvc.Reap(e.ctx)
+		if v, err := e.ssvc.GetSessionView(e.ctx, sess.ID); err == nil && v.State == "stopped" {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	view, _ := e.ssvc.GetSessionView(e.ctx, sess.ID)
+	if view.State != "stopped" {
+		t.Fatalf("state = %s, want stopped", view.State)
+	}
+	if c := driftAlertCount(t, e); c != 1 {
+		t.Errorf("drift alerts = %d, want 1", c)
+	}
+	found := false
+	for _, et := range eventTypes {
+		if et == "session.stopped" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no session.stopped event, got %v", eventTypes)
 	}
 }

@@ -144,7 +144,7 @@ func (a *ProcessAdapter) Status(ctx context.Context, runtimeRef string) (*Status
 		if !stoppedByUs && *exit != 0 {
 			st = StateFailed
 		}
-		return &Status{Alive: false, State: st, ExitCode: exit}, nil
+		return &Status{Alive: false, State: st, ExitCode: exit, StoppedByUs: stoppedByUs}, nil
 	}
 	// не знаем PID (daemon перезапустился) — спрашиваем ОС
 	if p, err := os.FindProcess(pid); err == nil {

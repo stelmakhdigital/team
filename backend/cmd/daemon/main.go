@@ -106,6 +106,8 @@ func run() error {
 	ssvc.LogsDir = cfg.LogsDir
 	ssvc.ConfigsDir = cfg.ConfigsDir
 	ssvc.Bus = bus
+	// T2: Reap (reaper-loop) создаёт drift-алерт при обнаружении мёртвого runtime.
+	ssvc.WatchdogEvents = stores.Watchdog
 	wd := service.NewWatchdogService(db, stores, service.WatchdogConfig{
 		StaleThreshold:   cfg.WatchdogStaleAfter,
 		BlockedThreshold: cfg.WatchdogBlockedAfter,

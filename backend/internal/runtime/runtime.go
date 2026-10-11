@@ -46,6 +46,10 @@ type Status struct {
 	Alive    bool
 	ExitCode *int
 	State    SessionState
+	// StoppedByUs — мы сами остановили runtime (Stop). true → stop ≠ crash:
+	// watchdog не считает это «death» (нет drift-алерта/failed). Для tmux/pi
+	// не отслеживается (liveness = наличие tmux-сессии) → false.
+	StoppedByUs bool
 }
 
 // P2.11 — send to session: результат ввода в терминал сессии.

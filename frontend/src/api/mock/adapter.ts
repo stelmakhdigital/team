@@ -1017,10 +1017,10 @@ export function createMockAdapter(): Api {
         // 3. unread alerts -> severity by event type
         for (const a of db.alerts) {
           if (a.is_read) continue;
-          const severity = a.event_type === 'blocked' ? 'critical' : a.event_type === 'stale' ? 'high' : 'normal';
+          const severity = a.event_type === 'blocked' ? 'critical' : a.event_type === 'stale' || a.event_type === 'drift' ? 'high' : 'normal';
           const action =
             a.event_type === 'blocked' ? 'Разобрать блокировку' :
-            a.event_type === 'stale' ? 'Проверить сессию' : 'Посмотреть';
+            a.event_type === 'stale' || a.event_type === 'drift' ? 'Проверить сессию' : 'Посмотреть';
           const since = new Date(a.created_at).getTime();
           const link =
             a.session_id != null ? { path: `/sessions/${a.session_id}`, label: `Сессия ${a.session_id}` }
