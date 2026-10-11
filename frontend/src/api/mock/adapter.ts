@@ -22,6 +22,7 @@ import type {
   SessionDetail,
   HandoverStep,
   Task,
+  TaskEvidence,
   TaskWake,
   TranscriptMatch,
   UpdateRoleConfigRequest,
@@ -137,6 +138,15 @@ function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
 }
 
+// mock candidate-sha (не реальный sha256; для демо-режима — короткий псевдо-hash)
+function mockSha(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 // компактный elapsed для detail (мок): "5м", "2ч 10м", "3д"
 function humanDur(ms: number): string {
   if (ms < 0) ms = 0;
@@ -158,6 +168,21 @@ function decorateOverdue(t: Task): Task {
     t.is_overdue = ms < 0;
     t.remaining_secs = Math.round(ms / 1000);
   }
+  return decorateEvidence(t);
+}
+
+// P3.13: readiness/acceptance/evidence_count (мок, зеркалит backend; closure ≠ acceptance)
+function decorateEvidence(t: Task): Task {
+  const evs = getDb().taskEvidence.filter((e) => e.task_id === t.id);
+  let accepted = 0, rejected = 0, submitted = 0;
+  for (const e of evs) {
+    if (e.status === 'accepted') accepted++;
+    else if (e.status === 'rejected') rejected++;
+    else if (e.status === 'submitted') submitted++;
+  }
+  t.evidence_count = evs.length;
+  t.readiness = accepted > 0 ? 'ready' : evs.length > 0 ? 'pending' : 'none';
+  t.acceptance = accepted > 0 ? 'accepted' : rejected > 0 ? 'rejected' : submitted > 0 ? 'pending' : 'none';
   return t;
 }
 
@@ -1543,6 +1568,62 @@ export function createMockAdapter(): Api {
         });
         db.audit.unshift({ id: nextId(), timestamp: at, action: 'task.resolve', resource: `task:${id}` });
         return { task: clone(t), status: 'resolved' };
+      },
+
+      // P3.13: proof/evidence (mock)
+      async submitEvidence(id, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const t = db.tasks.find((x) => x.id === id);
+        if (!t) throw new ApiClientError(404, 'not_found', `Task ${id} not found`);
+        if (!req?.name?.trim()) throw new ApiClientError(400, 'validation_failed', 'name is required');
+        const hasContent = req.content != null && req.content !== '';
+        const hasRef = req.content_ref != null && req.content_ref !== '';
+        if (!hasContent && !hasRef) throw new ApiClientError(400, 'validation_failed', 'content or content_ref is required');
+        const at = now();
+        // mock sha: простой hash (не реальный sha256)
+        const inlineContent = req.content ?? '';
+        const sha = hasContent ? mockSha(inlineContent) : (req.content_sha ?? null);
+        const ev: TaskEvidence = {
+          id: nextId(), task_id: id, type: req.type, name: req.name,
+          content_ref: req.content_ref, content_sha: sha ?? undefined,
+          description: req.description, status: 'submitted',
+          submitted_by: 'you', created_at: at, updated_at: at,
+        };
+        db.taskEvidence.unshift(ev);
+        return clone(ev);
+      },
+      async listEvidence(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const t = db.tasks.find((x) => x.id === id);
+        if (!t) throw new ApiClientError(404, 'not_found', `Task ${id} not found`);
+        const list = db.taskEvidence.filter((e) => e.task_id === id);
+        return { evidence: clone(list), total: list.length };
+      },
+      async verdictEvidence(id, evidenceId, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const t = db.tasks.find((x) => x.id === id);
+        if (!t) throw new ApiClientError(404, 'not_found', `Task ${id} not found`);
+        const ev = db.taskEvidence.find((e) => e.id === evidenceId && e.task_id === id);
+        if (!ev) throw new ApiClientError(404, 'not_found', `Evidence ${evidenceId} not found`);
+        const action = req?.action;
+        if (action !== 'accept' && action !== 'reject' && action !== 'withdraw') {
+          throw new ApiClientError(400, 'validation_failed', 'action must be accept|reject|withdraw');
+        }
+        if (action === 'withdraw' && ev.status === 'submitted') {
+          throw new ApiClientError(400, 'validation_failed', 'withdraw requires a prior verdict');
+        }
+        ev.status = action === 'accept' ? 'accepted' : action === 'reject' ? 'rejected' : 'withdrawn';
+        ev.verdict_reason = req.reason;
+        ev.judged_by = 'you';
+        ev.judged_at = now();
+        ev.updated_at = now();
+        return clone(ev);
       },
     },
 

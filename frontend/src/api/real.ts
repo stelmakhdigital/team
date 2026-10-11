@@ -108,6 +108,10 @@ export function createRealAdapter(): Api {
       updateState: (id, req) => http(`${B}/tasks/${id}/state`, { method: 'PATCH', body: req }),
       handoff: (id, req) => http(`${B}/tasks/${id}/handoff`, { method: 'POST', body: req }),
       resolve: (id, req) => http(`${B}/tasks/${id}/resolve`, { method: 'POST', body: req }),
+      // P3.13: proof/evidence
+      submitEvidence: (id, req) => http(`${B}/tasks/${id}/evidence`, { method: 'POST', body: req }),
+      listEvidence: (id, params) => http(`${B}/tasks/${id}/evidence${toQuery({ limit: params?.limit, offset: params?.offset })}`),
+      verdictEvidence: (id, evidenceId, req) => http(`${B}/tasks/${id}/evidence/${evidenceId}/verdict`, { method: 'POST', body: req }),
     },
     messages: {
       getMessages: (params) =>

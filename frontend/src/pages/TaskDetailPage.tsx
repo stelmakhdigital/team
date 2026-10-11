@@ -6,6 +6,7 @@ import { useMutation } from '../hooks/useMutation';
 import { ErrorState, PageSkeleton, Spinner, Badge } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import EntityLink from '../components/ui/EntityLink';
+import EvidencePanel from '../components/EvidencePanel';
 import { formatDateTime, formatRelative, formatRelativeFromSecs, formatCost } from '../lib/format';
 import type { Task, TaskWake } from '../types/api';
 
@@ -59,6 +60,13 @@ export default function TaskDetailPage() {
           <Link to="/tasks" className="crumb">Tasks</Link> / {t.title}
         </h1>
         <Badge kind="task" value={t.state} />
+        {/* P3.13: readiness/acceptance (closure ≠ acceptance) */}
+        <span className="ev-badges" data-testid="evidence-readiness">
+          <span className={`badge ev-r ev-r--${t.readiness ?? 'none'}`} title="Readiness: есть ли принятый артефакт">
+            {(t.readiness ?? 'none') === 'ready' ? '✓ ready' : (t.readiness ?? 'none') === 'pending' ? '… pending' : '∅ none'}
+          </span>
+          <span className="muted small">acceptance: {t.acceptance ?? 'none'}</span>
+        </span>
       </div>
 
       <div className="detail-layout">
@@ -105,6 +113,9 @@ export default function TaskDetailPage() {
               </ul>
             </div>
           )}
+
+          {/* P3.13: Proof/evidence (closure ≠ acceptance) */}
+          <EvidencePanel task={t} />
         </div>
 
         <aside className="card detail-pane">

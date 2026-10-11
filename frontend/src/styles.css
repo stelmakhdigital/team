@@ -1212,3 +1212,38 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   overflow-y: auto;
   margin-top: 8px;
 }
+
+// ===== P3.13: Proof/evidence (closure ≠ acceptance) =====
+.evidence-panel { margin-top: 16px; }
+.evidence-panel .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ev-badges { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ev-note { margin: 4px 0 12px; }
+.ev-r { border-width: 1px; }
+.ev-r--ready { color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.ev-r--pending { color: var(--yellow); border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.ev-r--none { color: var(--muted); border-color: var(--border); background: transparent; }
+.ev-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ev-item { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.ev-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ev-name { font-size: 0.9rem; }
+.ev-meta { word-break: break-word; }
+.ev-meta code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; font-size: 0.78rem; }
+.ev-desc, .ev-reason { font-size: 0.82rem; }
+.ev-type { border-width: 1px; }
+.ev-type--screenshot { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ev-type--test { color: var(--teal); border-color: var(--teal); background: color-mix(in srgb, var(--teal) 14%, transparent); }
+.ev-type--log { color: var(--yellow); border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.ev-type--other { color: var(--muted); border-color: var(--border); background: transparent; }
+.ev-status { border-width: 1px; }
+.ev-status--submitted { color: var(--muted); border-color: var(--border); background: transparent; }
+.ev-status--accepted { color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.ev-status--rejected { color: var(--red); border-color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
+.ev-status--withdrawn { color: var(--purple); border-color: var(--purple); background: color-mix(in srgb, var(--purple) 14%, transparent); }
+.ev-judge { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.ev-submit { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel); }
+.ev-submit-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.ev-submit-row .input { flex: 1; min-width: 140px; }
+@media (max-width: 640px) {
+  .ev-submit-row { flex-direction: column; }
+  .ev-submit-row .input { min-width: 0; }
+}

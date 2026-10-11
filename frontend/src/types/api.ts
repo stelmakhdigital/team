@@ -588,6 +588,45 @@ export interface Task {
   remaining_secs?: number;
   // P2.14: стоимость задачи (сумма сессий; оценка)
   estimated_cost?: CostInfo | null;
+  // P3.13: proof/evidence (closure ≠ acceptance — acceptance отдельное от state)
+  evidence_count?: number;
+  readiness?: 'ready' | 'pending' | 'none';
+  acceptance?: 'accepted' | 'rejected' | 'pending' | 'none';
+}
+
+// P3.13: Proof/evidence на задачах (артефакт-доказательство + verdict судьи).
+export type EvidenceType = 'screenshot' | 'test' | 'log' | 'other';
+export type EvidenceStatus = 'submitted' | 'accepted' | 'rejected' | 'withdrawn';
+export type EvidenceAction = 'accept' | 'reject' | 'withdraw';
+
+export interface TaskEvidence {
+  id: number;
+  task_id: number;
+  type: EvidenceType;
+  name: string;
+  content_ref?: string;
+  content_sha?: string; // candidate-sha (целостность)
+  description?: string;
+  status: EvidenceStatus;
+  verdict_reason?: string;
+  submitted_by: string;
+  judged_by?: string;
+  judged_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubmitEvidenceRequest {
+  type: EvidenceType;
+  name: string;
+  content?: string; // inline (серверный sha256)
+  content_ref?: string; // внешняя ссылка/путь
+  content_sha?: string; // sha (для content_ref)
+  description?: string;
+}
+export interface VerdictEvidenceRequest {
+  action: EvidenceAction;
+  reason?: string;
 }
 
 // P0.3: wake для заблокированной задачи (block with wake).

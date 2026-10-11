@@ -18,6 +18,7 @@ import type {
   Segment,
   SkillSpec,
   Task,
+  TaskEvidence,
   TaskHistoryEntry,
   TaskWake,
   Team,
@@ -65,6 +66,7 @@ interface DB {
   audit: AuditEntry[];
   events: EventItem[]; // P2.9: Pulse feed (mock-события для ленты)
   taskHistory: TaskHistoryEntry[];
+  taskEvidence: TaskEvidence[]; // P3.13: proof/evidence
   configOverrides: Record<string, unknown>;
   seq: number;
 }
@@ -156,6 +158,7 @@ function seed(): DB {
     library: [],
     audit: [],
     taskHistory: [],
+    taskEvidence: [],
     configOverrides: {},
     seq: 1000,
   };
@@ -417,6 +420,27 @@ function seed(): DB {
   ];
   // P1.0: задачи Dev Team (team_id 1) наследуют project_id от team.project
   t.tasks.forEach((tk) => { if (tk.team_id === 1) tk.project_id = 1; });
+
+  // P3.13: proof/evidence (мок-демо: task 1 = ready/accepted; task 5 (done) = pending → closure ≠ acceptance)
+  t.taskEvidence = [
+    {
+      id: 1, task_id: 1, type: 'test', name: 'auth_test.go',
+      content_sha: 'a1b2c3d4', status: 'accepted',
+      verdict_reason: 'все кейсы зелёные', submitted_by: 'worker', judged_by: 'reviewer',
+      judged_at: iso(-180), created_at: iso(60 * 2), updated_at: iso(-180),
+    },
+    {
+      id: 2, task_id: 1, type: 'log', name: 'build.log',
+      content_ref: 'https://artifacts/dev-team/build-101.log', content_sha: 'e5f6a7b8',
+      status: 'submitted', submitted_by: 'worker', created_at: iso(60), updated_at: iso(60),
+    },
+    {
+      id: 3, task_id: 5, type: 'screenshot', name: 'docs-rendered.png',
+      content_sha: 'c9d0e1f2', status: 'submitted',
+      description: 'скриншот обновлённой страницы деплоя', submitted_by: 'docs',
+      created_at: iso(30), updated_at: iso(30),
+    },
+  ];
 
   t.sessions = [
     {

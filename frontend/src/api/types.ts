@@ -60,6 +60,9 @@ import type {
   HandoffTaskRequest,
   ResolveTaskRequest,
   ResolveTaskResponse,
+  TaskEvidence,
+  SubmitEvidenceRequest,
+  VerdictEvidenceRequest,
   HandoffTaskResponse,
   Task,
   ApplyLibraryItemRequest,
@@ -202,6 +205,10 @@ export interface Api {
     updateState(id: number, req: UpdateTaskStateRequest): Promise<Task>;
     handoff(id: number, req: HandoffTaskRequest): Promise<HandoffTaskResponse>;
     resolve(id: number, req: ResolveTaskRequest): Promise<ResolveTaskResponse>;
+    // P3.13: proof/evidence (closure ≠ acceptance)
+    submitEvidence(id: number, req: SubmitEvidenceRequest): Promise<TaskEvidence>;
+    listEvidence(id: number, params?: { limit?: number; offset?: number }): Promise<{ evidence: TaskEvidence[]; total: number }>;
+    verdictEvidence(id: number, evidenceId: number, req: VerdictEvidenceRequest): Promise<TaskEvidence>;
   };
   messages: {
     getMessages(params?: GetMessagesParams): Promise<GetMessagesResponse>;
