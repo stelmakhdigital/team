@@ -147,8 +147,11 @@ func requiredPermission(method, path string) string {
 			return "dashboard.read"
 		case "attention": // P0.1: read-only operator view; viewer имеет dashboard.read
 			return "dashboard.read"
-		case "tasks": // P0.2: GET /tasks/overdue = operator view (dashboard.read); остальное — tasks.read
+		case "tasks": // P0.2: GET /tasks/overdue = operator view (dashboard.read); P3.13: GET evidence = viewer-ok; остальное — tasks.read
 			if id == "overdue" {
+				return "dashboard.read"
+			}
+			if sub == "evidence" { // P3.13: list evidence = dashboard.read (viewer-ok)
 				return "dashboard.read"
 			}
 			return "tasks.read"
@@ -192,6 +195,8 @@ func requiredPermission(method, path string) string {
 		case res == "segments" && id != "" && sub == "roles":
 			return "teams.update"
 		case res == "tasks" && id != "" && sub == "resolve": // P0.3: ручной resolve = tasks.update
+			return "tasks.update"
+		case res == "tasks" && id != "" && sub == "evidence": // P3.13: submit + verdict = tasks.update (operator+)
 			return "tasks.update"
 		case res == "sessions" && id != "" && sub == "handover": // P1.5: handover = sessions.update
 			return "sessions.update"

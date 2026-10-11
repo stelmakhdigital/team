@@ -196,6 +196,10 @@ func run() error {
 	// P2.15 — whoami ("кто я и что мне делать", компактный срез для агента)
 	whoamiSvc := service.NewWhoamiService(db, stores, svc, tsvc, ssvc, msvc)
 
+	// P3.13 — Proof/evidence на задачах (submit/list/verdict + readiness/acceptance)
+	evsvc := service.NewEvidenceService(db, stores)
+	tsvc.SetEvidenceRepo(stores.Evidence)
+
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger: logger, DB: db,
 		Sessions: ssvc, Alerts: alerts, Messages: msvc,
@@ -204,6 +208,7 @@ func run() error {
 		Auth: authSvc, Config: cvc, Attention: attention, Projects: projSvc, Engine: engine,
 		WatchdogJobs: wdjobs, Briefing: briefing,
 		Diagnostics: diagnostics, EventsSvc: eventsSvc, Whoami: whoamiSvc,
+		Evidence: evsvc,
 	})
 
 	server := &http.Server{

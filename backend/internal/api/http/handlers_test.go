@@ -107,6 +107,9 @@ func newTestServerSeeded(t *testing.T, apiKeys []string, seedStarters bool) *htt
 	eventsSvc.SetSink(bus)
 	// P1.0: projects (для /api/v1/projects + apply-with-project)
 	pvc := service.NewProjectService(db, repository.NewStores(db))
+	// P3.13: proof/evidence (submit/list/verdict + readiness/acceptance)
+	evsvc := service.NewEvidenceService(db, repository.NewStores(db))
+	tsvc.SetEvidenceRepo(repository.NewStores(db).Evidence)
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger:       slog.New(slog.NewTextHandler(os.Stderr, nil)),
 		DB:           db,
@@ -127,6 +130,7 @@ func newTestServerSeeded(t *testing.T, apiKeys []string, seedStarters bool) *htt
 		Briefing:     briefing,
 		Diagnostics:  diagnostics,
 		EventsSvc:    eventsSvc,
+		Evidence:     evsvc,
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)

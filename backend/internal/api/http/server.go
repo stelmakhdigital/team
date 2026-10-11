@@ -43,6 +43,8 @@ type Options struct {
 	EventsSvc *service.EventService
 	// P2.15 — whoami («кто я и что мне делать», компактный срез для агента)
 	Whoami *service.WhoamiService
+	// P3.13 — Proof/evidence на задачах
+	Evidence *service.EvidenceService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -55,7 +57,8 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 		wsvc: opts.Workflows, lsvc: opts.Library, asvc: opts.Audit, msvcM: opts.Metrics,
 		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention,
 		projects: opts.Projects, engine: opts.Engine, wdjobs: opts.WatchdogJobs,
-		briefing: opts.Briefing, diagnostics: opts.Diagnostics, evs: opts.EventsSvc, whoami: opts.Whoami}
+		briefing: opts.Briefing, diagnostics: opts.Diagnostics, evs: opts.EventsSvc, whoami: opts.Whoami,
+		evsvc: opts.Evidence}
 
 	mux := http.NewServeMux()
 
@@ -107,6 +110,10 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("POST /api/v1/tasks/{id}/handoff", h.HandoffTask)
 	mux.HandleFunc("POST /api/v1/tasks/{id}/resolve", h.ResolveTask) // P0.3
 	mux.HandleFunc("GET /api/v1/tasks/{id}/history", h.GetTaskHistory)
+	// P3.13 — Proof/evidence на задачах (closure ≠ acceptance)
+	mux.HandleFunc("POST /api/v1/tasks/{id}/evidence", h.SubmitEvidence)                    // submit (tasks.update, operator+)
+	mux.HandleFunc("GET /api/v1/tasks/{id}/evidence", h.ListEvidence)                       // list (dashboard.read, viewer-ok)
+	mux.HandleFunc("POST /api/v1/tasks/{id}/evidence/{evid_id}/verdict", h.VerdictEvidence) // judge (tasks.update, operator+)
 
 	// Slice 2 — Dashboard
 	mux.HandleFunc("GET /api/v1/dashboard/summary", h.DashboardSummary)

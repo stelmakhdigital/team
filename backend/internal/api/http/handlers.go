@@ -41,6 +41,8 @@ type handlers struct {
 	evs *service.EventService
 	// P2.15 — whoami
 	whoami *service.WhoamiService
+	// P3.13 — Proof/evidence на задачах
+	evsvc *service.EvidenceService
 }
 
 func limitOffset(q url.Values) (int, int) {

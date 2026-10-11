@@ -55,6 +55,8 @@ type TaskService struct {
 	sessions sessionStore
 	alerts   *repository.WatchdogRepo
 	projects *repository.ProjectRepo // P1.0
+	// P3.13: evidence (readiness/acceptance в TaskView); nil = без evidence.
+	evidence *repository.EvidenceRepo
 	// Bus — real-time события (task.created/task.state_changed); nil = без событий.
 	Bus *EventBus
 	// P0.2: tasks.closure_required_secs на момент перехода в in_progress (layered config).
@@ -71,6 +73,8 @@ func NewTaskService(db *sql.DB, s *repository.Stores) *TaskService {
 		wakes: s.Wakes, sessions: s.Sessions, alerts: s.Watchdog, projects: s.Projects,
 	}
 }
+
+func (s *TaskService) SetEvidenceRepo(r *repository.EvidenceRepo) { s.evidence = r }
 
 // resolveTaskProject — P1.0: project_id задачи = override (req.ProjectID) или
 // наследуется от team.project. Возвращает nil, если проект не существует.
@@ -760,12 +764,16 @@ type TaskView struct {
 	IsStale           bool           `json:"is_stale"`
 	IsBlocked         bool           `json:"is_blocked"`
 	IsOverdue         bool           `json:"is_overdue"`
-	ClosureRequiredAt *string        `json:"closure_required_at,omitempty"` // P0.2: дедлайн закрытия
-	RemainingSecs     *int64         `json:"remaining_secs,omitempty"`      // P0.2: closure_required_at - now (neg = просрочено)
-	CreatedAt         string         `json:"created_at"`
-	UpdatedAt         string         `json:"updated_at"`
-	StartedAt         *string        `json:"started_at,omitempty"`
-	CompletedAt       *string        `json:"completed_at,omitempty"`
+	// P3.13: proof/evidence (closure ≠ acceptance — acceptance отдельное от state).
+	EvidenceCount     int     `json:"evidence_count"`
+	Readiness         string  `json:"readiness"`                     // ready | pending | none
+	Acceptance        string  `json:"acceptance"`                    // accepted | rejected | pending | none
+	ClosureRequiredAt *string `json:"closure_required_at,omitempty"` // P0.2: дедлайн закрытия
+	RemainingSecs     *int64  `json:"remaining_secs,omitempty"`      // P0.2: closure_required_at - now (neg = просрочено)
+	CreatedAt         string  `json:"created_at"`
+	UpdatedAt         string  `json:"updated_at"`
+	StartedAt         *string `json:"started_at,omitempty"`
+	CompletedAt       *string `json:"completed_at,omitempty"`
 }
 
 func (s *TaskService) ListTasks(ctx context.Context, f repository.TaskFilter) ([]*TaskView, int, error) {
@@ -1145,6 +1153,21 @@ func (s *TaskService) viewsFor(ctx context.Context, tasks []*models.Task) ([]*Ta
 			}
 		}
 		out = append(out, v)
+	}
+	// P3.13: evidence readiness/acceptance (batched; closure ≠ acceptance).
+	if s.evidence != nil && len(tasks) > 0 {
+		taskIDs := make([]int64, 0, len(tasks))
+		for _, t := range tasks {
+			taskIDs = append(taskIDs, t.ID)
+		}
+		if summary, err := s.evidence.StatusSummaryByTasks(ctx, s.db, taskIDs); err == nil {
+			for i, t := range tasks {
+				counts := summary[t.ID] // nil = нет evidence
+				out[i].EvidenceCount = EvidenceTotal(counts)
+				out[i].Readiness = EvidenceReadiness(counts)
+				out[i].Acceptance = EvidenceAcceptance(counts)
+			}
+		}
 	}
 	return out, nil
 }
