@@ -269,7 +269,7 @@ function TaskRow({
           {task.body && <div className="muted small">{task.body}</div>}
           {task.closure_reason && <div className="muted small">closure: {task.closure_reason}</div>}
         </td>
-        <td className="muted">{task.team_name}</td>
+        <td className="muted"><EntityLink to={`/teams/${task.team_id}`} title="Open team">{task.team_name}</EntityLink></td>
         <td>
           {task.destination_role_name}
           {task.source_role_name && <div className="muted small">from {task.source_role_name}</div>}

@@ -17,12 +17,21 @@ import SpecYamlPanel from '../components/TeamBuilder/SpecYamlPanel';
 import ConfigPanel, { type ConfigSelection } from '../components/TeamBuilder/ConfigPanel';
 import BottomPanel from '../components/TeamBuilder/BottomPanel';
 import PosturePanel from '../components/PosturePanel';
+import EntityLink from '../components/ui/EntityLink';
 
 export default function TeamBuilderPage() {
   const { teamId } = useParams();
   const id = Number(teamId);
   const { data, loading, error, refetch } = useQuery(`team.topology.${id}`, () => api.teams.getTopology(id), [id]);
   const { toast } = useToast();
+
+  // P1.0: linked project badge — resolve the team's project by id (— if none).
+  const projectId = data?.team?.project_id;
+  const projectQ = useQuery(
+    projectId ? `team.project.${projectId}` : 'team.project.none',
+    () => (projectId ? api.projects.get(projectId) : Promise.resolve(null)),
+    [projectId],
+  );
 
   const [selection, setSelection] = useState<TopologySelection>(null);
   const [validation, setValidation] = useState<ValidateTopologyResponse | null>(null);
@@ -278,6 +287,25 @@ export default function TeamBuilderPage() {
           <Link to="/teams" className="crumb">Teams</Link> / {data.team.name}
         </h1>
         <div className="head-actions">
+          {projectId ? (
+            projectQ.data?.project ? (
+              <span className="team-project-badge">
+                <span className="muted small">Project:</span>{' '}
+                <EntityLink to={`/projects/${projectId}`} title="Open project">
+                  {projectQ.data.project.name}
+                </EntityLink>
+              </span>
+            ) : (
+              <span className="team-project-badge">
+                <span className="muted small">Project:</span>{' '}
+                <span className="muted">{projectQ.loading ? '…' : '—'}</span>
+              </span>
+            )
+          ) : (
+            <span className="team-project-badge">
+              <span className="muted small">Project:</span> <span className="muted">—</span>
+            </span>
+          )}
           <span className="muted small">{editMode ? 'edit mode — drag nodes / palette / connect' : 'topology: auto-layout'}</span>
           <button className="btn" onClick={applyAutoLayout} title="Recompute auto layout and save positions">
             ✨ Auto layout

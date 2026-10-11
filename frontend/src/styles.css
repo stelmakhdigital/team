@@ -111,6 +111,7 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 .page { padding: 20px 24px 32px; width: 100%; }
 .page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
 .head-actions { display: flex; gap: 8px; align-items: center; }
+.team-project-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-panel); margin-right: 4px; }
 .crumb { font-weight: 400; }
 
 /* ---------- cards / grids ---------- */

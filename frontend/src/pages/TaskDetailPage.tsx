@@ -115,7 +115,7 @@ export default function TaskDetailPage() {
           )}
 
           {/* P3.13: Proof/evidence (closure ≠ acceptance) */}
-          <EvidencePanel task={t} />
+          <EvidencePanel task={t} onChanged={() => { task.refetch(); hist.refetch(); }} />
         </div>
 
         <aside className="card detail-pane">

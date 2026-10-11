@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -17,9 +17,20 @@ export default function WorkflowsPage() {
   );
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
-  const [teamId, setTeamId] = useState(1);
+  const [teamId, setTeamId] = useState<number | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  // P0: populate the "New workflow" team select with real active teams (was hardcoded #1/#2).
+  const teamsQ = useQuery('workflows.teams', () => api.teams.getTeams());
+  const activeTeams = teamsQ.data?.teams.filter((t) => t.state === 'active') ?? [];
+  useEffect(() => {
+    setTeamId((cur) => {
+      if (activeTeams.length === 0) return cur;
+      if (cur != null && activeTeams.some((t) => t.id === cur)) return cur;
+      return activeTeams[0].id;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamsQ.data]);
   const create = useMutation((payload: { team_id: number; name: string }) => api.workflows.createWorkflow(payload));
   const run = useMutation((id: number) => api.workflows.runWorkflow(id, {}));
   const toggleEngine = useMutation((req: { id: number; name: string; on: boolean }) =>
@@ -49,6 +60,10 @@ export default function WorkflowsPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (teamId == null) {
+      toast('error', 'No active team to attach the workflow to');
+      return;
+    }
     try {
       const res = await create.mutate({ team_id: teamId, name: name.trim() });
       toast('success', `Workflow '${name.trim()}' created`);
@@ -136,9 +151,16 @@ export default function WorkflowsPage() {
               </label>
               <label>
                 Team
-                <select value={teamId} onChange={(e) => setTeamId(Number(e.target.value))}>
-                  <option value={1}>Team 1</option>
-                  <option value={2}>Team 2</option>
+                <select value={teamId ?? ''} onChange={(e) => setTeamId(Number(e.target.value))} data-testid="new-workflow-team-select">
+                  {teamsQ.loading ? (
+                    <option value="" disabled>Loading teams…</option>
+                  ) : activeTeams.length === 0 ? (
+                    <option value="" disabled>No active teams</option>
+                  ) : (
+                    activeTeams.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name} (#{t.id})</option>
+                    ))
+                  )}
                 </select>
               </label>
               <div className="modal-actions">

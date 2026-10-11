@@ -32,7 +32,7 @@ function TaskListInner({ tasks }: { tasks: Task[] }) {
                 </div>
                 <div className="muted small">#{t.id} · priority {t.priority}</div>
               </td>
-              <td>{t.team_name}</td>
+              <td><EntityLink to={`/teams/${t.team_id}`} title="Open team">{t.team_name}</EntityLink></td>
               <td>{t.destination_role_name}</td>
               <td>
                 <Badge kind="task" value={t.state} />

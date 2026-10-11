@@ -22,7 +22,7 @@ function statusBadge(status: TaskEvidence['status']) {
   return <span className={cls}>{status}</span>;
 }
 
-export default function EvidencePanel({ task }: { task: Task }) {
+export default function EvidencePanel({ task, onChanged }: { task: Task; onChanged?: () => void }) {
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const ev = useQuery(`evidence.list.${task.id}`, () => api.tasks.listEvidence(task.id, { limit: 50 }), [task.id]);
@@ -61,6 +61,9 @@ export default function EvidencePanel({ task }: { task: Task }) {
       await verdict.mutate(evidId, { action, reason: reason || undefined });
       toast('success', `Verdict: ${action}`);
       ev.refetch();
+      // P-fix: the task header (state/acceptance/readiness) comes from the parent
+      // task query — refetch it after a verdict so it updates without manual reload.
+      onChanged?.();
     } catch (e) {
       toast('error', e instanceof Error ? e.message : 'Verdict failed');
     }

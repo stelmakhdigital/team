@@ -65,7 +65,7 @@ export default function BottomPanel(props: BottomPanelProps) {
             Delete {selectionLabel}
           </button>
         )}
-        <button className="btn" onClick={() => setBriefingOpen(true)} disabled={!previewRole} title="P1.7: предпросмотр брифинга + запуск сессии с ним">
+        <button className="btn" onClick={() => setBriefingOpen(true)} disabled={!previewRole} title="Предпросмотр брифинга + запуск сессии с ним">
           📋 Брифинг
         </button>
         <button className="btn" onClick={onValidate} disabled={validating}>
