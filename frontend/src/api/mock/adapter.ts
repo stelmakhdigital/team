@@ -147,6 +147,13 @@ function mockSha(s: string): string {
   return h.toString(16).padStart(8, '0');
 }
 
+// P3.14: requireWalk — найти walk (404) или бросить.
+function requireWalk(db: ReturnType<typeof getDb>, id: number) {
+  const w = db.walks.find((x) => x.id === id);
+  if (!w) throw new ApiClientError(404, 'not_found', 'Walk not found');
+  return w;
+}
+
 // компактный elapsed для detail (мок): "5м", "2ч 10м", "3д"
 function humanDur(ms: number): string {
   if (ms < 0) ms = 0;
@@ -1742,6 +1749,131 @@ export function createMockAdapter(): Api {
         m.acked_by = 'operator';
         m.acked_at = now();
         return clone(m);
+      },
+    },
+
+    // P3.14: Walk (paced-доставка контекста в сессию)
+    walks: {
+      async list(sessionId) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        if (!db.sessions.some((s) => s.id === sessionId)) throw new ApiClientError(404, 'not_found', 'Session not found');
+        const walks = db.walks.filter((w) => w.session_id === sessionId).sort((a, b) => b.id - a.id);
+        return { walks: clone(walks), total: walks.length };
+      },
+      async get(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const w = db.walks.find((x) => x.id === id);
+        if (!w) throw new ApiClientError(404, 'not_found', 'Walk not found');
+        return clone(w);
+      },
+      async create(sessionId, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        if (!db.sessions.some((s) => s.id === sessionId)) throw new ApiClientError(404, 'not_found', 'Session not found');
+        if (!req.name) throw new ApiClientError(422, 'validation', "Field 'name' is required");
+        if (req.mode !== 'interval' && req.mode !== 'manual') throw new ApiClientError(422, 'validation', "Field 'mode' must be interval|manual");
+        if (!req.steps || req.steps.length === 0) throw new ApiClientError(422, 'validation', "Field 'steps' must have at least one step");
+        if (req.mode === 'interval' && (!req.interval_secs || req.interval_secs <= 0)) throw new ApiClientError(422, 'validation', "Field 'interval_secs' must be > 0 for interval mode");
+        for (let i = 0; i < req.steps.length; i++) {
+          if (!req.steps[i] || !req.steps[i].trim()) throw new ApiClientError(422, 'validation', `step ${i + 1} content is empty`);
+        }
+        const id = nextId();
+        const steps = req.steps.map((content, i) => ({
+          id: nextId(),
+          seq: i + 1,
+          content,
+          state: 'pending' as const,
+        }));
+        const walk = {
+          id,
+          session_id: sessionId,
+          name: req.name,
+          description: req.description,
+          mode: req.mode,
+          interval_secs: req.mode === 'interval' ? req.interval_secs : undefined,
+          status: 'active' as const,
+          current_seq: 1,
+          progress: '0/' + steps.length,
+          sent_count: 0,
+          total: steps.length,
+          created_at: now(),
+          updated_at: now(),
+          steps,
+        };
+        db.walks.push(walk);
+        return clone(walk);
+      },
+      async advance(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const w = db.walks.find((x) => x.id === id);
+        if (!w) throw new ApiClientError(404, 'not_found', 'Walk not found');
+        if (w.status !== 'active') throw new ApiClientError(409, 'conflict', `walk is ${w.status}, cannot advance`);
+        const step = (w.steps ?? []).find((s) => s.seq === w.current_seq);
+        if (!step) {
+          w.status = 'completed';
+          w.updated_at = now();
+          return clone(w);
+        }
+        // mock Send: [retain] → retained (guard) → paused; иначе → delivered.
+        const retain = step.content.trim().startsWith('[retain]');
+        if (retain) {
+          step.state = 'retained';
+          step.send_status = 'retained';
+          step.note = 'guard: interactive-prompt';
+          step.sent_at = now();
+          w.status = 'paused'; // guard: нужен человек; current_seq не меняется
+        } else {
+          step.state = 'delivered';
+          step.send_status = 'delivered';
+          step.sent_at = now();
+          w.current_seq += 1;
+          w.last_sent_at = now();
+          w.status = w.current_seq > w.total ? 'completed' : 'active';
+        }
+        w.sent_count = (w.steps ?? []).filter((s) => ['delivered', 'staged', 'retained', 'sent'].includes(s.state)).length;
+        w.progress = w.sent_count + '/' + w.total;
+        w.updated_at = now();
+        return clone(w);
+      },
+      async pause(id) {
+        maybeFail();
+        await latency();
+        const w = requireWalk(getDb(), id);
+        if (w.status !== 'active') throw new ApiClientError(409, 'conflict', `walk is ${w.status}, cannot pause`);
+        w.status = 'paused';
+        w.updated_at = now();
+        return clone(w);
+      },
+      async resume(id) {
+        maybeFail();
+        await latency();
+        const w = requireWalk(getDb(), id);
+        if (w.status !== 'paused') throw new ApiClientError(409, 'conflict', `walk is ${w.status}, cannot resume`);
+        w.status = 'active';
+        w.updated_at = now();
+        return clone(w);
+      },
+      async skip(id) {
+        maybeFail();
+        await latency();
+        const w = requireWalk(getDb(), id);
+        if (w.status !== 'active') throw new ApiClientError(409, 'conflict', `walk is ${w.status}, cannot skip`);
+        const step = (w.steps ?? []).find((s) => s.seq === w.current_seq);
+        if (!step) throw new ApiClientError(409, 'conflict', 'no current step to skip');
+        step.state = 'skipped';
+        w.current_seq += 1;
+        w.status = w.current_seq > w.total ? 'completed' : 'active';
+        w.sent_count = (w.steps ?? []).filter((s) => ['delivered', 'staged', 'retained', 'sent'].includes(s.state)).length;
+        w.progress = w.sent_count + '/' + w.total;
+        w.updated_at = now();
+        return clone(w);
       },
     },
 

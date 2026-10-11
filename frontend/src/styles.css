@@ -1268,3 +1268,49 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .mb-ack--dropped { color: var(--purple); border-color: var(--purple); background: color-mix(in srgb, var(--purple) 14%, transparent); }
 .mb-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
 .mb-acked { font-size: 0.78rem; }
+
+// ===== P3.14: Walk (paced onboarding) =====
+.walk-card { margin-top: 16px; }
+.walk-card .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.walk-create { margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel); display: flex; flex-direction: column; gap: 10px; }
+.walk-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+.walk-field input, .walk-field select { background: var(--bg-panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: 0.88rem; }
+.walk-field input:focus, .walk-field select:focus { outline: none; border-color: var(--accent); }
+.walk-steps-editor { display: flex; flex-direction: column; gap: 8px; }
+.walk-step-editor-row { display: flex; align-items: flex-start; gap: 8px; }
+.walk-step-editor-row textarea { flex: 1; background: var(--bg-panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: 0.86rem; font-family: inherit; resize: vertical; }
+.walk-step-editor-row textarea:focus { outline: none; border-color: var(--accent); }
+.walk-error { font-size: 0.85rem; color: var(--red); margin-top: 8px; }
+.walk-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.walk-list { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+.walk-item { border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.walk-item-active { border-left: 3px solid var(--green); }
+.walk-item-paused { border-left: 3px solid var(--yellow); }
+.walk-item-completed { border-left: 3px solid var(--accent); }
+.walk-item-failed { border-left: 3px solid var(--red); }
+.walk-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.walk-item-name { font-size: 0.92rem; font-weight: 600; }
+.walk-progress { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.walk-badge-active { color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.walk-badge-paused { color: var(--yellow); border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.walk-badge-completed { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.walk-badge-failed { color: var(--red); border-color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
+.walk-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.walk-step { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.86rem; padding: 6px 8px; border-radius: 6px; background: var(--bg-panel); border: 1px solid var(--border); }
+.walk-step-seq { color: var(--muted); font-size: 0.78rem; }
+.walk-step-content { word-break: break-word; }
+.walk-step-pending { opacity: 0.9; }
+.walk-step-retained { border-left: 3px solid var(--yellow); }
+.walk-step-failed { border-left: 3px solid var(--red); }
+.walk-step-note { color: var(--yellow); font-size: 0.78rem; }
+.walk-step-badge-pending { color: var(--muted); border-color: var(--border); background: transparent; }
+.walk-step-badge-delivered { color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.walk-step-badge-staged { color: var(--yellow); border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.walk-step-badge-retained { color: var(--yellow); border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.walk-step-badge-failed { color: var(--red); border-color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
+.walk-step-badge-skipped { color: var(--purple); border-color: var(--purple); background: color-mix(in srgb, var(--purple) 14%, transparent); }
+.walk-step-badge-sent { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+@media (max-width: 640px) {
+  .walk-actions { gap: 6px; }
+  .walk-step { flex-wrap: wrap; }
+}

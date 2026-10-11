@@ -69,6 +69,10 @@ import type {
   VerdictEvidenceRequest,
   HandoffTaskResponse,
   Task,
+  // P3.14: Walk (paced-доставка контекста в сессию)
+  Walk,
+  CreateWalkRequest,
+  ListWalksResponse,
   ApplyLibraryItemRequest,
   ApplyLibraryItemResponse,
   SnapshotSessionRequest,
@@ -226,6 +230,16 @@ export interface Api {
     getInbox(roleId: number, params?: { limit?: number; offset?: number }): Promise<InboxResponse>;
     getOutbox(roleId: number, params?: { limit?: number; offset?: number }): Promise<OutboxResponse>;
     ack(messageId: number, action: AckAction): Promise<Message>;
+  };
+  // P3.14: Walk (paced-доставка контекста в сессию)
+  walks: {
+    list(sessionId: number): Promise<ListWalksResponse>;
+    get(id: number): Promise<Walk>;
+    create(sessionId: number, req: CreateWalkRequest): Promise<Walk>;
+    advance(id: number): Promise<Walk>;
+    pause(id: number): Promise<Walk>;
+    resume(id: number): Promise<Walk>;
+    skip(id: number): Promise<Walk>;
   };
   library: {
     getLibrary(params?: GetLibraryParams): Promise<GetLibraryResponse>;

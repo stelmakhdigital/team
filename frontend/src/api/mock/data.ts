@@ -19,6 +19,7 @@ import type {
   SkillSpec,
   Task,
   TaskEvidence,
+  Walk,
   TaskHistoryEntry,
   TaskWake,
   Team,
@@ -67,6 +68,7 @@ interface DB {
   events: EventItem[]; // P2.9: Pulse feed (mock-события для ленты)
   taskHistory: TaskHistoryEntry[];
   taskEvidence: TaskEvidence[]; // P3.13: proof/evidence
+  walks: Walk[]; // P3.14: paced-доставка контекста в сессию
   configOverrides: Record<string, unknown>;
   seq: number;
 }
@@ -159,6 +161,7 @@ function seed(): DB {
     audit: [],
     taskHistory: [],
     taskEvidence: [],
+    walks: [],
     configOverrides: {},
     seq: 1000,
   };
@@ -722,6 +725,31 @@ function seed(): DB {
     { id: 6, type: 'workflow.instance_updated', team_id: 1, team_name: 'Dev Team', entity_kind: 'workflow', entity_id: 1, summary: 'Workflow instance #1 → running', created_at: iso(60) },
     { id: 7, type: 'session.stopped', team_id: 1, team_name: 'Dev Team', role_id: 2, role_name: 'Worker', entity_kind: 'session', entity_id: 5, summary: 'Session #5 stopped', created_at: iso(90) },
     { id: 8, type: 'task.state_changed', team_id: 2, team_name: 'Platform Team', role_id: 5, role_name: 'Lead', entity_kind: 'task', entity_id: 6, summary: 'Task #6: pending → in_progress', created_at: iso(120) },
+  ];
+
+  // P3.14: Walk — onboarding-последовательность в сессию 1 (Lead).
+  // step1 delivered, step2 staged, step3 pending → progress 2/3, active, current_seq 3.
+  t.walks = [
+    {
+      id: 1,
+      session_id: 1,
+      name: 'Onboarding: project context',
+      description: 'Пошаковая доставка контекста новому Lead-агенту',
+      mode: 'manual',
+      status: 'active',
+      current_seq: 3,
+      last_sent_at: iso(12),
+      progress: '2/3',
+      sent_count: 2,
+      total: 3,
+      created_at: iso(40),
+      updated_at: iso(12),
+      steps: [
+        { id: 1, seq: 1, content: 'Проект: Team (Go + React). Стек, ADR, конвенции.', state: 'delivered', send_status: 'delivered', sent_at: iso(38) },
+        { id: 2, seq: 2, content: 'Текущая задача + что уже сделано в этой сессии.', state: 'staged', send_status: 'staged', sent_at: iso(12) },
+        { id: 3, seq: 3, content: 'Где посмотреть статус (dashboard, tasks, sessions).', state: 'pending' },
+      ],
+    },
   ];
 
   return t;

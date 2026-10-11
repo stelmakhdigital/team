@@ -6,6 +6,7 @@ import { ErrorState, PageSkeleton, Spinner, isNotFoundError } from '../component
 import HandoverModal from '../components/HandoverModal';
 import CaptureModal from '../components/CaptureModal';
 import SendToSession from '../components/SendToSession';
+import WalkPanel from '../components/WalkPanel';
 import SnapshotModal from '../components/SnapshotModal';
 import { formatRelative, formatCost } from '../lib/format';
 
@@ -99,6 +100,8 @@ export default function SessionDetailPage() {
           {(s.runtime_type === 'tmux' || s.runtime_type === 'pi') && (
             <SendToSession sessionId={s.id} />
           )}
+
+          <WalkPanel sessionId={s.id} />
 
           <div className="card">
             <div className="card-head">

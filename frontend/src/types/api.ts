@@ -1099,6 +1099,60 @@ export interface SendToSessionResult {
   sent_at: string;
 }
 
+// ---- P3.14: Walk (paced-доставка контекста в сессию) ----
+
+export type WalkMode = 'interval' | 'manual';
+export type WalkStatus = 'active' | 'paused' | 'completed' | 'failed';
+export type WalkStepState =
+  | 'pending'
+  | 'sent'
+  | 'delivered'
+  | 'staged'
+  | 'retained'
+  | 'failed'
+  | 'skipped';
+
+export interface WalkStep {
+  id: number;
+  seq: number;
+  content: string;
+  state: WalkStepState;
+  send_status?: string; // delivered/staged/retained (из Send)
+  note?: string; // guard/ошибка
+  sent_at?: string;
+}
+
+export interface Walk {
+  id: number;
+  session_id: number;
+  name: string;
+  description?: string;
+  mode: WalkMode;
+  interval_secs?: number;
+  status: WalkStatus;
+  current_seq: number;
+  last_sent_at?: string;
+  progress: string; // "sent/total"
+  sent_count: number;
+  total: number;
+  created_at: string;
+  updated_at: string;
+  steps?: WalkStep[]; // только в GetWalk (деталь)
+}
+
+export interface CreateWalkRequest {
+  name: string;
+  description?: string;
+  mode: WalkMode;
+  interval_secs?: number;
+  steps: string[];
+}
+
+export interface ListWalksResponse {
+  walks: Walk[];
+  total: number;
+}
+
 // ---- P2.9: Pulse feed (единая лента событий) ----
 
 export interface EventItem {

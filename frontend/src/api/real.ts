@@ -137,6 +137,16 @@ export function createRealAdapter(): Api {
         http(`${B}/roles/${roleId}/outbox${toQuery({ limit: params?.limit, offset: params?.offset })}`),
       ack: (messageId, action) => http(`${B}/messages/${messageId}/ack`, { method: 'POST', body: { action } }),
     },
+    // P3.14: Walk (paced-доставка контекста в сессию)
+    walks: {
+      list: (sessionId) => http(`${B}/sessions/${sessionId}/walks`),
+      get: (id) => http(`${B}/walks/${id}`),
+      create: (sessionId, req) => http(`${B}/sessions/${sessionId}/walks`, { method: 'POST', body: req }),
+      advance: (id) => http(`${B}/walks/${id}/advance`, { method: 'POST' }),
+      pause: (id) => http(`${B}/walks/${id}/pause`, { method: 'POST' }),
+      resume: (id) => http(`${B}/walks/${id}/resume`, { method: 'POST' }),
+      skip: (id) => http(`${B}/walks/${id}/skip`, { method: 'POST' }),
+    },
     library: {
       getLibrary: (params) =>
         http(`${B}/library${toQuery({
