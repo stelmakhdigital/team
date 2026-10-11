@@ -302,7 +302,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   --noEmit 0 (фикс неиспользуемого импорта + сужение типа в тесте). Status
   станет `done` после approve.
 
-### P3.13 Proof/evidence на задачах — `in_progress` (T-20261011050110, R1; реализовано, ожидает approve; 101 ops)
+### P3.13 Proof/evidence на задачах — `done` (T-20261011050110, R1; judge PASS; 101 ops)
 - **Scope (реализовано)**: `task_evidence` (Migration 0022) — typed-артефакты
   (screenshot/test/log/other) с sha256 (candidate-sha) к задаче; **judge** verdict
   (accept/reject/withdraw) с атрибуцией; readiness/acceptance агрегация в TaskView
