@@ -169,3 +169,63 @@ func (h *handlers) SendChatroomMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"id": view.ID, "status": "sent"})
 }
+
+// ---------- P3.15: Mailbox (inbox/outbox) ----------
+
+// GetRoleInbox — GET /api/v1/roles/{id}/inbox?limit=&offset= (dashboard.read, viewer-ok).
+func (h *handlers) GetRoleInbox(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	limit, offset := limitOffset(r.URL.Query())
+	res, err := h.msvc.Inbox(r.Context(), id, limit, offset)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// GetRoleOutbox — GET /api/v1/roles/{id}/outbox?limit=&offset= (dashboard.read, viewer-ok).
+func (h *handlers) GetRoleOutbox(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	limit, offset := limitOffset(r.URL.Query())
+	messages, total, err := h.msvc.Outbox(r.Context(), id, limit, offset)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"messages": messages, "total": total, "has_more": offset+limit < total,
+	})
+}
+
+type ackMessageBody struct {
+	Action string `json:"action"` // absorb | deny | drop
+}
+
+// AckMessage — POST /api/v1/messages/{id}/ack (messages.update, operator+).
+func (h *handlers) AckMessage(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body ackMessageBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	view, err := h.msvc.AckMessage(r.Context(), id, models.AckAction(body.Action), actorName(r))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
+}

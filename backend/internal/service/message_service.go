@@ -53,6 +53,9 @@ type MessageView struct {
 	Type          string  `json:"type"`
 	Body          string  `json:"body"`
 	IsRead        bool    `json:"is_read"`
+	AckState      string  `json:"ack_state"` // P3.15: mailbox (pending/absorbed/denied/dropped)
+	AckedBy       *string `json:"acked_by,omitempty"`
+	AckedAt       *string `json:"acked_at,omitempty"`
 	CreatedAt     string  `json:"created_at"`
 	IsMine        bool    `json:"is_mine"`
 	RequiresReply bool    `json:"requires_reply"`
@@ -102,11 +105,17 @@ func (s *MessageService) messageView(row *repository.MessageRow) *MessageView {
 		you := "You" // оператор: консистентно с chatrooms (наблюдение 1, answer_backend.md)
 		fromName = &you
 	}
+	var ackedAtStr *string
+	if m.AckedAt != nil {
+		v := m.AckedAt.Format(rfc3339)
+		ackedAtStr = &v
+	}
 	return &MessageView{
 		ID: m.ID, TeamID: m.TeamID, QueueTaskID: m.QueueTaskID,
 		FromRoleID: m.FromRoleID, FromRoleName: fromName,
 		ToRoleID: m.ToRoleID, ToRoleName: row.ToRoleName,
 		Type: string(m.Type), Body: m.Body, IsRead: m.IsRead,
+		AckState: string(m.AckState), AckedBy: m.AckedBy, AckedAt: ackedAtStr,
 		CreatedAt: m.CreatedAt.Format(rfc3339),
 		IsMine:    m.FromRoleID == nil, RequiresReply: false,
 	}
@@ -246,6 +255,96 @@ func (s *MessageService) ListMessages(ctx context.Context, f repository.MessageF
 		out = append(out, s.messageView(row))
 	}
 	return out, total, nil
+}
+
+// ---------- P3.15: Mailbox (inbox/outbox) ----------
+
+// InboxResult — входящие роли (direct) + undelivered_count (число pending).
+type InboxResult struct {
+	Messages         []*MessageView `json:"messages"`
+	Total            int            `json:"total"`
+	UndeliveredCount int            `json:"undelivered_count"`
+	HasMore          bool           `json:"has_more"`
+}
+
+// Inbox — GET /roles/{id}/inbox (P3.15): direct-входящие роли (ToRoleID=id, type=direct),
+// bounded; + undelivered_count (число pending). broadcast/segment НЕ в inbox.
+func (s *MessageService) Inbox(ctx context.Context, roleID int64, limit, offset int) (*InboxResult, error) {
+	if _, err := s.roles.GetByID(ctx, s.db, roleID); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, notFound("role")
+		}
+		return nil, err
+	}
+	direct := models.MsgDirect
+	f := repository.MessageFilter{ToRoleID: &roleID, Type: &direct, Limit: limit, Offset: offset}
+	rows, total, err := s.msgs.List(ctx, s.db, f)
+	if err != nil {
+		return nil, err
+	}
+	undelivered, err := s.msgs.CountPendingInbox(ctx, s.db, roleID)
+	if err != nil {
+		return nil, err
+	}
+	l := limit
+	if l <= 0 || l > 200 {
+		l = 50
+	}
+	out := make([]*MessageView, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, s.messageView(row))
+	}
+	return &InboxResult{Messages: out, Total: total, UndeliveredCount: undelivered, HasMore: offset+l < total}, nil
+}
+
+// Outbox — GET /roles/{id}/outbox (P3.15): исходящие роли (FromRoleID=id), bounded, запись.
+func (s *MessageService) Outbox(ctx context.Context, roleID int64, limit, offset int) ([]*MessageView, int, error) {
+	if _, err := s.roles.GetByID(ctx, s.db, roleID); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, 0, notFound("role")
+		}
+		return nil, 0, err
+	}
+	f := repository.MessageFilter{FromRoleID: &roleID, Limit: limit, Offset: offset}
+	rows, total, err := s.msgs.List(ctx, s.db, f)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]*MessageView, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, s.messageView(row))
+	}
+	return out, total, nil
+}
+
+// AckMessage — POST /messages/{id}/ack (P3.15): absorb/deny/drop (подтверждение входящего).
+// Правила: ack только из pending (повторный ack → 409); invalid action → 400; 404 (нет).
+// ackedBy — атрибуция (кто подтвердил: role/user/apikey), как actor.
+func (s *MessageService) AckMessage(ctx context.Context, msgID int64, action models.AckAction, ackedBy string) (*MessageView, error) {
+	if !action.Valid() {
+		return nil, NewValidation("invalid ack action", []FieldError{{Field: "action", Reason: "must be absorb|deny|drop"}})
+	}
+	row, err := s.msgs.GetByID(ctx, s.db, msgID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, notFound("message")
+		}
+		return nil, err
+	}
+	if row.Message.AckState != models.AckPending {
+		return nil, NewConflict(fmt.Sprintf("message already acked (state=%s)", row.Message.AckState))
+	}
+	if err := s.msgs.SetAck(ctx, s.db, msgID, action.State(), ackedBy, time.Now().UTC()); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, notFound("message")
+		}
+		return nil, err
+	}
+	fresh, err := s.msgs.GetByID(ctx, s.db, msgID)
+	if err != nil {
+		return nil, err
+	}
+	return s.messageView(fresh), nil
 }
 
 func (s *MessageService) roleIDsByTeam(ctx context.Context, teamID int64) ([]int64, error) {

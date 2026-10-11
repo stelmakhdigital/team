@@ -44,6 +44,59 @@ type Message struct {
 	Metadata    map[string]any
 	IsRead      bool
 	CreatedAt   time.Time
+	// P3.15: mailbox-семантика (inbox/outbox) — подтверждение получения.
+	// orthogonal к IsRead: read = прочитано в ленте; ack_state = mailbox-подтверждение.
+	AckState AckState
+	AckedBy  *string
+	AckedAt  *time.Time
+}
+
+// AckState — состояние mailbox-подтверждения входящего (P3.15).
+type AckState string
+
+const (
+	AckPending  AckState = "pending"  // неподтверждённое входящее (undelivered)
+	AckAbsorbed AckState = "absorbed" // принято/обработано
+	AckDenied   AckState = "denied"   // отказ
+	AckDropped  AckState = "dropped"  // сброшено
+)
+
+func (s AckState) Valid() bool {
+	switch s {
+	case AckPending, AckAbsorbed, AckDenied, AckDropped:
+		return true
+	}
+	return false
+}
+
+// AckAction — действие судьи по входящему (absorb/deny/drop).
+type AckAction string
+
+const (
+	AckAbsorb AckAction = "absorb"
+	AckDeny   AckAction = "deny"
+	AckDrop   AckAction = "drop"
+)
+
+func (a AckAction) Valid() bool {
+	switch a {
+	case AckAbsorb, AckDeny, AckDrop:
+		return true
+	}
+	return false
+}
+
+// State — итоговое AckState после действия.
+func (a AckAction) State() AckState {
+	switch a {
+	case AckAbsorb:
+		return AckAbsorbed
+	case AckDeny:
+		return AckDenied
+	case AckDrop:
+		return AckDropped
+	}
+	return AckPending
 }
 
 // Chatroom — общий чат команды или сегмента.

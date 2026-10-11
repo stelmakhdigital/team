@@ -126,9 +126,37 @@ func (r *MessageRepo) List(ctx context.Context, tx DBTX, f MessageFilter) ([]*Me
 	return out, total, rows.Err()
 }
 
+// CountPendingInbox — число неподтверждённых (pending) direct-входящих роли (P3.15 undelivered).
+func (r *MessageRepo) CountPendingInbox(ctx context.Context, tx DBTX, toRoleID int64) (int, error) {
+	var n int
+	err := tx.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM messages WHERE to_role_id = ? AND type = 'direct' AND ack_state = 'pending'`,
+		toRoleID).Scan(&n)
+	return n, err
+}
+
+// SetAck — применить ack: ack_state + атрибуция + время (P3.15). Ищет по id.
+func (r *MessageRepo) SetAck(ctx context.Context, tx DBTX, id int64, state models.AckState, ackedBy string, ackedAt time.Time) error {
+	res, err := tx.ExecContext(ctx,
+		`UPDATE messages SET ack_state = ?, acked_by = ?, acked_at = ? WHERE id = ?`,
+		string(state), ackedBy, ackedAt.Format(time.RFC3339Nano), id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 const messageSelect = `
 	SELECT m.id, m.team_id, m.queue_task_id, m.from_role_id, m.to_role_id,
 	       m.type, m.body, m.metadata, m.is_read, m.created_at,
+	       m.ack_state, m.acked_by, m.acked_at,
 	       fr.name AS from_role_name, tr.name AS to_role_name
 	FROM messages m
 	LEFT JOIN roles fr ON fr.id = m.from_role_id
@@ -145,9 +173,12 @@ func scanMessageRow(s teamScanner) (*MessageRow, error) {
 		meta     string
 		read     int
 		ca       string
+		ackedBy  sql.NullString
+		ackedAt  sql.NullString
 	)
 	err := s.Scan(&m.ID, &m.TeamID, &taskID, &fromID, &toID,
-		&m.Type, &m.Body, &meta, &read, &ca, &fromName, &toName)
+		&m.Type, &m.Body, &meta, &read, &ca,
+		&m.AckState, &ackedBy, &ackedAt, &fromName, &toName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -170,6 +201,19 @@ func scanMessageRow(s teamScanner) (*MessageRow, error) {
 	m.IsRead = read != 0
 	if m.CreatedAt, err = parseTime(ca); err != nil {
 		return nil, fmt.Errorf("parse message created_at: %w", err)
+	}
+	// P3.15: ack_state (default pending) + атрибуция (nullable).
+	if m.AckState == "" {
+		m.AckState = models.AckPending
+	}
+	if ackedBy.Valid {
+		v := ackedBy.String
+		m.AckedBy = &v
+	}
+	if ackedAt.Valid {
+		if t, perr := parseTime(ackedAt.String); perr == nil {
+			m.AckedAt = &t
+		}
 	}
 	row := &MessageRow{Message: &m}
 	if fromName.Valid {

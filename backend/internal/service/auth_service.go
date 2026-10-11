@@ -28,6 +28,7 @@ var AllPermissions = []string{
 	"sessions.read", "sessions.create", "sessions.stop",
 	"sessions.update", // P2.11: send to session (operator+) (admin wildcard + explicit)
 	"messages.read", "messages.create",
+	"messages.update", // P3.15: ack входящие (absorb/deny/drop) — mailbox (operator+; viewer не получает)
 	"chatrooms.read", "chatrooms.create",
 	"workflows.read", "workflows.create", "workflows.update",
 	"library.read", "library.create", "library.apply",

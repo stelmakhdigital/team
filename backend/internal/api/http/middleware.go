@@ -162,6 +162,9 @@ func requiredPermission(method, path string) string {
 		case "compact-plan": // P1.5: compact-plan = sessions.read
 			return "sessions.read"
 		case "segments", "roles", "relatives":
+			if res == "roles" && (sub == "inbox" || sub == "outbox") { // P3.15: mailbox inbox/outbox = dashboard.read (viewer-ok)
+				return "dashboard.read"
+			}
 			return "teams.read" // Team Builder: сегменты/роли/связи
 		case "workflow-instances": // P1.4: instance/trace — read = workflows.read
 			return "workflows.read"
@@ -196,6 +199,8 @@ func requiredPermission(method, path string) string {
 			return "teams.update"
 		case res == "tasks" && id != "" && sub == "resolve": // P0.3: ручной resolve = tasks.update
 			return "tasks.update"
+		case res == "messages" && id != "" && sub == "ack": // P3.15: ack = messages.update (operator+)
+			return "messages.update"
 		case res == "tasks" && id != "" && sub == "evidence": // P3.13: submit + verdict = tasks.update (operator+)
 			return "tasks.update"
 		case res == "sessions" && id != "" && sub == "handover": // P1.5: handover = sessions.update

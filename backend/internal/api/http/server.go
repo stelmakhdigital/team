@@ -98,6 +98,9 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("GET /api/v1/roles/{id}/config", h.GetRoleConfig)
 	mux.HandleFunc("PATCH /api/v1/roles/{id}/config", h.UpdateRoleConfig)
 	mux.HandleFunc("PATCH /api/v1/roles/{id}/layout", h.UpdateRoleLayout)
+	// P3.15 — Mailbox: inbox/outbox роли (dashboard.read, viewer-ok)
+	mux.HandleFunc("GET /api/v1/roles/{id}/inbox", h.GetRoleInbox)
+	mux.HandleFunc("GET /api/v1/roles/{id}/outbox", h.GetRoleOutbox)
 	mux.HandleFunc("PATCH /api/v1/relatives/{id}/layout", h.UpdateRelativeLayout)
 	mux.HandleFunc("DELETE /api/v1/relatives/{id}", h.DeleteRelative)
 
@@ -151,6 +154,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	// Slice 4 — Message Center
 	mux.HandleFunc("GET /api/v1/messages", h.ListMessages)
 	mux.HandleFunc("POST /api/v1/messages", h.SendMessage)
+	mux.HandleFunc("POST /api/v1/messages/{id}/ack", h.AckMessage) // P3.15: ack (messages.update, operator+)
 	mux.HandleFunc("GET /api/v1/chatrooms", h.ListChatrooms)
 	mux.HandleFunc("GET /api/v1/chatrooms/{id}/messages", h.GetChatroomMessages)
 	mux.HandleFunc("POST /api/v1/chatrooms/{id}/messages", h.SendChatroomMessage)
