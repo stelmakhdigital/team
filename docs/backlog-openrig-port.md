@@ -280,7 +280,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ## P3 — долгосрочные проекты (если направление подтвердится)
 
-### P3.12 Agent images / session snapshots — `in_progress`
+### P3.12 Agent images / session snapshots — `done` (T-20261011032248, 2 раунда; Library agent_image, snapshot/launch, pin/prune, 98 ops)
 - **Scope**: захват продуктивного состояния сессии (промпт/скиллы/накопленное
   резюме) как «изображение агента»: create/list/pin/prune/preview; запуск
   новой сессии из снимка. Интеграция с Library (тип `agent_image`).
@@ -302,7 +302,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   --noEmit 0 (фикс неиспользуемого импорта + сужение типа в тесте). Status
   станет `done` после approve.
 
-### P3.13 Proof/evidence на задачах — `new`
+### P3.13 Proof/evidence на задачах — `in_progress`
 - **Scope**: привязка артефактов (скриншоты, тесты, логи) к задаче с typed
   frontmatter (type, verdict, candidate-sha) + `judge` (accept/reject/withdraw
   с причиной, атрибутированно); readiness задачи; «closure ≠ acceptance» —
