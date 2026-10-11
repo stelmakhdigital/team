@@ -633,6 +633,24 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 Скриншоты @2560: `cost-settings-2560x1440.png` (JSON textarea + budget),
 `cost-session-detail-2560x1440.png` (Cost ~$7.52), `cost-dashboard-2560x1440.png` (chart).
 
+### 3u. Agent images / session snapshots (P3.12, 2026-10-11)
+Снимок настроенного агента: сохранить сессию как «образ агента» в Library + запустить
+из него новую сессию.
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/types/api.ts` | `LibraryItemType += 'agent_image'`; `LibraryItem.is_pinned?`; типы `AgentImageSpec`, `SnapshotSessionRequest/Response`, `LaunchSessionRequest/Response` |
+| `frontend/src/api/types.ts` + `real.ts` | `sessions.snapshot(id, req)`; `library.pin/unpin/delete/launch` |
+| `frontend/src/pages/LibraryPage.tsx` | тип `agent_image` (фильтр); карточка с бейджем **PINNED** (is_pinned); detail: agent-config (роль/runtime/модель/скиллы/tools/summary) + **Pin/Unpin** + **Prune** (confirm, disabled если pinned) + **Launch** (team/project → navigate на сессию) |
+| `frontend/src/components/SnapshotModal.tsx` (NEW) | модалка: name (prefill `agent-<role>`), summary, description → POST snapshot → закрывается |
+| `frontend/src/pages/SessionDetailPage.tsx` | кнопка **📸 Agent image** (рядом с Capture) → SnapshotModal |
+| `frontend/src/styles.css` | `.pinned-badge`, `.agent-image-detail/spec/summary`, `.snapshot-modal` |
+| `frontend/src/api/mock/*` | `agent_image` item (go-dev-optimized, pinned) в данных; mock `snapshot/pin/unpin/delete/launch`; `getLibraryItem` — spec с agent/summary для agent_image |
+| `frontend/tests/agentImage.test.tsx` (NEW) | 4: Library (карточка+фильтр+PINNED), detail (agent-config+pin/prune/launch), Session (кнопка→модалка), submit→закрытие |
+
+Скриншоты @2560: `agent-image-library-2560x1440.png` (карточка + detail),
+`agent-image-snapshot-modal-2560x1440.png` (модалка на Session Detail).
+
 ## 5. Команды
 ```bash
 cd frontend

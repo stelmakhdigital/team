@@ -574,6 +574,37 @@ Persisted-лента событий системы (история + обога�
   task/project). **Решения** (см. `api-decisions.md` §P2.14): честный nodata (не 0);
   bounded агрегация; budget → первая команда; без новых RBAC.
 
+### 3u. P3.12 — Agent images / session snapshots, снимок настроенного агента (backend, 2026-10-11)
+OpenRIG-вдохновлённая фича: сессию можно сохранить как «образ агента» (снимок конфига
+агента + summary) и запустить из него новую сессию.
+- **Модель** (`models/library.go`): новый тип `agent_image` (`Valid()`); `LibAgentImage`
+  spec (source_session_id, role_name, runtime_type, command, agent{name/model/thinking/
+  system_prompt/skills/tools}, summary, working_dir); `LibraryItem.IsPinned`.
+- **Migration 0021** (sqlite+postgres): расширение CHECK `type IN ('team','workflow',
+  'role','segment','agent_image')` + колонка `is_pinned` (bool, default false). sqlite —
+  пересоздание таблицы с копией, pg — DROP/ADD constraint + ADD COLUMN.
+- **Repo** (`library_repo.go`): `is_pinned` в SELECT/CREATE/scan; `SetPinned`, `Delete`.
+- **LibraryService** (`library_service.go`): `LibraryItemView.IsPinned`; `Pin`/`Unpin`/
+  `Prune` (agent_image только; pinned → 409; non-agent_image → 400).
+- **Snapshot** (`session_snapshot.go`, NEW): `SnapshotSession` (снимок agent fields из
+  `sess.Config`, роль, runtime, command, working_dir; summary из req либо auto из tail
+  транскрипта — не-JSON строки, bounded 64KB/3 стр./300 симв.) → `LibraryItem`
+  type=agent_image, group=agent-images. Дубликат `UNIQUE(type,name)` → 409.
+- **Launch** (`session_snapshot.go`): `LaunchFromSnapshot` (spec → роль по имени в команде,
+  config: agent fields + summary → `## Session context` в начале system_prompt) →
+  `CreateSession` (расширен: читает thinking/skills/tools из config). `SetLibraryRepo`/
+  `SetLibraryVersionRepo` (setter'ы).
+- **HTTP** (`session_handlers.go` + `library_handlers.go` + `middleware.go`):
+  `POST /sessions/{id}/snapshot` (sessions.update), `POST /library/{id}/pin|unpin`
+  (library.create), `DELETE /library/{id}` (library.create, prune), `POST /library/{id}/
+  launch` (sessions.update).
+- **Wiring** (`main.go` + `handlers_test.go`): `ssvc.SetLibraryRepo` +
+  `SetLibraryVersionRepo`.
+- **Тесты**: service (8 session_snapshot: snapshot/dup/auto-summary/launch/launch-404/
+  pin/unpin/prune-pinned) + HTTP (4: snapshot 200/409, launch 200/400). **Решения**
+  (см. `api-decisions.md` §P3.12): тип agent_image в Library (не отдельная таблица);
+  summary → системный промпт; без новых RBAC.
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin

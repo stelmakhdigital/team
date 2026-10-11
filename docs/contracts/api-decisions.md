@@ -1455,3 +1455,61 @@ projects → их роли), `llm_cost_usd` в `/dashboard/metrics` (viewer-ok),
   SumCost, all-nodata → null, budget default/override. **Watchdog** (5): fires, dedup
   (cooldown), below-threshold, no-data, disabled. **HTTP** (4): config cost-ключи,
   metrics llm_cost_usd (12 точек), task detail cost, project detail cost.
+
+## P3.12. Agent images / session snapshots — снимок настроенного агента (T-20261011032248)
+
+OpenRIG-вдохновлённая фича: сохранить сессию как «образ агента» — снимок конфигурации
+агента (модель, системный промпт, скиллы, tools, thinking, роль, runtime, working dir) +
+opциональный summary. Из снимка можно **запустить новую сессию** с тем же настроенным
+агентом (summary добавляется в системный промпт). Снимки живут в Library как новый тип
+`agent_image` (отдельная секция, пин, prune).
+
+### S1. Модель + migration 0021
+- Новый тип библиотеки **`agent_image`**: расширение CHECK `type IN (...)` в таблице
+  `library_items` (sqlite — пересоздание таблицы с копией, pg — DROP/ADD constraint).
+- Новая колонка **`is_pinned`** (bool, default false) — пользовательский pin (защита от
+  prune). Отдельно от `is_starter` (pin-стартер P2.13).
+- Model: `LibAgentImage` spec, `Valid()` допускает `agent_image`, `LibraryItem.IsPinned`.
+- Repo: `SetPinned`, `Delete`; SELECT/CREATE/scan обновлены под `is_pinned`.
+
+### S2. Snapshot (создание снимка)
+`SessionService.SnapshotSession(sessionID, req)`:
+- Читает конфиг сессии (agent fields: model/system_prompt/skills/tools/thinking),
+  role_name, runtime_type, command, working_dir; source_session_id.
+- **Summary**: из `req.summary`, либо авто (tail транскрипта: не-JSON строки, bounded
+  64KB/3 строки/300 символов), либо пусто.
+- Создаёт `LibraryItem` type=`agent_image`, group=`agent-images`, version `1.0.0`,
+  spec = `AgentImageSpec`. Дубликат по `UNIQUE(type,name)` → 409.
+- **HTTP**: `POST /api/v1/sessions/{id}/snapshot` (RBAC sessions.update → operator+).
+
+### S4. Launch (запуск из снимка)
+`SessionService.LaunchFromSnapshot(libraryID, req)`:
+- Читает spec, находит роль по имени в целевой команде (нет → 404/400), строит конфиг
+  (agent fields + summary **в начале** системного промпта как `## Session context`).
+- `CreateSession` (расширен: теперь читает thinking/skills/tools из config).
+- **HTTP**: `POST /api/v1/library/{id}/launch` (RBAC sessions.update).
+
+### S3. List / pin / prune
+- List: `agent_image` — обычный тип (фильтр `type=agent_image`), отдельная секция в UI.
+- **Pin/Unpin**: `POST /api/v1/library/{id}/pin|unpin` (RBAC library.create). Только
+  `agent_image` (иначе 400).
+- **Prune** (delete): `DELETE /api/v1/library/{id}` (RBAC library.create). Только
+  `agent_image` (иначе 400); pinned → 409 (нельзя удалить закреплённый).
+
+### RBAC
+Нет новых пермиссий: snapshot/launch → `sessions.update` (operator+); pin/unpin/prune →
+`library.create`; list/read → существующий read library (viewer-ok). `is_pinned` идёт в
+существующих read-ответах library.
+
+### Frontend
+- Library: тип `agent_image` (фильтр), карточка с бейджем `PINNED` (is_pinned), detail
+  с agent-config (модель/скиллы/tools/summary) + Pin/Unpin/Prune + Launch (team/project).
+- Session Detail: кнопка `📸 Agent image` → модалка (name prefilled `agent-<role>`,
+  summary, description) → POST snapshot.
+- API client: `sessions.snapshot`, `library.pin/unpin/delete/launch`.
+
+### Тесты
+- **Service** (8 session_snapshot): snapshot-создание, дубликат 409, auto-summary,
+  launch-создание сессии, launch-404 команда, pin/unpin, prune pinned-409.
+- **HTTP** (4 session_snapshot): snapshot 200, snapshot 409 dup, launch 200, launch 400
+  non-agent_image.

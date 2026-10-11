@@ -280,11 +280,24 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 
 ## P3 — долгосрочные проекты (если направление подтвердится)
 
-### P3.12 Agent images / session snapshots — `in_progress`
+### P3.12 Agent images / session snapshots — `done`
 - **Scope**: захват продуктивного состояния сессии (промпт/скиллы/накопленное
   резюме) как «изображение агента»: create/list/pin/prune/preview; запуск
-  новой сессии из снимка. Интеграция с Library (тип `agent-image`).
+  новой сессии из снимка. Интеграция с Library (тип `agent_image`).
 - **Критерии**: формат снимка, хранилище, UI, тесты, docs.
+- **DONE (T-20261011032248, 2026-10-11)**: новый тип Library `agent_image`
+  (migration 0021: расширение CHECK + колонка `is_pinned`). `SnapshotSession`
+  (снимок конфига агента: model/system_prompt/skills/tools/thinking, роль,
+  runtime, working_dir + auto-summary из tail транскрипта) → `LibraryItem`
+  type=agent_image, group=agent-images. `LaunchFromSnapshot` (новая сессия с
+  тем же агентом; summary → `## Session context` в системном промпте). Pin/
+  Unpin/Prune (delete; pinned → 409; только agent_image). API: `POST
+  /sessions/{id}/snapshot`, `POST /library/{id}/pin|unpin|launch`, `DELETE
+  /library/{id}`. UI: Library (тип + карточка PINNED + detail с agent-config
+  + pin/prune/launch), Session Detail (`📸 Agent image` → модалка → snapshot).
+  Тесты: service (8) + HTTP (4) + vitest (4). Скриншоты `agent-image-*.png`.
+  OpenAPI 98/98 (SnapshotSession/LaunchSession + is_pinned + agent_image);
+  api-decisions §P3.12; backend §3u; frontend §3u; USAGE §6.7.
 
 ### P3.13 Proof/evidence на задачах — `new`
 - **Scope**: привязка артефактов (скриншоты, тесты, логи) к задаче с typed
