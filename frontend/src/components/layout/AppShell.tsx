@@ -128,6 +128,23 @@ export default function AppShell() {
         </div>
       </aside>
       <main className="content">
+        <div
+          className={`api-banner api-banner-${cfg.mode}`}
+          role="status"
+          data-testid="api-mode-banner"
+          title={cfg.mode === 'mock' ? 'Frontend works on the in-memory mock adapter (demo data). Set VITE_API_MODE=real to connect to the daemon.' : 'Connected to the real daemon.'}
+        >
+          {cfg.mode === 'mock' ? (
+            <span>
+              <span aria-hidden="true">⚠</span> Mock API — demo data. Not connected to the daemon{' '}
+              <code>VITE_API_MODE=real</code>
+            </span>
+          ) : (
+            <span>
+              <span aria-hidden="true">●</span> Live · {cfg.baseUrl || 'same-origin daemon'}
+            </span>
+          )}
+        </div>
         <Outlet />
       </main>
       <CommandPalette />

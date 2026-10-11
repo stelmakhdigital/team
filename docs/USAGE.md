@@ -75,7 +75,14 @@ npm run dev            # dev-сервер (mock-данные)
 
 ```bash
 VITE_API_MODE=real VITE_API_KEY=<ключ> npm run dev
+# нестандартный адрес бэкенда (dev-прокси):
+BACKEND_URL=http://localhost:8090 VITE_API_MODE=real npm run dev
 ```
+
+**Индикатор режима**: вверху content-области — баннер. В mock — жёлтый
+«⚠ Mock API — demo data. Not connected to the daemon» (демо-данные никогда
+не спутать с живыми); в real — зелёный «● Live · <base-url>».
+В футере сайдбара — `MOCK API` / `LIVE API` чип + статус WebSocket.
 
 Браузер: `http://localhost:5173`.
 

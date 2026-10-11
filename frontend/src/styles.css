@@ -559,6 +559,25 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   z-index: 5;
 }
 
+/* MOCK/LIVE mode banner — prominent strip at the top of the content area.
+   Reuses the mode-chip colors (already AA in contrast-check): yellow on #3b2f12,
+   green on #10291a. Mock is deliberately loud so demo data is never mistaken for live. */
+.api-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 24px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.api-banner code { font-size: 0.78rem; font-weight: 500; opacity: 0.92; }
+.api-banner-mock { background: #3b2f12; color: var(--yellow); border-bottom: 1px solid var(--yellow); }
+.api-banner-real { background: #10291a; color: var(--green); border-bottom: 1px solid var(--green); }
+
 .local-hints {
   display: flex;
   gap: 14px;

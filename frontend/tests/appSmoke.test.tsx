@@ -18,6 +18,19 @@ describe('App smoke', () => {
     expect(await screen.findByText('Metrics', {}, { timeout: 10_000 })).toBeInTheDocument();
   });
 
+  it('shows a prominent MOCK banner (demo data) in mock mode', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    );
+    const banner = await screen.findByTestId('api-mode-banner', {}, { timeout: 10_000 });
+    expect(banner).toBeInTheDocument();
+    expect(banner).toHaveTextContent('Mock API');
+    expect(banner).toHaveTextContent('demo data');
+    expect(banner.className).toContain('api-banner-mock');
+  });
+
   it('renders Team Builder topology graph (R1: React Flow + role cards)', async () => {
     render(
       <MemoryRouter initialEntries={['/teams/1']}>
