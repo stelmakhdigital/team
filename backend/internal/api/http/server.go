@@ -45,6 +45,8 @@ type Options struct {
 	Whoami *service.WhoamiService
 	// P3.13 — Proof/evidence на задачах
 	Evidence *service.EvidenceService
+	// P3.14 — Walk (paced-доставка контекста в сессию)
+	Walk *service.WalkService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -58,7 +60,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention,
 		projects: opts.Projects, engine: opts.Engine, wdjobs: opts.WatchdogJobs,
 		briefing: opts.Briefing, diagnostics: opts.Diagnostics, evs: opts.EventsSvc, whoami: opts.Whoami,
-		evsvc: opts.Evidence}
+		walk: opts.Walk, evsvc: opts.Evidence}
 
 	mux := http.NewServeMux()
 
@@ -136,6 +138,14 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("POST /api/v1/sessions/{id}/send", h.SendSession)
 	// P3.12: snapshot сессии → agent_image — POST, operator+ (sessions.update)
 	mux.HandleFunc("POST /api/v1/sessions/{id}/snapshot", h.SnapshotSession)
+	// P3.14: Walk (paced-доставка контекста в сессию)
+	mux.HandleFunc("POST /api/v1/sessions/{id}/walks", h.CreateWalk) // create (sessions.update, operator+)
+	mux.HandleFunc("GET /api/v1/sessions/{id}/walks", h.ListWalks)   // list (dashboard.read, viewer-ok)
+	mux.HandleFunc("GET /api/v1/walks/{id}", h.GetWalk)              // detail (viewer-ok)
+	mux.HandleFunc("POST /api/v1/walks/{id}/advance", h.AdvanceWalk) // advance (sessions.update, operator+)
+	mux.HandleFunc("POST /api/v1/walks/{id}/pause", h.PauseWalk)     // pause (sessions.update, operator+)
+	mux.HandleFunc("POST /api/v1/walks/{id}/resume", h.ResumeWalk)   // resume (sessions.update, operator+)
+	mux.HandleFunc("POST /api/v1/walks/{id}/skip", h.SkipWalk)       // skip (sessions.update, operator+)
 	// P2.9: Pulse feed — unified event feed (GET /events, dashboard.read, viewer-ok)
 	mux.HandleFunc("GET /api/v1/events", h.ListEvents)
 	mux.HandleFunc("GET /api/v1/compact-plan", h.CompactPlan)                // P1.5

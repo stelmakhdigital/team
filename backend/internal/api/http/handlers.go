@@ -43,6 +43,8 @@ type handlers struct {
 	whoami *service.WhoamiService
 	// P3.13 — Proof/evidence на задачах
 	evsvc *service.EvidenceService
+	// P3.14 — Walk (paced-доставка контекста в сессию)
+	walk *service.WalkService
 }
 
 func limitOffset(q url.Values) (int, int) {

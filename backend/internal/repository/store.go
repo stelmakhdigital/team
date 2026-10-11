@@ -54,6 +54,8 @@ type Stores struct {
 	Events *EventRepo
 	// P3.13 — Proof/evidence на задачах
 	Evidence *EvidenceRepo
+	// P3.14 — Walk (paced-доставка контекста в сессию)
+	Walks *WalkRepo
 }
 
 func NewStores(db *sql.DB) *Stores {
@@ -85,6 +87,7 @@ func NewStores(db *sql.DB) *Stores {
 		Projects:            &ProjectRepo{db: db},
 		Events:              NewEventRepo(db),
 		Evidence:            &EvidenceRepo{db: db},
+		Walks:               &WalkRepo{db: db},
 	}
 }
 

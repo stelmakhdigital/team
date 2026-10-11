@@ -200,6 +200,10 @@ func run() error {
 	evsvc := service.NewEvidenceService(db, stores)
 	tsvc.SetEvidenceRepo(stores.Evidence)
 
+	// P3.14 Walk (paced-доставка контекста в сессию; sender = SessionService)
+	walkSvc := service.NewWalkService(db, stores, ssvc)
+	walkSvc.SetBus(bus)
+
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger: logger, DB: db,
 		Sessions: ssvc, Alerts: alerts, Messages: msvc,
@@ -208,7 +212,7 @@ func run() error {
 		Auth: authSvc, Config: cvc, Attention: attention, Projects: projSvc, Engine: engine,
 		WatchdogJobs: wdjobs, Briefing: briefing,
 		Diagnostics: diagnostics, EventsSvc: eventsSvc, Whoami: whoamiSvc,
-		Evidence: evsvc,
+		Evidence: evsvc, Walk: walkSvc,
 	})
 
 	server := &http.Server{
@@ -221,7 +225,7 @@ func run() error {
 	// Slice 3 — фоновые loop'ы: reaper сессий + watchdog
 	reaperCtx, reaperStop := context.WithCancel(ctx)
 	defer reaperStop()
-	go runReaper(reaperCtx, ssvc, cfg.SessionsPollInterval, logger)
+	go runReaper(reaperCtx, ssvc, walkSvc, cfg.SessionsPollInterval, logger)
 	go wd.Run(ctx)
 
 	errCh := make(chan error, 1)
@@ -245,7 +249,7 @@ func run() error {
 	return server.Shutdown(shutdownCtx)
 }
 
-func runReaper(ctx context.Context, ssvc *service.SessionService, interval time.Duration, logger *slog.Logger) {
+func runReaper(ctx context.Context, ssvc *service.SessionService, walkSvc *service.WalkService, interval time.Duration, logger *slog.Logger) {
 	if interval <= 0 {
 		interval = 5 * time.Second
 	}
@@ -261,6 +265,12 @@ func runReaper(ctx context.Context, ssvc *service.SessionService, interval time.
 				logger.Warn("session reaper: scan failed", "err", err)
 			} else if n > 0 {
 				logger.Info("session reaper: sessions reaped", "count", n)
+			}
+			// P3.14: auto-advance due walks (interval-режим, pacing = не чаще poll).
+			if walkSvc != nil {
+				if err := walkSvc.AdvanceDue(ctx); err != nil {
+					logger.Warn("walk auto-advance: failed", "err", err)
+				}
 			}
 		}
 	}

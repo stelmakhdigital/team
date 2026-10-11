@@ -161,6 +161,13 @@ func requiredPermission(method, path string) string {
 			return "config.read"
 		case "compact-plan": // P1.5: compact-plan = sessions.read
 			return "sessions.read"
+		case "walks": // P3.14: GET /walks/{id} = dashboard.read (viewer-ok)
+			return "dashboard.read"
+		case "sessions": // P3.14: GET /sessions/{id}/walks = dashboard.read (viewer-ok); остальное — sessions.read
+			if sub == "walks" {
+				return "dashboard.read"
+			}
+			return "sessions.read"
 		case "segments", "roles", "relatives":
 			if res == "roles" && (sub == "inbox" || sub == "outbox") { // P3.15: mailbox inbox/outbox = dashboard.read (viewer-ok)
 				return "dashboard.read"
@@ -182,6 +189,10 @@ func requiredPermission(method, path string) string {
 		case res == "library" && id != "" && sub == "apply":
 			return "library.apply"
 		case res == "sessions" && id != "" && sub == "snapshot": // P3.12: snapshot = sessions.update (operator+)
+			return "sessions.update"
+		case res == "sessions" && id != "" && sub == "walks": // P3.14: create walk = sessions.update (operator+)
+			return "sessions.update"
+		case res == "walks" && id != "" && (sub == "advance" || sub == "pause" || sub == "resume" || sub == "skip"): // P3.14: walk actions = sessions.update (operator+)
 			return "sessions.update"
 		case res == "library" && id != "" && sub == "launch": // P3.12: launch из снапшота = sessions.update (operator+)
 			return "sessions.update"
