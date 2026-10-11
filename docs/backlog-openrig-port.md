@@ -302,13 +302,22 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   --noEmit 0 (фикс неиспользуемого импорта + сужение типа в тесте). Status
   станет `done` после approve.
 
-### P3.13 Proof/evidence на задачах — `in_progress`
-- **Scope**: привязка артефактов (скриншоты, тесты, логи) к задаче с typed
-  frontmatter (type, verdict, candidate-sha) + `judge` (accept/reject/withdraw
-  с причиной, атрибутированно); readiness задачи; «closure ≠ acceptance» —
-  acceptance это вердикт по следующей строке.
-- **Критерии**: модель, API, UI (панель evidence в Task Detail), тесты,
-  OpenAPI, docs.
+### P3.13 Proof/evidence на задачах — `in_progress` (T-20261011050110, R1; реализовано, ожидает approve; 101 ops)
+- **Scope (реализовано)**: `task_evidence` (Migration 0022) — typed-артефакты
+  (screenshot/test/log/other) с sha256 (candidate-sha) к задаче; **judge** verdict
+  (accept/reject/withdraw) с атрибуцией; readiness/acceptance агрегация в TaskView
+  (batched, без N+1); **closure ≠ acceptance** (done ≠ accepted).
+- **API**: `POST/GET /tasks/{id}/evidence` + `POST /tasks/{id}/evidence/{evid_id}/verdict`
+  (RBAC: read → dashboard.read, submit/verdict → tasks.update).
+- **UI**: панель Evidence / proof на Task Detail (список + Add evidence + judge +
+  readiness/acceptance-бейдж).
+- **Docs**: OpenAPI 101/101; api-decisions §P3.13; backend §3v; frontend §3v; USAGE §6.8.
+- **Тесты**: service 8 (вкл. closure≠acceptance) + HTTP 4 (RBAC) + vitest 5.
+  Скриншоты: `task-evidence-2560x1440.png` (ready/accepted),
+  `task-evidence-done-pending-2560x1440.png` (done + pending).
+- **Scope (изначальный)**: привязка артефактов (скриншоты, тесты, логи) к задаче с typed
+  frontmatter (type, verdict, candidate-sha) + `judge` (accept/reject/withdraw с причиной,
+  атрибутированно); readiness задачи; «closure ≠ acceptance».
 
 ### P3.14 Walk — поэтапная онбординг-подача — `new`
 - **Scope**: `walk` — последовательная (paced) доставка контекстных кусков в

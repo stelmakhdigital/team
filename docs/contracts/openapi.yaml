@@ -633,6 +633,77 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  # ---- P3.13: proof/evidence (closure ≠ acceptance) ----
+  /api/v1/tasks/{id}/evidence:
+    post:
+      operationId: submitEvidence
+      summary: Приложить proof/evidence к задаче (closure ≠ acceptance)
+      tags: [tasks]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubmitEvidenceRequest' }
+      responses:
+        '201':
+          description: Evidence создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskEvidence' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    get:
+      operationId: listEvidence
+      summary: Список evidence задачи
+      tags: [tasks]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { in: query, name: limit, schema: { type: integer, default: 50, maximum: 100 }, description: Ограничение (default 50, max 100) }
+      responses:
+        '200':
+          description: Список evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  evidence:
+                    type: array
+                    items: { $ref: '#/components/schemas/TaskEvidence' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/tasks/{id}/evidence/{evid_id}/verdict:
+    post:
+      operationId: verdictEvidence
+      summary: Вердикт судьи по evidence (accept/reject/withdraw)
+      tags: [tasks]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { in: path, name: evid_id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerdictEvidenceRequest' }
+      responses:
+        '200':
+          description: Вердикт применён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskEvidence' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   # ---- dashboard ----
   /api/v1/dashboard/summary:
     get:
@@ -2538,6 +2609,9 @@ components:
         closure_required_at: { type: string, format: date-time, description: "P0.2: дедлайн закрытия (выставляется в in_progress)" }
         remaining_secs: { type: integer, format: int64, description: "P0.2: closure_required_at - now (отриц. = просрочено)" }
         estimated_cost: { $ref: '#/components/schemas/CostInfo', description: "P2.14: стоимость задачи (сумма сессий, оценка); null = «нет данных»" }
+        evidence_count: { type: integer, description: "P3.13: число evidence-артефактов" }
+        readiness: { type: string, enum: [ready, pending, none], description: "P3.13: ready = есть accepted; pending = есть submitted; none = нет" }
+        acceptance: { type: string, enum: [accepted, rejected, pending, none], description: "P3.13: acceptance (closure ≠ acceptance); нет accepted-вердикта = done ≠ accepted" }
     TasksListResponse:
       type: object
       required: [tasks, total]
@@ -2574,6 +2648,41 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Task' }
         wake: { $ref: '#/components/schemas/TaskWake' }  # P0.3: current/most-recent wake
+    # P3.13: proof/evidence (closure ≠ acceptance)
+    TaskEvidence:
+      type: object
+      required: [id, task_id, type, name, status]
+      properties:
+        id: { type: integer, format: int64 }
+        task_id: { type: integer, format: int64 }
+        type: { type: string, enum: [screenshot, test, log, other], description: "вид артефакта (свободный тип)" }
+        name: { type: string }
+        content_ref: { type: string, nullable: true, description: "URL/путь/ключ (если не inline)" }
+        content_sha: { type: string, nullable: true, description: "sha256 (candidate-sha) для проверки целостности" }
+        description: { type: string, nullable: true }
+        status: { type: string, enum: [submitted, accepted, rejected, withdrawn], description: "submitted → accepted/rejected; verdict → withdrawn" }
+        submitted_by: { type: string }
+        judged_by: { type: string, nullable: true, description: "кто вынес вердикт (атрибуция)" }
+        verdict_reason: { type: string, nullable: true }
+        judged_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SubmitEvidenceRequest:
+      type: object
+      required: [type, name]
+      properties:
+        type: { type: string, enum: [screenshot, test, log, other] }
+        name: { type: string }
+        content: { type: string, description: "inline-контент (сервер посчитает sha256)" }
+        content_ref: { type: string, description: "или ссылка (URL/путь/ключ)" }
+        content_sha: { type: string, description: "если content_ref: sha256 для целостности" }
+        description: { type: string }
+    VerdictEvidenceRequest:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [accept, reject, withdraw], description: "accept/reject = вердикт судьи; withdraw = отзыв (только после verdict)" }
+        reason: { type: string, description: "обязателен для reject, опционален для accept/withdraw" }
     UpdateTaskStateRequest:
       type: object
       required: [state]

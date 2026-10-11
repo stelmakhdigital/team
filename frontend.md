@@ -651,6 +651,23 @@ Attention рендерит `watchdog_job` (high) через generic `link.path` 
 Скриншоты @2560: `agent-image-library-2560x1440.png` (карточка + detail),
 `agent-image-snapshot-modal-2560x1440.png` (модалка на Session Detail).
 
+### 3v. Proof/evidence на задачах (P3.13, 2026-10-11)
+Панель Evidence / proof на Task Detail: список артефактов + submit + judge (verdict)
++ readiness/acceptance (closure ≠ acceptance).
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/types/api.ts` | `EvidenceType/Status/Action`, `TaskEvidence`, `SubmitEvidenceRequest`, `VerdictEvidenceRequest`; на `Task`: `evidence_count?`, `readiness?`, `acceptance?` |
+| `frontend/src/api/types.ts` + `real.ts` | `tasks.submitEvidence/listEvidence/verdictEvidence` |
+| `frontend/src/components/EvidencePanel.tsx` (NEW) | панель: список (type-чип, name, status-бейдж, sha, submitted_by, judged_by+at, reason + judge-кнопки) + **+ Add evidence** (inline-форма) |
+| `frontend/src/pages/TaskDetailPage.tsx` | `<EvidencePanel task={t}/>` + readiness/acceptance-бейдж в page-head |
+| `frontend/src/styles.css` | `.evidence-panel`, `.ev-*` (badges, list, items, judge, submit) |
+| `frontend/src/api/mock/*` | mock `submitEvidence/listEvidence/verdictEvidence`; `mockSha`; `decorateEvidence` (readiness/acceptance из db); evidence-данные (task 1: accepted+submitted → ready/accepted; task 5: submitted → done/pending) |
+| `frontend/tests/evidence.test.tsx` (NEW) | 5: panel+readiness/acceptance, list artifacts, closure≠acceptance (done+pending), add evidence, judge accept |
+
+Скриншоты @2560: `task-evidence-2560x1440.png` (панель, task 1 ready/accepted),
+`task-evidence-done-pending-2560x1440.png` (task 5: done + acceptance: pending).
+
 ## 5. Команды
 ```bash
 cd frontend

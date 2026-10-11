@@ -1513,3 +1513,60 @@ opциональный summary. Из снимка можно **запустит�
   launch-создание сессии, launch-404 команда, pin/unpin, prune pinned-409.
 - **HTTP** (4 session_snapshot): snapshot 200, snapshot 409 dup, launch 200, launch 400
   non-agent_image.
+
+---
+
+## P3.13. Proof/evidence на задачах — closure ≠ acceptance (T-20261011050110)
+
+Ядро: «задача закрыта» (done) ≠ «результат принят». **Closure** — факт закрытия задачи;
+**Acceptance** — отдельное состояние: есть ли принятый артефакт (verdict = accept).
+Механика: к задаче прикладывают **typed-артефакты** (screenshot/test/log/other) с
+**sha256-целостностью** (candidate-sha); **судья** (человек) выносит **verdict**
+(accept/reject/withdraw) с атрибуцией.
+
+### Модель (Migration 0022, sqlite + postgres)
+`task_evidence`: id, task_id (FK queue_tasks ON DELETE CASCADE), type
+(CHECK screenshot/test/log/other), name, content_ref, content_sha (sha256 =
+candidate-sha), description, status (CHECK submitted/accepted/rejected/withdrawn),
+submitted_by, judged_by, verdict_reason, judged_at, created_at, updated_at. Timestamps —
+TEXT RFC3339Nano (project-конвенция). Индексы: (task_id), (task_id, status).
+
+### Endpoints
+- **Submit**: `POST /api/v1/tasks/{id}/evidence` (RBAC `tasks.update`, operator+). 201.
+  - inline `content` → сервер считает **sha256** (candidate-sha); либо `content_ref`
+    (+ `content_sha` для целостности). `type`+`name` обязательны.
+- **List**: `GET /api/v1/tasks/{id}/evidence` (RBAC `dashboard.read`, viewer-ok). 200.
+  Bounded (limit ≤100, default 50), newest first.
+- **Verdict**: `POST /api/v1/tasks/{id}/evidence/{evid_id}/verdict` (RBAC `tasks.update`).
+  - `accept` → status=accepted; `reject` → status=rejected (+ reason); `withdraw` →
+    status=withdrawn (только если уже был verdict, иначе 400). Атрибуция:
+    `judged_by` из `authContext` (UserName / "human").
+
+### Readiness / Acceptance (агрегация в TaskView)
+- `EvidenceReadiness`: **ready** (есть accepted) / **pending** (есть submitted) / **none**.
+- `EvidenceAcceptance`: **accepted** (есть accepted) / **rejected** (есть rejected) /
+  **pending** (есть submitted) / **none**.
+- Поля на `TaskView`: `evidence_count`, `readiness`, `acceptance` — считаются **batched**
+  (один `StatusSummaryByTasks` GROUP BY по списку задач, без N+1) в `viewsFor`.
+- **Closure ≠ acceptance**: задача может быть `done` при `acceptance=pending` (закрыта,
+  но артефакт не принят). Test фиксирует.
+
+### RBAC
+GET evidence → `dashboard.read` (viewer-ok); POST evidence + verdict → `tasks.update`
+(operator+). `res=="tasks" && id!="" && sub=="evidence"` (verdict — `sub` = evidence,
+`evid_id` — отдельный path-сегмент).
+
+### Frontend
+- Task Detail: панель **Evidence / proof** (список артефактов: type-чип, name, status-бейдж,
+  sha, submitted_by, judged_by+at, reason + judge-кнопки Accept/Reject/Withdraw) +
+  **+ Add evidence** (inline-форма: type/name/content|ref+sha/description).
+- Readiness/acceptance бейдж в page-head (`✓ ready`/`… pending`/`∅ none` + `acceptance: X`).
+- API client: `tasks.submitEvidence/listEvidence/verdictEvidence`.
+
+### Тесты
+- **Service** (8 evidence): submit inline (sha), submit ref (body-sha), validation, list,
+  verdict accept/reject/withdraw, verdict errors (no verdict → withdraw 400, terminal),
+  readiness/acceptance aggregation, **closure ≠ acceptance**.
+- **HTTP** (4 evidence): submit 201, list 200, verdict 200, RBAC viewer 403/200.
+- **Frontend vitest** (5): panel + readiness/acceptance, list artifacts, closure≠acceptance
+  (done + pending), add evidence, judge accept.

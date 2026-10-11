@@ -668,6 +668,28 @@ summary. Из снимка можно **запустить новую сесси
 
 ---
 
+### 6.8. Proof/evidence — доказательство на задачах, closure ≠ acceptance (P3.13)
+
+«Задача закрыта» (done) ≠ «результат принят». К задаче можно приложить **typed-
+артефакты** (screenshot/test/log/other) с **sha256-целостностью**, а **судья** (человек)
+выносит **verdict** (accept/reject/withdraw). **Acceptance** — отдельное состояние: есть ли
+принятый артефакт.
+
+**Task Detail → панель Evidence / proof**:
+- **Список артефактов**: type-чип, name, status-бейдж (submitted/accepted/rejected/withdrawn),
+  sha, кто приложил, кто вынес вердикт + причина.
+- **+ Add evidence**: форма (type, name, inline-контент — сервер посчитает sha256, либо
+  content_ref + content_sha, description).
+- **Judge**: у каждого артефакта кнопки **✓ Accept** / **✗ Reject** (+ причина) / **↩ Withdraw**
+  (отзыв вердикта).
+- **Readiness/Acceptance** бейдж в шапке: `✓ ready` (есть accepted) / `… pending` / `∅ none`
+  + `acceptance: accepted|rejected|pending|none`.
+
+**closure ≠ acceptance**: задача может быть `done`, но `acceptance: pending` (закрыта,
+но артефакт ещё не принят судьёй) — это видно прямо на карточке.
+
+---
+
 ## 7. Безопасность (ключи и RBAC)
 
 Auth включается, если заданы `DAEMON_API_KEYS` **или** в БД есть ключи.

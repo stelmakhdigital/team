@@ -605,6 +605,36 @@ OpenRIG-вдохновлённая фича: сессию можно сохра�
   (см. `api-decisions.md` §P3.12): тип agent_image в Library (не отдельная таблица);
   summary → системный промпт; без новых RBAC.
 
+### 3v. P3.13 — Proof/evidence на задачах, closure ≠ acceptance (backend, 2026-10-11)
+К задаче можно приложить **typed-артефакты** (screenshot/test/log/other) с **sha256**
+целостностью; **судья** выносит **verdict** (accept/reject/withdraw) с атрибуцией.
+«Задача закрыта» (done) ≠ «результат принят» (acceptance=accepted).
+- **Модель** (`models/evidence.go`, NEW): `TaskEvidence`, `EvidenceType` (screenshot/
+  test/log/other), `EvidenceStatus` (submitted/accepted/rejected/withdrawn),
+  `EvidenceAction` (accept/reject/withdraw), `Valid()`, `VerdictStatus()`.
+- **Migration 0022** (sqlite+postgres): `task_evidence` (FK queue_tasks ON DELETE
+  CASCADE, CHECK type/status, индексы task_id + task_id/status). Timestamps — TEXT
+  RFC3339Nano (project-конвенция).
+- **Repo** (`evidence_repo.go`, NEW): `Create`, `GetByID` (cross-task guard),
+  `ListByTask` (bounded), `SetVerdict`, `StatusSummaryByTasks` (batched GROUP BY —
+  избегает N+1).
+- **Service** (`evidence_service.go`, NEW): `Submit` (inline → сервер sha256; ref →
+  body-sha), `List`, `Verdict` (withdraw требует prior verdict; terminal tasks OK).
+  Helpers: `EvidenceReadiness` (ready/pending/none), `EvidenceAcceptance` (accepted/
+  rejected/pending/none), `EvidenceTotal`.
+- **TaskView**: поля `EvidenceCount`, `Readiness`, `Acceptance` — считаются **batched**
+  (`StatusSummaryByTasks` один запрос по списку задач) в `viewsFor`; `SetEvidenceRepo`.
+- **HTTP** (`evidence_handlers.go`, NEW + `server.go` + `middleware.go`):
+  `POST /tasks/{id}/evidence` (201, tasks.update), `GET /tasks/{id}/evidence` (200,
+  dashboard.read), `POST /tasks/{id}/evidence/{evid_id}/verdict` (200, tasks.update).
+  Атрибуция: `actorName(r)` из `authContext` (UserName / "human").
+- **Wiring** (`main.go` + `handlers_test.go`): `EvidenceService` + `tsvc.SetEvidenceRepo`.
+- **Тесты**: service (8: submit inline/ref/validation, list, verdict accept/reject/withdraw,
+  verdict errors, terminal, readiness/acceptance, **closure≠acceptance**) + HTTP (4: submit
+  201, list 200, verdict 200, RBAC viewer 403/200). **Решения** (см.
+  `api-decisions.md` §P3.13): отдельная таблица task_evidence; batched агрегация (без N+1);
+  closure ≠ acceptance (done ≠ accepted).
+
 ## 4. Как проверить
 ```
 cd backend && export PATH=$PATH:~/sdk/go/bin
