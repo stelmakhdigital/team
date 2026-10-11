@@ -319,7 +319,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   frontmatter (type, verdict, candidate-sha) + `judge` (accept/reject/withdraw с причиной,
   атрибутированно); readiness задачи; «closure ≠ acceptance».
 
-### P3.14 Walk — поэтапная онбординг-подача — `in_progress` (T-20261011074706, R1; реализовано, ожидает approve; 111 ops)
+### P3.14 Walk — поэтапная онбординг-подача — `done` (T-20261011074706, 1 раунд; walks+walk_steps, pacing interval/manual, advance через Send, 111 ops) (T-20261011074706, R1; реализовано, ожидает approve; 111 ops)
 - **Scope (реализовано)**: `walks`+`walk_steps` (Migration 0024: mode interval/manual,
   status active/paused/completed/failed, current_seq; steps seq/state/send_status/
   note/sent_at); WalkService (Sender=SessionService.Send, WalkClock injectable):
@@ -356,7 +356,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
 - **Критерии**: модель, API, UI (панель входящих на сессии/роли), тесты,
   OpenAPI, docs.
 
-### P3.16 Mode/permission posture (ориентир OpenRIG rig mode) — `new`
+### P3.16 Mode/permission posture (ориентир OpenRIG rig mode) — `in_progress`
 - **Контекст**: у OpenRIG — осознанное переключение «кто рулит»: human-led vs
   delegated по скоупам, effective-mode цитируем. Наш ответ на «агенты не
   спрашивают, но важные решения — должны».
