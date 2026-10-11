@@ -204,6 +204,9 @@ func run() error {
 	walkSvc := service.NewWalkService(db, stores, ssvc)
 	walkSvc.SetBus(bus)
 
+	// P3.16 Posture (delegated vs human-led; park sensitive ops → human_request)
+	postureSvc := service.NewPostureService(db, stores, cvc, aservice)
+
 	handler := httpapi.NewServer(svc, tsvc, httpapi.Options{
 		Logger: logger, DB: db,
 		Sessions: ssvc, Alerts: alerts, Messages: msvc,
@@ -212,7 +215,7 @@ func run() error {
 		Auth: authSvc, Config: cvc, Attention: attention, Projects: projSvc, Engine: engine,
 		WatchdogJobs: wdjobs, Briefing: briefing,
 		Diagnostics: diagnostics, EventsSvc: eventsSvc, Whoami: whoamiSvc,
-		Evidence: evsvc, Walk: walkSvc,
+		Evidence: evsvc, Walk: walkSvc, Posture: postureSvc,
 	})
 
 	server := &http.Server{

@@ -28,7 +28,7 @@ type SessionFilter struct {
 
 const sessionColumns = `id, team_id, project_id, role_id, queue_task_id, runtime_type, runtime_ref,
 	state, working_dir, target_dir, command, config, exit_code,
-	started_at, stopped_at, created_at, updated_at`
+	started_at, stopped_at, posture, created_at, updated_at`
 
 func (r *SessionRepo) Create(ctx context.Context, tx DBTX, s *models.Session) error {
 	now := nowTime()
@@ -65,6 +65,16 @@ func (r *SessionRepo) Create(ctx context.Context, tx DBTX, s *models.Session) er
 
 func (r *SessionRepo) GetByID(ctx context.Context, tx DBTX, id int64) (*models.Session, error) {
 	return scanSession(tx.QueryRowContext(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, id))
+}
+
+// SetPosture — P3.16: сменить posture сессии (override команды; NULL = наследует).
+func (r *SessionRepo) SetPosture(ctx context.Context, tx DBTX, id int64, posture *models.Posture) error {
+	var p any
+	if posture != nil {
+		p = string(*posture)
+	}
+	_, err := tx.ExecContext(ctx, `UPDATE sessions SET posture = ?, updated_at = ? WHERE id = ?`, p, nowStr(), id)
+	return err
 }
 
 func (r *SessionRepo) List(ctx context.Context, tx DBTX, f SessionFilter) ([]*models.Session, int, error) {
@@ -209,10 +219,11 @@ func scanSession(s sessionScanner) (*models.Session, error) {
 		exit      sql.NullInt64
 		started   sql.NullString
 		stopped   sql.NullString
+		posture   sql.NullString
 		ca, ua    string
 	)
 	err := s.Scan(&x.ID, &x.TeamID, &projectID, &x.RoleID, &taskID, &x.RuntimeType, &ref,
-		&x.State, &wd, &td, &c, &cfgStr, &exit, &started, &stopped, &ca, &ua)
+		&x.State, &wd, &td, &c, &cfgStr, &exit, &started, &stopped, &posture, &ca, &ua)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -240,6 +251,10 @@ func scanSession(s sessionScanner) (*models.Session, error) {
 	if exit.Valid {
 		v := int(exit.Int64)
 		x.ExitCode = &v
+	}
+	if posture.Valid {
+		p := models.Posture(posture.String)
+		x.Posture = &p
 	}
 	if started.Valid {
 		if t, err := parseTime(started.String); err == nil {

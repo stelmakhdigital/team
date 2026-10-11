@@ -47,6 +47,8 @@ type Options struct {
 	Evidence *service.EvidenceService
 	// P3.14 — Walk (paced-доставка контекста в сессию)
 	Walk *service.WalkService
+	// P3.16 — Mode/permission posture (delegated vs human-led)
+	Posture *service.PostureService
 }
 
 // NewServer собирает mux + middleware + routes.
@@ -60,7 +62,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 		events: opts.Events, alerts: opts.Alerts, cvc: opts.Config, attention: opts.Attention,
 		projects: opts.Projects, engine: opts.Engine, wdjobs: opts.WatchdogJobs,
 		briefing: opts.Briefing, diagnostics: opts.Diagnostics, evs: opts.EventsSvc, whoami: opts.Whoami,
-		walk: opts.Walk, evsvc: opts.Evidence}
+		walk: opts.Walk, evsvc: opts.Evidence, posture: opts.Posture}
 
 	mux := http.NewServeMux()
 
@@ -146,6 +148,11 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("POST /api/v1/walks/{id}/pause", h.PauseWalk)     // pause (sessions.update, operator+)
 	mux.HandleFunc("POST /api/v1/walks/{id}/resume", h.ResumeWalk)   // resume (sessions.update, operator+)
 	mux.HandleFunc("POST /api/v1/walks/{id}/skip", h.SkipWalk)       // skip (sessions.update, operator+)
+	// P3.16: Mode/permission posture (delegated vs human-led)
+	mux.HandleFunc("PATCH /api/v1/teams/{id}/posture", h.SetTeamPosture)            // (config.update, admin)
+	mux.HandleFunc("PATCH /api/v1/sessions/{id}/posture", h.SetSessionPosture)      // (sessions.update, operator+)
+	mux.HandleFunc("GET /api/v1/human-requests/{id}", h.GetHumanRequest)            // (dashboard.read, viewer-ok)
+	mux.HandleFunc("POST /api/v1/human-requests/{id}/decide", h.DecideHumanRequest) // (tasks.update, operator+)
 	// P2.9: Pulse feed — unified event feed (GET /events, dashboard.read, viewer-ok)
 	mux.HandleFunc("GET /api/v1/events", h.ListEvents)
 	mux.HandleFunc("GET /api/v1/compact-plan", h.CompactPlan)                // P1.5
@@ -228,6 +235,10 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	if opts.Audit != nil {
 		chain = auditMW(opts.Audit, logger, chain)
 	}
+	// P3.16: posture (park sensitive ops в human-led scope) — между auth и audit.
+	if opts.Posture != nil {
+		chain = postureMW(opts.Posture, logger, chain)
+	}
 	// Slice 6: auth (аутентификация + RBAC) снаружи — audit видит AuthContext
 	if opts.Auth != nil {
 		chain = authMW(opts.Auth, logger, chain)
@@ -235,5 +246,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	chain = loggingMW(logger, chain)
 	chain = recoveryMW(logger, chain)
 	chain = requestIDMW(chain)
+	// P3.16: replay approved-операций через полный chain (auth+RBAC).
+	h.SetChain(chain)
 	return chain
 }

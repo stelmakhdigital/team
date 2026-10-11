@@ -163,6 +163,8 @@ func requiredPermission(method, path string) string {
 			return "sessions.read"
 		case "walks": // P3.14: GET /walks/{id} = dashboard.read (viewer-ok)
 			return "dashboard.read"
+		case "human-requests": // P3.16: GET /human-requests/{id} = dashboard.read (viewer-ok)
+			return "dashboard.read"
 		case "sessions": // P3.14: GET /sessions/{id}/walks = dashboard.read (viewer-ok); остальное — sessions.read
 			if sub == "walks" {
 				return "dashboard.read"
@@ -214,6 +216,8 @@ func requiredPermission(method, path string) string {
 			return "messages.update"
 		case res == "tasks" && id != "" && sub == "evidence": // P3.13: submit + verdict = tasks.update (operator+)
 			return "tasks.update"
+		case res == "human-requests" && id != "" && sub == "decide": // P3.16: decide (approve/deny+replay) = tasks.update (operator+)
+			return "tasks.update"
 		case res == "sessions" && id != "" && sub == "handover": // P1.5: handover = sessions.update
 			return "sessions.update"
 		case res == "sessions" && id != "" && sub == "send": // P2.11: send to session = sessions.update (operator+)
@@ -232,6 +236,13 @@ func requiredPermission(method, path string) string {
 	case http.MethodPatch:
 		if res == "roles" && id != "" && sub == "config" {
 			return "config.update"
+		}
+		// P3.16: posture (delegated/human-led)
+		if res == "teams" && id != "" && sub == "posture" {
+			return "config.update" // team posture — admin-only
+		}
+		if res == "sessions" && id != "" && sub == "posture" {
+			return "sessions.update" // session posture — operator+
 		}
 		// U3-rename: PATCH /library/{id} — library.write. В модели нет library.update,
 		// переименование (write) гейтится существующим write-разрешением library.create.

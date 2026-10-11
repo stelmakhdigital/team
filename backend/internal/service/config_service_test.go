@@ -113,6 +113,8 @@ func TestConfigRegistryCompleteness(t *testing.T) {
 		// watchdog
 		"watchdog.enabled": "boolean", "watchdog.scan_interval": "duration",
 		"watchdog.stale_after": "duration", "watchdog.blocked_after": "duration",
+		// posture (P3.16)
+		"posture.default": "string",
 		// security
 		"security.api_keys": "string-list", "security.secret_key": "string",
 		"security.agent_specs_dir": "path",
@@ -141,7 +143,7 @@ func TestConfigRegistryCompleteness(t *testing.T) {
 	// editable/secret-флаги
 	for _, spec := range svc.Registry() {
 		if !spec.RequiresRestart && spec.Key != "tasks.closure_required_secs" && spec.Key != "sessions.context_wall_pct" &&
-			spec.Key != "cost.model_prices" && spec.Key != "cost.budget_alert_cents" {
+			spec.Key != "cost.model_prices" && spec.Key != "cost.budget_alert_cents" && spec.Key != "posture.default" {
 			t.Errorf("key %s: requires_restart = false, want true", spec.Key)
 		}
 		if spec.Key == "tasks.closure_required_secs" && spec.RequiresRestart {
@@ -403,7 +405,7 @@ func TestConfigMetaAndHash(t *testing.T) {
 	for _, s := range resp1.Sections {
 		names = append(names, s.Name)
 	}
-	want := []string{"server", "storage", "tasks", "sessions", "watchdog", "security", "logging", "cost", "workspace"}
+	want := []string{"server", "storage", "tasks", "sessions", "watchdog", "posture", "security", "logging", "cost", "workspace"}
 	if len(names) != len(want) {
 		t.Fatalf("sections = %v, want %v", names, want)
 	}

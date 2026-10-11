@@ -45,7 +45,14 @@ type handlers struct {
 	evsvc *service.EvidenceService
 	// P3.14 — Walk (paced-доставка контекста в сессию)
 	walk *service.WalkService
+	// P3.16 — Mode/permission posture (delegated vs human-led)
+	posture *service.PostureService
+	// P3.16 — полный chain (для replay approved-операций через auth+RBAC)
+	chain http.Handler
 }
+
+// SetChain — сохранить полный chain (заполняется NewServer после сборки).
+func (h *handlers) SetChain(c http.Handler) { h.chain = c }
 
 func limitOffset(q url.Values) (int, int) {
 	limit, _ := strconv.Atoi(q.Get("limit"))

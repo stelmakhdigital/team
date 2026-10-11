@@ -36,6 +36,7 @@ const (
 	AttentionKindSessionFailed      = "session_failed"
 	AttentionKindSessionContextWall = "session_context_wall" // P1.5: сессия у контекст-стены
 	AttentionKindDiagnosticsFail    = "diagnostics_fail"     // P1.8: fail-чеги Health/Doctor (critical, link /health)
+	AttentionKindHumanRequest       = "human_request"        // P3.16: pending sensitive-op (human-led) требует подтверждения
 )
 
 // AttentionLink — целевая деталка для UI-CTA (EntityLink → path).
@@ -82,6 +83,8 @@ type AttentionService struct {
 	alerts    attentionAlertStore
 	instances *repository.WorkflowInstanceRepo // P1.4: workflow_attention
 	wf        *repository.WorkflowRepo         // P1.4: workflow name
+	// P3.16: human_requests (pending sensitive ops, human-led).
+	humanRequests *repository.HumanRequestRepo
 	// P1.5: compact-plan (session_context_wall); nil = без источника.
 	contextWallFunc func(ctx context.Context) ([]*CompactPlanEntry, error)
 	now             func() time.Time
@@ -89,7 +92,7 @@ type AttentionService struct {
 
 func NewAttentionService(db *sql.DB, s *repository.Stores) *AttentionService {
 	return &AttentionService{db: db, teams: s.Teams, tasks: s.Tasks, alerts: s.Watchdog,
-		instances: s.WorkflowInstances, wf: s.Workflows, now: time.Now}
+		instances: s.WorkflowInstances, wf: s.Workflows, humanRequests: s.HumanRequests, now: time.Now}
 }
 
 // SetContextWallFunc — P1.5: подвязка compact-plan (session_context_wall).
@@ -202,6 +205,17 @@ func (s *AttentionService) List(ctx context.Context, limit, offset int) (*Attent
 		}
 		for _, e := range wallEntries {
 			entries = append(entries, entry{item: s.contextWallItem(e), since: now})
+		}
+	}
+
+	// 7) human_request (P3.16) — pending sensitive ops (human-led scope) → требуют подтверждения.
+	if s.humanRequests != nil {
+		hrs, err := s.humanRequests.ListPending(ctx, s.db, attentionFetchCap)
+		if err != nil {
+			return nil, fmt.Errorf("attention: list human_requests: %w", err)
+		}
+		for _, hr := range hrs {
+			entries = append(entries, entry{item: s.humanRequestItem(ctx, hr), since: hr.CreatedAt})
 		}
 	}
 
@@ -329,6 +343,25 @@ func (s *AttentionService) contextWallItem(e *CompactPlanEntry) AttentionItem {
 		CreatedAt:       time.Now().UTC().Format(rfc3339),
 		SuggestedAction: action,
 		Link:            AttentionLink{Path: fmt.Sprintf("/sessions/%d", e.SessionID), Label: title},
+	}
+}
+
+// humanRequestItem — P3.16: pending sensitive-op (human-led) требует подтверждения.
+func (s *AttentionService) humanRequestItem(ctx context.Context, hr *models.HumanRequest) AttentionItem {
+	title := "Подтвердить: " + hr.Operation
+	action := "Approve / Deny"
+	if !hr.Reversible {
+		action = "Подтвердить (irreversible)"
+	}
+	return AttentionItem{
+		Kind:            AttentionKindHumanRequest,
+		ID:              "hreq-" + strconv.FormatInt(hr.ID, 10),
+		Severity:        "high",
+		Title:           title,
+		Detail:          hr.Method + " " + hr.Path,
+		CreatedAt:       hr.CreatedAt.UTC().Format(rfc3339),
+		SuggestedAction: action,
+		Link:            AttentionLink{Path: fmt.Sprintf("/attention/human-requests/%d", hr.ID), Label: title},
 	}
 }
 

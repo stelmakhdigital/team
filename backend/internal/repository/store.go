@@ -56,6 +56,8 @@ type Stores struct {
 	Evidence *EvidenceRepo
 	// P3.14 — Walk (paced-доставка контекста в сессию)
 	Walks *WalkRepo
+	// P3.16 — Mode/permission posture (human_requests)
+	HumanRequests *HumanRequestRepo
 }
 
 func NewStores(db *sql.DB) *Stores {
@@ -88,6 +90,7 @@ func NewStores(db *sql.DB) *Stores {
 		Events:              NewEventRepo(db),
 		Evidence:            &EvidenceRepo{db: db},
 		Walks:               &WalkRepo{db: db},
+		HumanRequests:       &HumanRequestRepo{db: db},
 	}
 }
 

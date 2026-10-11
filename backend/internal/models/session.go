@@ -41,6 +41,7 @@ type Session struct {
 	TargetDir   string
 	Command     string
 	Config      map[string]any
+	Posture     *Posture // P3.16: override команды (NULL = наследует)
 	ExitCode    *int
 	StartedAt   *time.Time
 	StoppedAt   *time.Time

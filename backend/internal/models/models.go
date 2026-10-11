@@ -25,7 +25,8 @@ type Team struct {
 	Description string
 	SpecPath    string
 	State       TeamState
-	ProjectID   *int64 // P1.0: привязка к проекту (nullable; команды без проекта — как раньше)
+	ProjectID   *int64  // P1.0: привязка к проекту (nullable; команды без проекта — как раньше)
+	Posture     Posture // P3.16: delegated/human_led (default delegated)
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
