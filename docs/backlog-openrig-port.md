@@ -325,7 +325,7 @@ P1.7 (briefing) → P1.8 (doctor) → P2.* (включая P2.12–P2.15) → P3
   + статус доставки.
 - **Критерии**: логика pacing, тесты, UI, OpenAPI, docs.
 
-### P3.15 Inbox/outbox — `new`
+### P3.15 Inbox/outbox — `in_progress`
 - **Scope**: mailbox-семантика: входящие с подтверждением (pending-входящие,
   absorb/deny/drop), исходящие с записью (outbox-record/list); `undelivered`
   (P0.2) подтягивается сюда.
