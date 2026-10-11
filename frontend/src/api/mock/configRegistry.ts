@@ -30,7 +30,7 @@ const SECTION_DESC: Record<string, string> = {
   watchdog: 'Watchdog-мониторинг',
   security: 'Безопасность',
   logging: 'Логирование',
-  cost: 'Стоимость LLM-сессий (P2.14)',
+  cost: 'Стоимость LLM-сессий (цены моделей, бюджет-порог)',
   workspace: 'Рабочая область (workspace)',
 };
 

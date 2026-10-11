@@ -99,7 +99,7 @@ func configRegistry() []KeySpec {
 			Description: "Каталог конфигов pi-сессий", Default: "configs/sessions",
 			RequiresRestart: true, Editable: true, EnvVar: "DAEMON_SESSION_CONFIGS_DIR"},
 		{Key: "sessions.context_wall_pct", Section: "sessions", Type: IntType,
-			Description: "Порог context_used_percentage (%), при котором сессия попадает в compact-plan (P1.5); читается в рантайме",
+			Description: "Порог context_used_percentage (%), при котором сессия попадает в compact-plan; читается в рантайме",
 			Default:     "80", RequiresRestart: false, Editable: true, EnvVar: "DAEMON_SESSION_CONTEXT_WALL_PCT"},
 		{Key: "watchdog.enabled", Section: "watchdog", Type: BoolType,
 			Description: "Включён ли watchdog (stale/blocked)", Default: "true",
@@ -130,11 +130,11 @@ func configRegistry() []KeySpec {
 			RequiresRestart: true, Editable: true, EnvVar: "DAEMON_LOG_LEVEL"},
 		{Key: "cost.model_prices", Section: "cost", Type: StrType,
 			Description: "Цены моделей, JSON-объект: {\"<model>\":{\"in_usd_per_mtok\":N,\"out_usd_per_mtok\":N}}. " +
-				"Default {} = цены не заданы → стоимость «нет данных». (P2.14)",
+				"Default {} = цены не заданы → стоимость «нет данных».",
 			Default: `{}`, RequiresRestart: false, Editable: true, ValidateJSON: true, EnvVar: "DAEMON_COST_MODEL_PRICES"},
 		{Key: "cost.budget_alert_cents", Section: "cost", Type: IntType,
 			Description: "Порог бюджета в ЦЕНТАХ для watchdog-алерта (0 = выключен). " +
-				"Если стоимость всех сессий > порога → алерт (dedup). (P2.14)",
+				"Если стоимость всех сессий > порога → алерт (dedup).",
 			Default: "0", RequiresRestart: false, Editable: true, EnvVar: "DAEMON_COST_BUDGET_ALERT_CENTS"},
 		{Key: "workspace.root", Section: "workspace", Type: PathType,
 			Description: "Корень workspace (дефолт — cwd)", Default: ".",
