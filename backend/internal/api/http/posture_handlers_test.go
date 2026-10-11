@@ -231,3 +231,30 @@ func TestPostureReplayEnforcesRBAC(t *testing.T) {
 		t.Fatalf("team after RBAC-failed replay: state = %s, want active", s)
 	}
 }
+
+// M4: one-time bypass — повторный replay тем же id → не bypass (403).
+func TestPostureReplayOneTime(t *testing.T) {
+	e := newPostureTestServer(t)
+	teamID := e.createTeam(t, "env-admin", "onetime-team")
+	_ = e.posture.SetTeamPosture(e.ctx, teamID, models.PostureHumanLed)
+	_, opKey := mustCreateKey(t, e.auth, "fe-op", "operator", "fe-op")
+	opHdr := map[string]string{"X-API-Key": opKey}
+
+	// park + approve (первый replay → status=replayed)
+	st, out, _ := do(t, "DELETE", e.base+"/teams/"+itoaID(teamID), nil, opHdr)
+	if st != http.StatusAccepted {
+		t.Fatalf("park: %d, want 202", st)
+	}
+	hreqID := int64(out["human_request_id"].(float64))
+	st, out, _ = do(t, "POST", e.base+"/human-requests/"+itoaID(hreqID)+"/decide",
+		map[string]any{"decision": "approve"}, opHdr)
+	if st != http.StatusOK || out["status"] != "replayed" {
+		t.Fatalf("approve+replay: %d %v, want 200 replayed", st, out)
+	}
+	// повторный bypass тем же id → 403 (уже replayed, one-time)
+	replayHdr := map[string]string{"X-API-Key": opKey, "X-Posture-Approved": itoaID(hreqID)}
+	st, out, _ = do(t, "DELETE", e.base+"/teams/"+itoaID(teamID), nil, replayHdr)
+	if st != http.StatusForbidden {
+		t.Fatalf("repeat replay: status = %d %v, want 403 (one-time bypass)", st, out)
+	}
+}

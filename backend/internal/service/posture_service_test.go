@@ -257,3 +257,50 @@ func TestPostureDecide(t *testing.T) {
 		}
 	}
 }
+
+// M5: Attention — pending human_request → в attention (kind human_request, high);
+// approved/denied → не в attention.
+func TestPostureAttentionSource(t *testing.T) {
+	e := setupPostureEnv(t)
+	teamID, sessionID := e.makeTeamSession(t, "posture-attention")
+	_ = e.psvc.SetTeamPosture(e.ctx, teamID, models.PostureHumanLed)
+	park, reqID, _, err := e.psvc.Check(e.ctx, "DELETE", "/api/v1/sessions/"+itoa(sessionID), "", "key")
+	if err != nil || !park || reqID == 0 {
+		t.Fatalf("park: %v %v %d", err, park, reqID)
+	}
+
+	attn := service.NewAttentionService(e.db, e.stores)
+
+	// pending → в attention (kind human_request, high)
+	res, err := attn.List(e.ctx, 100, 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	var found *service.AttentionItem
+	for i := range res.Items {
+		if res.Items[i].Kind == service.AttentionKindHumanRequest {
+			found = &res.Items[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("pending human_request not in attention: %d items", len(res.Items))
+	}
+	if found.Severity != "high" {
+		t.Fatalf("severity = %s, want high", found.Severity)
+	}
+
+	// approve → не в attention (status != pending)
+	if _, err := e.psvc.Decide(e.ctx, reqID, "approve", "ok", "human-lead"); err != nil {
+		t.Fatalf("Decide: %v", err)
+	}
+	res, err = attn.List(e.ctx, 100, 0)
+	if err != nil {
+		t.Fatalf("List after approve: %v", err)
+	}
+	for i := range res.Items {
+		if res.Items[i].Kind == service.AttentionKindHumanRequest {
+			t.Fatalf("approved human_request still in attention (id=%s)", res.Items[i].ID)
+		}
+	}
+}
