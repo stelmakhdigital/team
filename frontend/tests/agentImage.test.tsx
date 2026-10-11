@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '../src/App';
@@ -52,7 +52,7 @@ describe('P3.12: agent images / session snapshots', () => {
     const modal = await screen.findByRole('dialog', {}, { timeout: 10_000 });
     await within(modal).findByText('Save as agent image', {}, { timeout: 10_000 });
     // префилл имени (agent-<role>)
-    const nameInput = within(modal).getByLabelText('Image name');
+    const nameInput = within(modal).getByLabelText('Image name') as HTMLInputElement;
     expect(nameInput.value).toMatch(/^agent-/);
   }, 25_000);
 
