@@ -129,6 +129,14 @@ export function createRealAdapter(): Api {
       getChatroomMessages: (id) => http(`${B}/chatrooms/${id}/messages`),
       sendChatroomMessage: (id, req) => http(`${B}/chatrooms/${id}/messages`, { method: 'POST', body: req }),
     },
+    // P3.15: mailbox (inbox/outbox + ack)
+    mailbox: {
+      getInbox: (roleId, params) =>
+        http(`${B}/roles/${roleId}/inbox${toQuery({ limit: params?.limit, offset: params?.offset })}`),
+      getOutbox: (roleId, params) =>
+        http(`${B}/roles/${roleId}/outbox${toQuery({ limit: params?.limit, offset: params?.offset })}`),
+      ack: (messageId, action) => http(`${B}/messages/${messageId}/ack`, { method: 'POST', body: { action } }),
+    },
     library: {
       getLibrary: (params) =>
         http(`${B}/library${toQuery({

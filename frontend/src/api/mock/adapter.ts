@@ -1702,6 +1702,49 @@ export function createMockAdapter(): Api {
       },
     },
 
+    // P3.15: mailbox (inbox/outbox + ack)
+    mailbox: {
+      async getInbox(roleId, params) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        if (!db.roles.some((r) => r.id === roleId)) throw new ApiClientError(404, 'not_found', 'Role not found');
+        // direct-входящие (to_role_id = roleId, type=direct); broadcast/segment не в inbox
+        const all = db.messages.filter((m) => m.to_role_id === roleId && m.type === 'direct');
+        const list = [...all].sort((a, b) => b.id - a.id);
+        const limit = params?.limit ?? 50;
+        const offset = params?.offset ?? 0;
+        const page = list.slice(offset, offset + limit);
+        const undelivered = all.filter((m) => m.ack_state === 'pending').length;
+        return { messages: clone(page), total: list.length, undelivered_count: undelivered, has_more: offset + page.length < list.length };
+      },
+      async getOutbox(roleId, params) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        if (!db.roles.some((r) => r.id === roleId)) throw new ApiClientError(404, 'not_found', 'Role not found');
+        const list = db.messages.filter((m) => m.from_role_id === roleId).sort((a, b) => b.id - a.id);
+        const limit = params?.limit ?? 50;
+        const offset = params?.offset ?? 0;
+        const page = list.slice(offset, offset + limit);
+        return { messages: clone(page), total: list.length, has_more: offset + page.length < list.length };
+      },
+      async ack(messageId, action) {
+        maybeFail();
+        await latency();
+        if (!['absorb', 'deny', 'drop'].includes(action)) throw new ApiClientError(422, 'validation', "Field 'action' must be absorb|deny|drop");
+        const db = getDb();
+        const m = db.messages.find((x) => x.id === messageId);
+        if (!m) throw new ApiClientError(404, 'not_found', 'Message not found');
+        if (m.ack_state !== 'pending') throw new ApiClientError(409, 'conflict', `message already acked (state=${m.ack_state})`);
+        const stateMap: Record<string, 'absorbed' | 'denied' | 'dropped'> = { absorb: 'absorbed', deny: 'denied', drop: 'dropped' };
+        m.ack_state = stateMap[action];
+        m.acked_by = 'operator';
+        m.acked_at = now();
+        return clone(m);
+      },
+    },
+
     library: {
       async getLibrary(params) {
         maybeFail();

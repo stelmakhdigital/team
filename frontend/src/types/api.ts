@@ -1149,6 +1149,32 @@ export interface Message {
   created_at: string;
   is_mine?: boolean;
   requires_reply?: boolean;
+  // P3.15: mailbox-семантика (inbox/outbox) — подтверждение получения.
+  // orthogonal к is_read: read = прочитано в ленте; ack_state = mailbox-подтверждение.
+  ack_state?: AckState;
+  acked_by?: string;
+  acked_at?: string;
+}
+
+// P3.15: mailbox (inbox/outbox) — ack_state входящих.
+export type AckState = 'pending' | 'absorbed' | 'denied' | 'dropped';
+export type AckAction = 'absorb' | 'deny' | 'drop';
+
+export interface InboxResponse {
+  messages: Message[];
+  total: number;
+  undelivered_count: number;
+  has_more: boolean;
+}
+
+export interface OutboxResponse {
+  messages: Message[];
+  total: number;
+  has_more: boolean;
+}
+
+export interface AckRequest {
+  action: AckAction;
 }
 
 export interface GetMessagesParams {

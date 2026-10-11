@@ -1247,3 +1247,24 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   .ev-submit-row { flex-direction: column; }
   .ev-submit-row .input { min-width: 0; }
 }
+
+// ===== P3.15: Mailbox (inbox/outbox) =====
+.mb-selects { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mb-selects select { background: var(--bg-panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 4px 8px; }
+.mailbox-panel .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mb-undelivered { color: var(--yellow); border: 1px solid var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.mb-section { margin: 14px 0 8px; font-size: 0.9rem; }
+.mb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.mb-item { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 5px; }
+.mb-item--pending { border-left: 3px solid var(--yellow); background: color-mix(in srgb, var(--yellow) 6%, var(--bg-panel)); }
+.mb-list--outbox .mb-item { opacity: 0.85; }
+.mb-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mb-from { font-size: 0.88rem; }
+.mb-body { font-size: 0.86rem; word-break: break-word; }
+.mb-ack { border-width: 1px; }
+.mb-ack--pending { color: var(--yellow); border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.mb-ack--absorbed { color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.mb-ack--denied { color: var(--red); border-color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
+.mb-ack--dropped { color: var(--purple); border-color: var(--purple); background: color-mix(in srgb, var(--purple) 14%, transparent); }
+.mb-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.mb-acked { font-size: 0.78rem; }

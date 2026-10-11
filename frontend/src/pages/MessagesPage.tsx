@@ -4,6 +4,7 @@ import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
 import { Badge, EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
+import MailboxPanel from '../components/MailboxPanel';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
 
@@ -41,6 +42,8 @@ export default function MessagesPage() {
       <div className="page-head">
         <h1>Message Center</h1>
       </div>
+      {/* P3.15: Mailbox (role inbox/outbox + ack) */}
+      <MailboxSection />
       <div className="messages-layout">
         <div className="card">
           <h2>Direct messages</h2>
@@ -61,6 +64,7 @@ export default function MessagesPage() {
                   <strong>{m.from_role_name ?? 'system'}</strong>
                   {m.to_role_name && <span className="muted">→ {m.to_role_name}</span>}
                   <span className="badge">{m.type}</span>
+                  {m.ack_state && <span className={`badge mb-ack mb-ack--${m.ack_state}`} title={`ack_state: ${m.ack_state}`}>{m.ack_state}</span>}
                   <span className="muted small">{formatRelative(m.created_at)}</span>
                 </div>
                 <div className="message-body">{m.body}</div>
@@ -130,6 +134,53 @@ export default function MessagesPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// P3.15: Mailbox-секция — выбор команды + роли → MailboxPanel (inbox/outbox + ack).
+function MailboxSection() {
+  const teamsQ = useQuery('mailbox.teams', () => api.teams.getTeams());
+  const teams = teamsQ.data?.teams ?? [];
+  const [teamId, setTeamId] = useState<number>();
+  const effectiveTeam = teamId ?? teams[0]?.id;
+  const teamQ = useQuery(
+    effectiveTeam != null ? `mailbox.team.${effectiveTeam}` : 'mailbox.team.none',
+    () => (effectiveTeam != null ? api.teams.getTeam(effectiveTeam) : Promise.resolve(null)),
+    [effectiveTeam],
+  );
+  const roles = teamQ.data?.roles ?? [];
+  const [roleId, setRoleId] = useState<number>();
+  const effectiveRole = roleId ?? roles[0]?.id;
+  const role = roles.find((r) => r.id === effectiveRole);
+
+  if (teamsQ.loading) {
+    return <div className="card mailbox-panel"><Spinner label="Loading mailbox…" /></div>;
+  }
+  if (!role) {
+    return <div className="card mailbox-panel"><p className="muted">No roles available for the mailbox.</p></div>;
+  }
+
+  return (
+    <div className="mailbox-section" style={{ marginBottom: 16 }}>
+      <div className="mb-selects" style={{ marginBottom: 8 }}>
+        <strong>Role Mailbox:</strong>
+        <select
+          value={effectiveTeam}
+          onChange={(e) => { setTeamId(Number(e.target.value)); setRoleId(undefined); }}
+          aria-label="Select team"
+        >
+          {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <select
+          value={effectiveRole}
+          onChange={(e) => setRoleId(Number(e.target.value))}
+          aria-label="Select role"
+        >
+          {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+      </div>
+      <MailboxPanel roleId={role.id} roleName={role.name} />
     </div>
   );
 }

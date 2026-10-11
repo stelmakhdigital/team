@@ -576,26 +576,34 @@ function seed(): DB {
     },
   ];
 
-  const mkMsg = (id: number, from: string, to: string | undefined, body: string, minsAgo: number, type: Message['type'] = 'direct', mine = false): Message => ({
+  // P3.15: name→role id (mock) для from_role_id/to_role_id (mailbox inbox/outbox).
+  const roleNameToId: Record<string, number> = { Lead: 1, Worker: 2, Worker2: 3, Reviewer: 4 };
+  const mkMsg = (id: number, from: string, to: string | undefined, body: string, minsAgo: number, type: Message['type'] = 'direct', mine = false, ack: Message['ack_state'] = 'pending'): Message => ({
     id,
     team_id: 1,
+    from_role_id: roleNameToId[from],
     from_role_name: from,
+    to_role_id: to ? roleNameToId[to] : undefined,
     to_role_name: to ?? undefined,
     type,
     body,
     is_read: minsAgo > 30,
     created_at: iso(minsAgo),
     is_mine: mine,
+    ack_state: ack,
   });
 
   t.messages = [
-    mkMsg(1, 'Lead', 'Worker', 'Start with the auth middleware, spec is in guidance/', 130),
+    mkMsg(1, 'Lead', 'Worker', 'Start with the auth middleware, spec is in guidance/', 130, 'direct', false, 'pending'),
     mkMsg(2, 'Worker', 'Lead', 'Understood. ETA ~2h.', 120),
     mkMsg(3, 'Watchdog', undefined, 'Task #4 is stale: no updates for 2h', 90, 'watchdog'),
     mkMsg(4, 'Reviewer', 'Lead', 'PR #142 looks good except error handling', 40),
-    mkMsg(5, 'Lead', 'Worker', 'Please review the branch before deploy', 25, 'direct', true),
+    mkMsg(5, 'Lead', 'Worker', 'Please review the branch before deploy', 25, 'direct', true, 'absorbed'),
     mkMsg(6, 'Lead', undefined, 'Standup summary: all green except CI', 200, 'broadcast', true),
+    mkMsg(7, 'Reviewer', 'Worker', 'Please pick up the flaky test, logs in CI', 15, 'direct', false, 'pending'),
   ];
+  // P3.15: атрибуция подтвердившего для уже-принятого входящего (msg 5, absorbed)
+  { const m5 = t.messages.find((m) => m.id === 5); if (m5) { m5.acked_by = 'lead'; m5.acked_at = iso(20); } }
 
   t.chatrooms = [
     {

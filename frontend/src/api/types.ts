@@ -29,6 +29,10 @@ import type {
   GetMetricsResponse,
   GetMessagesParams,
   GetMessagesResponse,
+  AckAction,
+  InboxResponse,
+  Message,
+  OutboxResponse,
   GetRoleConfigResponse,
   GetSessionHistoryResponse,
   GetSessionsResponse,
@@ -216,6 +220,12 @@ export interface Api {
     getChatrooms(): Promise<GetChatroomsResponse>;
     getChatroomMessages(chatroomId: number): Promise<GetChatroomMessagesResponse>;
     sendChatroomMessage(chatroomId: number, req: SendChatroomMessageRequest): Promise<SendChatroomMessageResponse>;
+  };
+  // P3.15: mailbox (inbox/outbox + ack)
+  mailbox: {
+    getInbox(roleId: number, params?: { limit?: number; offset?: number }): Promise<InboxResponse>;
+    getOutbox(roleId: number, params?: { limit?: number; offset?: number }): Promise<OutboxResponse>;
+    ack(messageId: number, action: AckAction): Promise<Message>;
   };
   library: {
     getLibrary(params?: GetLibraryParams): Promise<GetLibraryResponse>;
