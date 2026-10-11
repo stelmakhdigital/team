@@ -1188,7 +1188,7 @@ export interface SendChatroomMessageResponse {
 
 // ---- Library ----
 
-export type LibraryItemType = 'team' | 'workflow' | 'role' | 'segment';
+export type LibraryItemType = 'team' | 'workflow' | 'role' | 'segment' | 'agent_image';
 
 export interface LibraryItem {
   id: number;
@@ -1200,6 +1200,7 @@ export interface LibraryItem {
   author?: string;
   is_public: boolean;
   is_starter?: boolean; // P2.13: pin-стартер (неизменяемый, apply в один клик)
+  is_pinned?: boolean; // P3.12: пользовательский pin (agent_image; защита от prune)
   downloads_count: number;
   created_at: string;
   updated_at: string;
@@ -1226,6 +1227,37 @@ export interface GetLibraryResponse {
   items: LibraryItem[];
   total: number;
   groups: LibraryGroup[];
+}
+
+// P3.12: Agent images / session snapshots.
+export interface AgentImageSpec {
+  source_session_id: number;
+  role_name: string;
+  runtime_type: string;
+  command?: string;
+  agent: { name?: string; model?: string; thinking?: string; system_prompt?: string; skills?: string[]; tools?: string[] };
+  summary?: string;
+  working_dir?: string;
+}
+export interface SnapshotSessionRequest {
+  name: string;
+  summary?: string;
+  description?: string;
+}
+export interface SnapshotSessionResponse {
+  id: number;
+  type: 'agent_image';
+  name: string;
+  status: 'created';
+}
+export interface LaunchSessionRequest {
+  team_id: number;
+  project_id?: number;
+}
+export interface LaunchSessionResponse {
+  id: number;
+  state: string;
+  status: 'started';
 }
 
 export interface RenameRequest {

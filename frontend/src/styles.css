@@ -206,6 +206,16 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
   margin-left: 0;
   margin-right: 6px;
 }
+// P3.12: agent_image — pin badge + detail
+.pinned-badge {
+  color: var(--teal);
+  border-color: var(--teal);
+  background: color-mix(in srgb, var(--teal) 14%, transparent);
+  margin-right: 6px;
+}
+.agent-image-detail { border-top: 1px solid var(--border); padding-top: 8px; }
+.agent-image-spec { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.agent-image-summary { display: flex; flex-direction: column; gap: 2px; max-height: 200px; overflow-y: auto; }
 .library-card--starter {
   border-color: color-mix(in srgb, var(--purple) 45%, var(--border));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--purple) 18%, transparent);
@@ -986,6 +996,8 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .card-head { display: flex; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 10px; }
 .card-head h2 { margin: 0; }
 .capture-modal { width: min(720px, 94vw); }
+// P3.12: snapshot modal
+.snapshot-modal { width: min(520px, 92vw); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .modal-head h2 { margin: 0; }
 .modal-close {

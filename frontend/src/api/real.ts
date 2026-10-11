@@ -86,6 +86,7 @@ export function createRealAdapter(): Api {
       stop: (id) => http(`${B}/sessions/${id}`, { method: 'DELETE' }),
       capture: (id, lines) => http(`${B}/sessions/${id}/capture${toQuery({ lines })}`), // P2.8
       send: (id, text, submit) => http(`${B}/sessions/${id}/send`, { method: 'POST', body: { text, submit } }), // P2.11
+      snapshot: (id, req) => http(`${B}/sessions/${id}/snapshot`, { method: 'POST', body: req }), // P3.12
       getCompactPlan: () => http(`${B}/compact-plan`), // P1.5
       handover: (id, req) => http(`${B}/sessions/${id}/handover`, { method: 'POST', body: req }), // P1.5
       previewBriefing: (teamId, req) => http(`${B}/teams/${teamId}/briefing/preview`, { method: 'POST', body: req }), // P1.7
@@ -137,6 +138,10 @@ export function createRealAdapter(): Api {
       saveToLibrary: (req) => http(`${B}/library`, { method: 'POST', body: req }),
       updateLibraryItem: (id, req) => http(`${B}/library/${id}`, { method: 'PATCH', body: req }),
       applyLibrary: (id, req) => http(`${B}/library/${id}/apply`, { method: 'POST', body: req }),
+      pin: (id) => http(`${B}/library/${id}/pin`, { method: 'POST' }), // P3.12
+      unpin: (id) => http(`${B}/library/${id}/unpin`, { method: 'POST' }), // P3.12
+      delete: (id) => http(`${B}/library/${id}`, { method: 'DELETE' }), // P3.12: prune
+      launch: (id, req) => http(`${B}/library/${id}/launch`, { method: 'POST', body: req }), // P3.12
     },
     history: {
       getTaskHistory: (id) => http(`${B}/tasks/${id}/history`),

@@ -64,6 +64,10 @@ import type {
   Task,
   ApplyLibraryItemRequest,
   ApplyLibraryItemResponse,
+  SnapshotSessionRequest,
+  SnapshotSessionResponse,
+  LaunchSessionRequest,
+  LaunchSessionResponse,
   RenameRequest,
   RenameResponse,
   SaveToLibraryRequest,
@@ -188,6 +192,7 @@ export interface Api {
     getCompactPlan(): Promise<CompactPlanResponse>; // P1.5
     handover(id: number, req: HandoverRequest): Promise<HandoverResult>; // P1.5
     previewBriefing(teamId: number, req: BriefingPreviewRequest): Promise<BriefingPreviewResponse>; // P1.7
+    snapshot(id: number, req: SnapshotSessionRequest): Promise<SnapshotSessionResponse>; // P3.12
   };
   tasks: {
     list(params?: ListTasksParams): Promise<GetTasksResponse>;
@@ -211,6 +216,10 @@ export interface Api {
     saveToLibrary(req: SaveToLibraryRequest): Promise<SaveToLibraryResponse>;
     updateLibraryItem(id: number, req: RenameRequest): Promise<RenameResponse>;
     applyLibrary(id: number, req: ApplyLibraryItemRequest): Promise<ApplyLibraryItemResponse>;
+    pin(id: number): Promise<{ id: number; is_pinned: boolean; status: string }>; // P3.12
+    unpin(id: number): Promise<{ id: number; is_pinned: boolean; status: string }>; // P3.12
+    delete(id: number): Promise<{ id: number; status: string }>; // P3.12: prune
+    launch(id: number, req: LaunchSessionRequest): Promise<LaunchSessionResponse>; // P3.12
   };
   history: {
     getTaskHistory(taskId: number): Promise<GetTaskHistoryResponse>;

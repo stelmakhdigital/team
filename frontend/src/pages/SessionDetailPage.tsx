@@ -6,6 +6,7 @@ import { ErrorState, PageSkeleton, Spinner, isNotFoundError } from '../component
 import HandoverModal from '../components/HandoverModal';
 import CaptureModal from '../components/CaptureModal';
 import SendToSession from '../components/SendToSession';
+import SnapshotModal from '../components/SnapshotModal';
 import { formatRelative, formatCost } from '../lib/format';
 
 // U4b: session drill-down — session metrics + history + transcript (messages), fetch-by-id.
@@ -23,6 +24,7 @@ export default function SessionDetailPage() {
   const trans = useQuery(`session.transcript.${id}`, () => api.history.getTranscript(id));
   const [handover, setHandover] = useState(false);
   const [capture, setCapture] = useState(false);
+  const [snapshotOpen, setSnapshotOpen] = useState(false); // P3.12
 
   if (sess.loading) return <div className="page"><PageSkeleton label="Loading session…" /></div>;
   if (sess.error) return <div className="page"><ErrorState error={sess.error} onRetry={sess.refetch} /></div>;
@@ -101,9 +103,14 @@ export default function SessionDetailPage() {
           <div className="card">
             <div className="card-head">
               <h2>Transcript ({transcript.length})</h2>
-              <button type="button" className="btn btn-sm" onClick={() => setCapture(true)}>
-                📷 Capture
-              </button>
+              <div className="wf-config-actions">
+                <button type="button" className="btn btn-sm" onClick={() => setCapture(true)}>
+                  📷 Capture
+                </button>
+                <button type="button" className="btn btn-sm" onClick={() => setSnapshotOpen(true)} title="Save this session's agent config as a reusable image">
+                  📸 Agent image
+                </button>
+              </div>
             </div>
             {trans.loading ? (
               <Spinner />
@@ -154,6 +161,13 @@ export default function SessionDetailPage() {
 
       {handover && <HandoverModal sessionId={s.id} onClose={() => { setHandover(false); sess.refetch(); }} />}
       {capture && <CaptureModal sessionId={s.id} onClose={() => setCapture(false)} />}
+      {snapshotOpen && (
+        <SnapshotModal
+          sessionId={s.id}
+          defaultName={`agent-${s.role_name.replace(/\s+/g, '-').toLowerCase()}`}
+          onClose={() => setSnapshotOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -648,6 +648,21 @@ function seed(): DB {
       tags: ['go'],
       rating: 4.2,
     },
+    {
+      id: 4,
+      type: 'agent_image',
+      name: 'go-dev-optimized',
+      description: 'Snapshot of a productive Go dev session',
+      group: 'agent-images',
+      version: '1.0.0',
+      author: 'worker',
+      is_public: false,
+      is_pinned: true,
+      downloads_count: 7,
+      created_at: iso(60 * 24 * 2),
+      updated_at: iso(60 * 24),
+      tags: ['go', 'snapshot'],
+    },
   ];
 
   t.audit = [

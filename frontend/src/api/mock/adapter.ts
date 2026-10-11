@@ -1140,6 +1140,28 @@ export function createMockAdapter(): Api {
         return { session_id: s.id, status: 'delivered' as const, sent: true, submitted, verified: true, tail, sent_at };
       },
 
+      // P3.12: snapshot сессии → agent_image
+      async snapshot(id, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const s = db.sessions.find((x) => x.id === id);
+        if (!s) throw new ApiClientError(404, 'not_found', `Session ${id} not found`);
+        const name = (req?.name ?? '').trim();
+        if (!name) throw new ApiClientError(400, 'validation_failed', 'name is required');
+        if (db.library.some((i) => i.type === 'agent_image' && i.name === name)) {
+          throw new ApiClientError(409, 'conflict', `agent image "${name}" already exists`);
+        }
+        const libId = nextId();
+        db.library.unshift({
+          id: libId, type: 'agent_image', name, description: req?.description,
+          group: 'agent-images', version: '1.0.0', author: 'you',
+          is_public: false, is_pinned: false, downloads_count: 0,
+          created_at: now(), updated_at: now(),
+        });
+        return { id: libId, type: 'agent_image' as const, name, status: 'created' as const };
+      },
+
       async create(teamId, req) {
         maybeFail();
         await latency();
@@ -1631,9 +1653,19 @@ export function createMockAdapter(): Api {
         const db = getDb();
         const item = db.library.find((i) => i.id === id);
         if (!item) throw new ApiClientError(404, 'not_found', `Library item ${id} not found`);
+        const spec =
+          item.type === 'agent_image'
+            ? {
+                source_session_id: 1,
+                role_name: 'worker',
+                runtime_type: 'process',
+                agent: { name: 'go-dev', model: 'gpt-5.1', skills: ['go-review'], tools: ['bash', 'read'] },
+                summary: 'Настроил Go-ревью, покрыт тестами. Осталось: доки.',
+              }
+            : { name: item.name, type: item.type, version: item.version };
         return {
           item: clone(item),
-          spec: { name: item.name, type: item.type, version: item.version },
+          spec,
           versions: [
             { version: item.version, created_at: item.updated_at, author: item.author, changes: 'latest' },
             { version: '0.1.0', created_at: item.created_at, author: item.author, changes: 'initial' },
@@ -1790,6 +1822,61 @@ export function createMockAdapter(): Api {
         });
         recalcTeamCounts();
         return { status: 'applied', created_resources: { teams: [teamId] } };
+      },
+
+      // P3.12: agent_image — pin / unpin / prune (delete) / launch
+      async pin(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const item = db.library.find((i) => i.id === id);
+        if (!item) throw new ApiClientError(404, 'not_found', `Library item ${id} not found`);
+        if (item.type !== 'agent_image') throw new ApiClientError(400, 'validation_failed', 'pin only for agent_image');
+        item.is_pinned = true;
+        item.updated_at = now();
+        return { id, is_pinned: true, status: 'pinned' };
+      },
+      async unpin(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const item = db.library.find((i) => i.id === id);
+        if (!item) throw new ApiClientError(404, 'not_found', `Library item ${id} not found`);
+        if (item.type !== 'agent_image') throw new ApiClientError(400, 'validation_failed', 'unpin only for agent_image');
+        item.is_pinned = false;
+        item.updated_at = now();
+        return { id, is_pinned: false, status: 'unpinned' };
+      },
+      async delete(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const item = db.library.find((i) => i.id === id);
+        if (!item) throw new ApiClientError(404, 'not_found', `Library item ${id} not found`);
+        if (item.type !== 'agent_image') throw new ApiClientError(400, 'validation_failed', 'prune only for agent_image');
+        if (item.is_pinned) throw new ApiClientError(409, 'conflict', `agent image "${item.name}" is pinned`);
+        db.library = db.library.filter((i) => i.id !== id);
+        return { id, status: 'deleted' };
+      },
+      async launch(id, req) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const item = db.library.find((i) => i.id === id);
+        if (!item) throw new ApiClientError(404, 'not_found', `Library item ${id} not found`);
+        if (item.type !== 'agent_image') throw new ApiClientError(400, 'validation_failed', 'launch only for agent_image');
+        if (!req?.team_id) throw new ApiClientError(400, 'validation_failed', 'team_id is required');
+        const team = db.teams.find((t) => t.id === req.team_id);
+        if (!team) throw new ApiClientError(404, 'not_found', `Team ${req.team_id} not found`);
+        item.downloads_count += 1;
+        const role = db.roles.find((r) => r.team_id === team.id);
+        const sid = nextId();
+        db.sessions.unshift({
+          id: sid, team_id: team.id, team_name: team.name,
+          role_id: role?.id ?? 1, role_name: role?.name ?? 'role_a',
+          runtime_type: 'process', state: 'running', started_at: now(),
+        });
+        return { id: sid, state: 'running', status: 'started' };
       },
     },
 

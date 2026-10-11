@@ -16,6 +16,9 @@ export default function LibraryPage() {
   const [saveTeamId, setSaveTeamId] = useState<number | null>(null);
   const [applyTargetId, setApplyTargetId] = useState<number | null>(null);
   const [starterProjectId, setStarterProjectId] = useState<number | null>(null);
+  // P3.12: agent_image — launch (team/project) + pin/prune
+  const [launchTeamId, setLaunchTeamId] = useState<number | null>(null);
+  const [launchProjectId, setLaunchProjectId] = useState<number | null>(null);
   const list = useQuery(`library.list.${type}.${search}`, () =>
     api.library.getLibrary({ type: (type || undefined) as never, search: search || undefined }),
     [type, search],
@@ -41,6 +44,11 @@ export default function LibraryPage() {
   const apply = useMutation((itemId: number, req: { target_team_id?: number; project_id?: number; overrides?: Record<string, unknown> }) =>
     api.library.applyLibrary(itemId, req),
   );
+  // P3.12: agent_image — pin/unpin/prune/launch
+  const pinM = useMutation((id: number) => api.library.pin(id));
+  const unpinM = useMutation((id: number) => api.library.unpin(id));
+  const pruneM = useMutation((id: number) => api.library.delete(id));
+  const launchM = useMutation((id: number, req: { team_id: number; project_id?: number }) => api.library.launch(id, req));
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -127,6 +135,7 @@ export default function LibraryPage() {
           <option value="workflow">Workflows</option>
           <option value="role">Roles</option>
           <option value="segment">Segments</option>
+          <option value="agent_image">Agent images</option>
         </select>
         <div className="group-chips">
           {list.data?.groups.map((g) => (
@@ -158,6 +167,7 @@ export default function LibraryPage() {
               <button key={item.id} className={`card library-card${item.is_starter ? ' library-card--starter' : ''}`} onClick={() => setDetailId(item.id)}>
                 <div className="library-card-head">
                   {item.is_starter && <span className="badge starter-badge" title="Ready-made starter (not editable)">STARTER</span>}
+                  {item.type === 'agent_image' && item.is_pinned && <span className="badge pinned-badge" title="Pinned (protected from prune)">PINNED</span>}
                   <Badge kind="type" value={item.type} />
                   <span className="muted small">v{item.version}</span>
                 </div>
@@ -387,6 +397,117 @@ export default function LibraryPage() {
                       ? 'Role is created in the chosen segment (first one by default; use a team with the right segment).'
                       : 'Segment is merged into the team idempotently by name.'}
                   </p>
+                </div>
+              )}
+
+              {detail.data.item.type === 'agent_image' && (
+                <div className="library-apply agent-image-detail">
+                  <h4>Agent image</h4>
+                  {(() => {
+                    const spec = detail.data!.spec as { agent?: Record<string, unknown>; summary?: string; role_name?: string; runtime_type?: string };
+                    const agent = spec?.agent ?? {};
+                    const model = typeof agent.model === 'string' ? agent.model : undefined;
+                    const skills = Array.isArray(agent.skills) ? (agent.skills as string[]) : [];
+                    const tools = Array.isArray(agent.tools) ? (agent.tools as string[]) : [];
+                    return (
+                      <div className="agent-image-spec">
+                        <div className="muted small">role: {spec?.role_name ?? '—'} · runtime: {spec?.runtime_type ?? '—'}{model ? ` · ${model}` : ''}</div>
+                        {skills.length > 0 && <div className="group-chips">{skills.map((sk) => <span key={sk} className="chip">{sk}</span>)}</div>}
+                        {tools.length > 0 && <div className="muted small">tools: {tools.join(', ')}</div>}
+                        {spec?.summary && (
+                          <div className="agent-image-summary">
+                            <div className="muted small">summary</div>
+                            <pre className="spec-pre">{spec.summary}</pre>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <div className="library-apply-row">
+                    <button
+                      className="btn btn-small"
+                      disabled={pinM.pending || unpinM.pending}
+                      onClick={async () => {
+                        try {
+                          if (detail.data!.item.is_pinned) {
+                            await unpinM.mutate(detail.data!.item.id);
+                            toast('info', 'Unpinned');
+                          } else {
+                            await pinM.mutate(detail.data!.item.id);
+                            toast('success', 'Pinned (protected from prune)');
+                          }
+                          detail.refetch();
+                          list.refetch();
+                        } catch (e) {
+                          toast('error', e instanceof Error ? e.message : 'Failed');
+                        }
+                      }}
+                    >
+                      {detail.data.item.is_pinned ? '📌 Unpin' : '📌 Pin'}
+                    </button>
+                    <button
+                      className="btn btn-small btn-danger"
+                      disabled={pruneM.pending || !!detail.data.item.is_pinned}
+                      title={detail.data.item.is_pinned ? 'Pinned — unpin first' : 'Delete this snapshot'}
+                      onClick={async () => {
+                        if (!window.confirm(`Prune agent image "${detail.data!.item.name}"?`)) return;
+                        try {
+                          await pruneM.mutate(detail.data!.item.id);
+                          toast('success', 'Snapshot pruned');
+                          setDetailId(null);
+                          list.refetch();
+                        } catch (e) {
+                          toast('error', e instanceof Error ? e.message : 'Prune failed');
+                        }
+                      }}
+                    >
+                      🗑 Prune
+                    </button>
+                  </div>
+                  <h4>Launch session</h4>
+                  <div className="library-apply-row">
+                    <select
+                      value={launchTeamId ?? ''}
+                      onChange={(e) => setLaunchTeamId(e.target.value ? Number(e.target.value) : null)}
+                      aria-label="Launch into team"
+                      className="input"
+                    >
+                      <option value="" disabled>choose team…</option>
+                      {teams.data?.teams.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={launchProjectId ?? ''}
+                      onChange={(e) => setLaunchProjectId(e.target.value ? Number(e.target.value) : null)}
+                      aria-label="Launch into project (optional)"
+                      className="input"
+                    >
+                      <option value="">No project</option>
+                      {projects.data?.projects.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn btn-small btn-primary"
+                      disabled={launchM.pending || !launchTeamId}
+                      onClick={async () => {
+                        if (!launchTeamId) return;
+                        try {
+                          const res = await launchM.mutate(detail.data!.item.id, {
+                            team_id: launchTeamId,
+                            project_id: launchProjectId ?? undefined,
+                          });
+                          toast('success', `Session #${res.id} started`);
+                          navigate(`/sessions/${res.id}`);
+                        } catch (e) {
+                          toast('error', e instanceof Error ? e.message : 'Launch failed');
+                        }
+                      }}
+                    >
+                      ▶ Launch
+                    </button>
+                  </div>
                 </div>
               )}
 
