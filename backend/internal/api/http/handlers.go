@@ -439,6 +439,18 @@ func (h *handlers) ListAgentSpecs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"specs": h.svc.ListAgentSpecs()})
 }
 
+// GetAgentSpec — GET /api/v1/agentspecs/{name}: содержимое agent spec (read-only) — W3.2.
+// {name} — базовое имя без расширения (traversal-защита в service); 404 если нет; 100 KB лимит.
+func (h *handlers) GetAgentSpec(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	yaml, err := h.svc.GetAgentSpecContent(name)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"name": name, "yaml": yaml})
+}
+
 // DeleteRole — DELETE /api/v1/roles/{id}: hard delete роли + каскад relatives.
 // 409, если у роли активные сессии.
 func (h *handlers) DeleteRole(w http.ResponseWriter, r *http.Request) {

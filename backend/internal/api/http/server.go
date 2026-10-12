@@ -98,6 +98,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 
 	// Team Builder — segments / roles / relatives
 	mux.HandleFunc("GET /api/v1/agentspecs", h.ListAgentSpecs)
+	mux.HandleFunc("GET /api/v1/agentspecs/{name}", h.GetAgentSpec)
 	mux.HandleFunc("POST /api/v1/segments/{id}/roles", h.CreateRole)
 	mux.HandleFunc("DELETE /api/v1/segments/{id}", h.DeleteSegment)
 	mux.HandleFunc("PATCH /api/v1/segments/{id}/layout", h.UpdateSegmentLayout)

@@ -213,6 +213,46 @@ func (s *TeamService) ListAgentSpecs() []string {
 	return out
 }
 
+// W3.2: лимит содержимого spec (защита от огромных файлов в ответе UI).
+const maxAgentSpecSize = 100 << 10 // 100 KB
+
+// GetAgentSpecContent — W3.2: содержимое spec-файла (read-only) из SpecsDir
+// (name.yaml / name.yml). name — базовое имя без расширения: не содержит '/',
+// '\', '..' и не является абсолютным (иначе 400 — traversal-защита).
+// Не найден → 404; файл > 100 KB → 400 (лимит).
+func (s *TeamService) GetAgentSpecContent(name string) (string, error) {
+	// traversal-защита: только безопасные базовые имена
+	if name == "" || name == "." || name == ".." ||
+		strings.Contains(name, "/") || strings.Contains(name, "\\") ||
+		strings.Contains(name, "..") || strings.Contains(name, "\x00") || filepath.IsAbs(name) {
+		return "", NewValidation("invalid spec name", []FieldError{{Field: "name", Reason: "no separators / '..' / abs paths"}})
+	}
+	dir := s.SpecsDir
+	if dir == "" {
+		dir = "."
+	}
+	for _, ext := range []string{".yaml", ".yml"} {
+		cand := filepath.Join(dir, name+ext)
+		abs, err := filepath.Abs(cand)
+		if err != nil || !s.pathAllowed(abs) {
+			continue
+		}
+		st, err := os.Stat(abs)
+		if err != nil || st.IsDir() {
+			continue
+		}
+		if st.Size() > maxAgentSpecSize {
+			return "", NewValidation("file too large", []FieldError{{Field: "name", Reason: "> 100 KB"}})
+		}
+		data, err := os.ReadFile(abs)
+		if err != nil {
+			continue
+		}
+		return string(data), nil
+	}
+	return "", notFound("agent spec")
+}
+
 func (s *TeamService) pathAllowed(abs string) bool {
 	roots := []string{s.SpecsDir}
 	if wd, err := os.Getwd(); err == nil {
