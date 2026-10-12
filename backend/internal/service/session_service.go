@@ -124,6 +124,22 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 	if err != nil {
 		return nil, err
 	}
+	// T4: role.Config (pi_config override) → в session config. Приоритет:
+	// explicit session config > role override > agent_spec дефолт (spec-резолв ниже).
+	// layout не переносится (позиция на канвасе, не session config).
+	if len(role.Config) > 0 {
+		for k, v := range role.Config {
+			if k == "layout" {
+				continue
+			}
+			if req.Config == nil {
+				req.Config = map[string]any{}
+			}
+			if _, ok := req.Config[k]; !ok {
+				req.Config[k] = v
+			}
+		}
+	}
 	rtType := req.RuntimeType
 	if rtType == "" && req.Config != nil {
 		if v, ok := req.Config["runtime_type"].(string); ok && v != "" {
@@ -297,6 +313,21 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 		}
 		if ne, _ := sess.Config["no_extensions"].(bool); ne {
 			fields.NoExtensions = true
+		}
+		// T4: pi_config override из role.Config (temperature/max_tokens/mcp/startup_files).
+		// pi не поддерживает --temperature/--max-tokens/--mcp как CLI-флаги → значения
+		// пишутся в конфиг сессии (reference) + персистятся в role.Config.
+		if tmp, ok := cfgFloat(sess.Config, "temperature"); ok {
+			fields.Temperature = tmp
+		}
+		if mt, ok := cfgInt(sess.Config, "max_tokens"); ok {
+			fields.MaxTokens = mt
+		}
+		if ms := mcpServersFromAny(sess.Config["mcp"]); len(ms) > 0 {
+			fields.MCPServers = ms
+		}
+		if sf := startupFilesFromAny(sess.Config["startup_files"]); len(sf) > 0 {
+			fields.StartupFiles = sf
 		}
 		if err := runtime.WriteSessionConfig(configFile, fields); err != nil {
 			return nil, err

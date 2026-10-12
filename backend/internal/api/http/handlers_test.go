@@ -504,6 +504,10 @@ func TestRoleConfigAndSave(t *testing.T) {
 	if _, ok := out["available_profiles"].([]any); !ok {
 		t.Fatalf("missing available_profiles: %v", out)
 	}
+	// T4: config (pi_config override роли, без layout) — в ответе
+	if _, ok := out["config"].(map[string]any); !ok {
+		t.Fatalf("missing config (pi_config override): %v", out)
+	}
 
 	// 404 для несуществующей роли
 	st, _, _ = do(t, "GET", srv.URL+"/api/v1/roles/999/config", nil, nil)

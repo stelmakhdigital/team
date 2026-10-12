@@ -90,6 +90,9 @@ type RoleConfigView struct {
 	AvailableProfiles []SpecProfile `json:"available_profiles"`
 	AvailableSkills   []SpecSkill   `json:"available_skills"`
 	AvailablePlugins  []SpecPlugin  `json:"available_plugins"`
+	// Config — pi_config override роли (map, без layout). T4: ConfigPanel читает
+	// текущие override'ы (model/temperature/max_tokens/thinking/mcp/startup_files).
+	Config map[string]any `json:"config"`
 }
 
 type SpecProfile struct {

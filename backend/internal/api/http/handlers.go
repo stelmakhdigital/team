@@ -770,10 +770,24 @@ func (h *handlers) GetRoleConfig(w http.ResponseWriter, r *http.Request) {
 		AvailableProfiles: profiles,
 		AvailableSkills:   spec.PiConfig.Skills,
 		AvailablePlugins:  spec.PiConfig.Plugins,
+		Config:            roleConfigOverride(role),
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"role": roleView(role, ""), "agent_spec": view.AgentSpec,
 		"available_profiles": view.AvailableProfiles, "available_skills": view.AvailableSkills,
-		"available_plugins": view.AvailablePlugins})
+		"available_plugins": view.AvailablePlugins, "config": view.Config})
+}
+
+// roleConfigOverride — pi_config override роли (role.Config без layout). T4: ConfigPanel
+// читает текущие override'ы (model/temperature/max_tokens/thinking/mcp/startup_files).
+func roleConfigOverride(role *models.Role) map[string]any {
+	out := map[string]any{}
+	for k, v := range role.Config {
+		if k == "layout" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // SaveTopology — POST /api/v1/teams/{id}/save (контракт 21 §9)

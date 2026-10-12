@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
 	"daemon/internal/models"
 	"daemon/internal/repository"
+	"daemon/internal/runtime"
 )
 
 // P3.12 — Agent images / session snapshots.
@@ -312,4 +314,90 @@ func stringSliceFromAny(v any) []string {
 		return []string{t}
 	}
 	return nil
+}
+
+// cfgFloat — float из config (JSON-число = float64; int → float).
+func cfgFloat(cfg map[string]any, key string) (float64, bool) {
+	switch v := cfg[key].(type) {
+	case float64:
+		return v, true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	}
+	return 0, false
+}
+
+// cfgInt — int из config (float64 → int если целое; int → int).
+func cfgInt(cfg map[string]any, key string) (int, bool) {
+	switch v := cfg[key].(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		if v == math.Trunc(v) {
+			return int(v), true
+		}
+	}
+	return 0, false
+}
+
+// mcpServersFromAny — []runtime.MCPServerField из config["mcp"] (list {name,url,enabled}).
+func mcpServersFromAny(v any) []runtime.MCPServerField {
+	list, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]runtime.MCPServerField, 0, len(list))
+	for _, e := range list {
+		m, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		s := runtime.MCPServerField{}
+		if n, ok := m["name"].(string); ok {
+			s.Name = n
+		}
+		if u, ok := m["url"].(string); ok {
+			s.URL = u
+		}
+		if en, ok := m["enabled"].(bool); ok {
+			s.Enabled = en
+		}
+		if s.Name != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// startupFilesFromAny — []runtime.StartupFileField из config["startup_files"] (list {path,orientation,delivery_hint}).
+func startupFilesFromAny(v any) []runtime.StartupFileField {
+	list, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]runtime.StartupFileField, 0, len(list))
+	for _, e := range list {
+		m, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		f := runtime.StartupFileField{}
+		if p, ok := m["path"].(string); ok {
+			f.Path = p
+		}
+		if o, ok := m["orientation"].(string); ok {
+			f.Orientation = o
+		}
+		if d, ok := m["delivery_hint"].(string); ok {
+			f.DeliveryHint = d
+		}
+		if f.Path != "" {
+			out = append(out, f)
+		}
+	}
+	return out
 }

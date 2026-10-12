@@ -792,7 +792,17 @@ func (s *TeamService) UpdateRoleConfig(ctx context.Context, req UpdateRoleConfig
 		role.Profile = *req.Profile
 	}
 	if req.Config != nil {
-		role.Config = *req.Config
+		// T4: merge (не replace) — сохраняем layout + непритронутые ключи.
+		// null-значение → удалить ключ (сброс override'а в agent_spec дефолт).
+		merged := cloneConfig(role.Config)
+		for k, v := range *req.Config {
+			if v == nil {
+				delete(merged, k)
+			} else {
+				merged[k] = v
+			}
+		}
+		role.Config = merged
 	}
 
 	if err := s.roles.UpdateMutable(ctx, s.db, role); err != nil {

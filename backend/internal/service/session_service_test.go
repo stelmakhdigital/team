@@ -727,3 +727,62 @@ func (c *captureRecordingAdapter) Capture(ctx context.Context, ref string, lines
 func (c *captureRecordingAdapter) Send(ctx context.Context, ref, text string, submit bool) (runtime.SendResult, error) {
 	return c.inner.Send(ctx, ref, text, submit)
 }
+
+// TestSessionLaunchAppliesRoleConfigOverride — T4: role.Config (pi_config override)
+// переносится в session config при запуске (model/temperature/max_tokens/thinking),
+// layout НЕ переносится. Merge runtime-agnostic (проверяем на process).
+func TestSessionLaunchAppliesRoleConfigOverride(t *testing.T) {
+	e := setupSessionEnv(t)
+	teamID, roleA, _ := makeTeamWithRoles(t, e.svc, "t4-rolecfg")
+
+	_, err := e.svc.UpdateRoleConfig(e.ctx, service.UpdateRoleConfigRequest{
+		ID: roleA,
+		Config: &map[string]any{
+			"model":       "test-model",
+			"temperature": 0.42,
+			"max_tokens":  1234,
+			"thinking":    "high",
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateRoleConfig: %v", err)
+	}
+
+	sess, err := e.ssvc.CreateSession(e.ctx, teamID, service.CreateSessionRequest{
+		RoleID: roleA, Command: "sh", Args: []string{"-c", "echo hi"},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	if _, err2 := e.ssvc.StopSession(e.ctx, sess.ID); err2 != nil {
+		t.Fatalf("StopSession: %v", err2)
+	}
+
+	if got, _ := sess.Config["model"].(string); got != "test-model" {
+		t.Errorf("session config model = %v, want test-model", sess.Config["model"])
+	}
+	if got, _ := sess.Config["thinking"].(string); got != "high" {
+		t.Errorf("session config thinking = %v, want high", sess.Config["thinking"])
+	}
+	if got, ok := asFloat64(sess.Config["temperature"]); !ok || got != 0.42 {
+		t.Errorf("session config temperature = %v, want 0.42", sess.Config["temperature"])
+	}
+	if got, ok := asFloat64(sess.Config["max_tokens"]); !ok || got != 1234 {
+		t.Errorf("session config max_tokens = %v, want 1234", sess.Config["max_tokens"])
+	}
+	// layout НЕ переносится в session config (позиция на канвасе)
+	if _, ok := sess.Config["layout"]; ok {
+		t.Error("layout must not be merged into session config")
+	}
+}
+
+// asFloat64 — int/float64 → float64 (JSON-число после DB roundtrip = float64).
+func asFloat64(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	}
+	return 0, false
+}

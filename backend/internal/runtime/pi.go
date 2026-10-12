@@ -21,9 +21,16 @@ type AgentSpecFields struct {
 	Name         string   `json:"name"`
 	Model        string   `json:"model,omitempty"`
 	Thinking     string   `json:"thinking,omitempty"`
+	Temperature  float64  `json:"temperature,omitempty"`
+	MaxTokens    int      `json:"max_tokens,omitempty"`
 	SystemPrompt string   `json:"system_prompt,omitempty"`
 	Skills       []string `json:"skills,omitempty"`
 	Tools        []string `json:"tools,omitempty"`
+	// MCPServers — MCP-серверы из pi_config (name/url/enabled). pi управляет MCP
+	// через конфиг (не CLI-флаги); сохраняются в конфиг сессии как reference.
+	MCPServers []MCPServerField `json:"mcp_servers,omitempty"`
+	// StartupFiles — файлы из startup.files (path/orientation/delivery_hint).
+	StartupFiles []StartupFileField `json:"startup_files,omitempty"`
 	// SandboxLevel — уровень sandbox bash-команд агента (off|dev|untrusted|vm).
 	// QA-fix: non-interactive запуск — пропуск trust-диалога через --approve + --sandbox-level.
 	SandboxLevel string `json:"sandbox_level,omitempty"`
@@ -31,6 +38,20 @@ type AgentSpecFields struct {
 	// QA-fix: интерактивные guard'ы (bash-guard/dir-guard) блокируют non-interactive агента
 	// на подтверждении; для автономных daemon-сессий их выключают (governance — через posture).
 	NoExtensions bool `json:"no_extensions,omitempty"`
+}
+
+// MCPServerField — MCP-сервер (name/url/enabled) для конфига сессии.
+type MCPServerField struct {
+	Name    string `json:"name"`
+	URL     string `json:"url,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// StartupFileField — файл из startup.files (path/orientation/delivery_hint).
+type StartupFileField struct {
+	Path         string `json:"path"`
+	Orientation  string `json:"orientation,omitempty"`
+	DeliveryHint string `json:"delivery_hint,omitempty"`
 }
 
 func (a *PiAdapter) Start(ctx context.Context, spec Spec) (string, error) {
@@ -144,6 +165,34 @@ func formatConfig(f AgentSpecFields) string {
 			b += "  " + line + "\n"
 		}
 	}
+	if f.MaxTokens > 0 {
+		b += "max_tokens: " + fmt.Sprint(f.MaxTokens) + "\n"
+	}
+	if f.Temperature > 0 {
+		b += "temperature: " + fmt.Sprint(f.Temperature) + "\n"
+	}
+	if len(f.MCPServers) > 0 {
+		b += "mcp_servers:\n"
+		for _, s := range f.MCPServers {
+			b += "  - name: " + s.Name + "\n"
+			if s.URL != "" {
+				b += "    url: " + s.URL + "\n"
+			}
+			b += "    enabled: " + boolStr(s.Enabled) + "\n"
+		}
+	}
+	if len(f.StartupFiles) > 0 {
+		b += "startup_files:\n"
+		for _, f2 := range f.StartupFiles {
+			b += "  - path: " + f2.Path + "\n"
+			if f2.Orientation != "" {
+				b += "    orientation: " + f2.Orientation + "\n"
+			}
+			if f2.DeliveryHint != "" {
+				b += "    delivery_hint: " + f2.DeliveryHint + "\n"
+			}
+		}
+	}
 	if len(f.Skills) > 0 {
 		b += "skills:\n"
 		for _, s := range f.Skills {
@@ -157,6 +206,13 @@ func formatConfig(f AgentSpecFields) string {
 		}
 	}
 	return b
+}
+
+func boolStr(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
 }
 
 func splitLines(s string) []string {

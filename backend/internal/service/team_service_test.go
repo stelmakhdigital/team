@@ -177,6 +177,51 @@ func TestCreateRole(t *testing.T) {
 	isAppErr(t, err, "not_found")
 }
 
+// TestUpdateRoleConfigMerges — T4: update config не затирает layout (merge, не replace);
+// null-значение → удаление ключа (сброс override'а).
+func TestUpdateRoleConfigMerges(t *testing.T) {
+	svc := newTestService(t)
+	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t4-merge"})
+	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "core"})
+	role, err := svc.CreateRole(ctx(), service.CreateRoleRequest{
+		SegmentID: seg.ID, Name: "lead", AgentSpec: specFile(t, svc, "lead.yaml"),
+		Layout: &service.Layout{X: 5, Y: 7},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// update pi_config override (без layout в request) → layout должен сохраниться
+	res, err := svc.UpdateRoleConfig(ctx(), service.UpdateRoleConfigRequest{
+		ID:     role.ID,
+		Config: &map[string]any{"model": "m1", "temperature": 0.3},
+	})
+	if err != nil {
+		t.Fatalf("UpdateRoleConfig: %v", err)
+	}
+	if _, ok := res.NewConfig["layout"]; !ok {
+		t.Fatalf("layout lost after config update: %v", res.NewConfig)
+	}
+	if m, _ := res.NewConfig["model"].(string); m != "m1" {
+		t.Fatalf("model override not applied: %v", res.NewConfig)
+	}
+
+	// null → удаление ключа (сброс override'а)
+	res2, err := svc.UpdateRoleConfig(ctx(), service.UpdateRoleConfigRequest{
+		ID:     role.ID,
+		Config: &map[string]any{"model": nil},
+	})
+	if err != nil {
+		t.Fatalf("UpdateRoleConfig (null): %v", err)
+	}
+	if _, ok := res2.NewConfig["model"]; ok {
+		t.Fatalf("model must be cleared by null: %v", res2.NewConfig)
+	}
+	if _, ok := res2.NewConfig["layout"]; !ok {
+		t.Fatalf("layout lost after null update: %v", res2.NewConfig)
+	}
+}
+
 // ---------- Relatives ----------
 
 func TestCreateRelative(t *testing.T) {
