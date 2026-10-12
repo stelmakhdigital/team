@@ -65,6 +65,7 @@ export default function SessionsPage() {
         <label>
           Team
           <select
+            aria-label="Team (filter)"
             value={String(teamFilter)}
             onChange={(e) => {
               setTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value));
@@ -81,7 +82,7 @@ export default function SessionsPage() {
         </label>
         <label>
           State
-          <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value as SessionState | 'all')}>
+          <select aria-label="State (filter)" value={stateFilter} onChange={(e) => setStateFilter(e.target.value as SessionState | 'all')}>
             {STATE_FILTERS.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -92,6 +93,7 @@ export default function SessionsPage() {
         <label>
           Role
           <select
+            aria-label="Role (filter)"
             value={String(roleFilter)}
             onChange={(e) => setRoleFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             disabled={teamFilter === 'all'}

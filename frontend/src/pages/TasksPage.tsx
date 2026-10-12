@@ -107,6 +107,7 @@ export default function TasksPage() {
           <label>
             Team
             <select
+              aria-label="Team (filter)"
               value={String(teamFilter)}
               onChange={(e) => setTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             >
@@ -120,7 +121,7 @@ export default function TasksPage() {
           </label>
           <label>
             State
-            <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value as TaskState | 'all')}>
+            <select aria-label="State (filter)" value={stateFilter} onChange={(e) => setStateFilter(e.target.value as TaskState | 'all')}>
               {STATE_FILTERS.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -131,6 +132,7 @@ export default function TasksPage() {
           <label>
             Project
             <select
+              aria-label="Project (filter)"
               value={String(projectFilter)}
               onChange={(e) => setProjectFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             >

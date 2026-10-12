@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -17,7 +17,11 @@ export default function WorkflowsPage() {
   );
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+  const [nameTouched, setNameTouched] = useState(false);
   const [teamId, setTeamId] = useState<number | null>(null);
+  // T6: inline-rename (клик на имя/кнопку → input).
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
   // P0: populate the "New workflow" team select with real active teams (was hardcoded #1/#2).
@@ -36,6 +40,35 @@ export default function WorkflowsPage() {
   const toggleEngine = useMutation((req: { id: number; name: string; on: boolean }) =>
     api.workflows.updateWorkflow(req.id, { name: req.name, engine_enabled: req.on }),
   );
+  const rename = useMutation((req: { id: number; name: string }) => api.workflows.updateWorkflow(req.id, { name: req.name }));
+
+  // T6: читаемое дефолтное имя {team.name}-flow (+ -2, -3 при дубликатах в команде). Не Date.now().
+  const teamName = activeTeams.find((t) => t.id === teamId)?.name ?? '';
+  const defaultName = useMemo(() => {
+    if (!teamName) return '';
+    const base = `${teamName}-flow`;
+    const existing = (data?.workflows ?? []).filter((w) => w.team_id === teamId).map((w) => w.name);
+    if (!existing.includes(base)) return base;
+    let i = 2;
+    while (existing.includes(`${base}-${i}`)) i += 1;
+    return `${base}-${i}`;
+  }, [teamName, teamId, data?.workflows]);
+  useEffect(() => {
+    if (creating && !nameTouched) setName(defaultName);
+  }, [creating, defaultName, nameTouched]);
+  const openCreate = () => { setNameTouched(false); setCreating(true); };
+  const doRename = async (id: number) => {
+    const n = editName.trim();
+    if (!n) { setEditingId(null); return; }
+    try {
+      await rename.mutate({ id, name: n });
+      toast('success', `Workflow переименован в '${n}'`);
+      setEditingId(null);
+      refetch();
+    } catch {
+      toast('error', errorMessage(rename.error ?? new Error('Failed to rename workflow')));
+    }
+  };
 
   const doRun = async (w: { id: number }) => {
     try {
@@ -77,7 +110,7 @@ export default function WorkflowsPage() {
     <div className="page">
       <div className="page-head">
         <h1>Workflows</h1>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}>
+        <button className="btn btn-primary" onClick={openCreate}>
           + New workflow
         </button>
       </div>
@@ -88,7 +121,7 @@ export default function WorkflowsPage() {
         <EmptyState
           title="No workflows"
           hint="Create a workflow to orchestrate agent tasks."
-          action={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ New workflow</button>}
+          action={<button className="btn btn-primary" onClick={openCreate}>+ New workflow</button>}
         />
       )}
       {data && data.workflows.length > 0 && (
@@ -107,9 +140,22 @@ export default function WorkflowsPage() {
               {data.workflows.map((w) => (
                 <tr key={w.id}>
                   <td>
-                    <Link className="team-link" to={`/workflows/${w.id}`}>
-                      {w.name}
-                    </Link>
+                    {editingId === w.id ? (
+                      <input
+                        className="wf-rename"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') doRename(w.id); if (e.key === 'Escape') setEditingId(null); }}
+                        onBlur={() => doRename(w.id)}
+                        autoFocus
+                        aria-label="Workflow name"
+                      />
+                    ) : (
+                      <>
+                        <Link className="team-link" to={`/workflows/${w.id}`}>{w.name}</Link>
+                        <button className="btn-icon wf-rename-btn" title="Переименовать" aria-label={`Переименовать ${w.name}`} onClick={() => { setEditingId(w.id); setEditName(w.name); }}>✎</button>
+                      </>
+                    )}
                     <div className="muted small">{w.description}</div>
                   </td>
                   <td>team #{w.team_id}</td>
@@ -147,7 +193,7 @@ export default function WorkflowsPage() {
             <form onSubmit={submit}>
               <label>
                 Name *
-                <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+                <input value={name} onChange={(e) => { setName(e.target.value); setNameTouched(true); }} placeholder={defaultName || 'name'} aria-label="Workflow name (create)" autoFocus />
               </label>
               <label>
                 Team

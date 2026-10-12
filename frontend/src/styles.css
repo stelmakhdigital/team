@@ -173,6 +173,11 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 .row-stale { background: rgba(210, 153, 34, 0.06); }
 .team-link { font-weight: 600; }
 
+/* T6: workflow inline-rename (клик → input; кнопка ✎ видна на hover). */
+.wf-rename { width: 220px; }
+.wf-rename-btn { margin-left: 6px; opacity: 0; transition: opacity 0.1s; }
+tr:hover .wf-rename-btn, .wf-rename-btn:focus-visible { opacity: 0.7; }
+
 /* ---------- badges ---------- */
 
 .badge {
@@ -910,7 +915,7 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .cfg-source-env { color: var(--green); border-color: var(--green); }
 .cfg-source-override { color: var(--accent); border-color: var(--accent); background: #12233b; }
 
-.cfg-restart { color: var(--yellow); font-size: 0.95rem; }
+.cfg-restart { color: var(--muted); font-size: 0.85rem; cursor: default; user-select: none; opacity: 0.7; }
 .derived-tag { color: var(--purple); font-size: 0.72em; }
 .cfg-row-override { background: rgba(79, 142, 247, 0.07); }
 

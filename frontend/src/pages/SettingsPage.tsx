@@ -122,7 +122,7 @@ function ConfigKeyRow({ kv, onChanged }: { kv: ConfigKeyView; onChanged: () => v
         <span className={`cfg-source cfg-source-${kv.source}`}>{kv.source}</span>
         {kv.source_detail && <div className="muted small"><code>{kv.source_detail}</code></div>}
       </td>
-      <td className="cfg-center">{kv.requires_restart ? <span className="cfg-restart" title="requires daemon restart to apply">⏻</span> : <span className="muted">·</span>}</td>
+      <td className="cfg-center" role="img" aria-label="Индикатор: изменение требует перезапуск демона">{kv.requires_restart ? <span className="cfg-restart" title="Изменение требует перезапуск демона">⏻</span> : <span className="muted">·</span>}</td>
       <td className="cfg-actions">
         {editing ? (
           <span className="cfg-inline-actions">
@@ -243,7 +243,7 @@ export default function SettingsPage() {
         <h1>Settings</h1>
         <div className="head-actions">
           <span className="muted small">resolution: default &lt; file &lt; env &lt; override</span>
-          <button className="btn" onClick={q.refetch}>↻ Refresh</button>
+          <button className="btn btn-primary" onClick={q.refetch} title="Обновить конфигурацию">↻ Refresh</button>
         </div>
       </div>
 
