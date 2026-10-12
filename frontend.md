@@ -722,6 +722,78 @@ Posture (delegated/human-led) на team + session + human-request approve/deny �
 бейдж + radio), `posture-attention-2560x1440.png` (Attention: pending human_request
 "Подтвердить: session.stop" + Approve/Deny).
 
+### 3z. UX Wave 1 — «операционный центр» (2026-10-12, T-20261012094611)
+Фронтенд-only (без новых npm-зависимостей, API/контракт не тронут). Четыре связанных
+улучшения, чтобы с Dashboard был виден весь fleet, топология «дышала» (activity-ring,
+поток задач по связям), и кнопки были единого монохромного стиля (без emoji).
+
+**W1.1 — блок «Fleet» на Dashboard** (между KPI-карточками и «Active tasks», виден без
+скролла на 1440p). Строки = live-роли по всем командам (composing на клиенте:
+`api.sessions.list()` + `api.teams.getTeams()` + `api.tasks.list()`, по одной загрузке на
+tип, refetch 5s как в TeamBuilderPage). Поля: activity-dot (running=green+pulse,
+idle=amber, failed=red, stopped=нейтральный), команда→роль (EntityLink), текущая
+in_progress-задача роли (EntityLink; нет — «—»), ctx% (<60 green / 60–80 amber / ≥80 red;
+нет данных — «—»), uptime, CTA-иконки на топологию команды (⬡) и на сессию (◉).
+Ограничение ≤12 строк, при превышении «+N ещё» → /sessions. Пустое состояние —
+«Нет активных ролей» + CTA «Открыть команды».
+
+**W1.2 — activity ring в топологии (RoleNode).** По существующему `activityState(role)`
+добавлена обводка карточки: running — зелёная + CSS pulse (обводка пульсирует),
+failed — красная, idle — янтарная (мягче), stopped — нейтральная. Pulse — CSS
+`@keyframes` (без JS-тик'а), `@media (prefers-reduced-motion: reduce)` → pulse
+отключается (статичная обводка). Стили — в topology.css (классы `role-ring-*`), цвета из
+палитры. memo/areEqual RoleNode уже сравнивает `role.session?.state` — ring от новых
+props не зависит.
+
+**W1.3 — анимация «пакета» на relatives (TaskEdge).** Новый data-флаг `active?: boolean`.
+При `active`: `<circle r=3>` + `<animateMotion>` (dur ~2s, repeat indefinite) ползёт по
+тому же bezier-пути («пакет»), + бегущий пунктир (stroke-dasharray + CSS-анимация
+stroke-dashoffset, цвет = stroke вида KIND_STYLE). `@media (prefers-reduced-motion:
+reduce)` → анимации отключаются (статичное ребро). Семантика честная (без фейка):
+TopologyCanvas получает `activeRoleIds: Set<number>` — id ролей с in_progress-задачей
+(TeamBuilderPage: `api.tasks.list({ team_id })`, refetch 5s вместе с сессиями). Ребро
+`from→to` активно, если `to` в activeRoleIds (работа «течёт» к исполнителю). memo
+TaskEdge: areEqual учитывает `active`. Чистая логика вынесена в `buildRelEdges`.
+
+**W1.4 — монохромные иконки в кнопках.** Инвентаризация эмодзи в кнопках/заголовках
+действий → замена на монохромные глифы (текстовая презентация, U+FE0E для неоднозначных),
+единый стиль как в NAV (AppShell.tsx). Примеры: `✨ Auto layout`→`⌖`, `📋 Брифинг`→`☰`,
+`⧉ YAML`→`≡`, `📸 Agent image`→`▣`, `⛔ block`→`⊘`, `🚀 Запустить`→`▶︎`, `🗑`→`⌫`,
+`📌 Pin`→`⚑︎`, `🤖 Delegated`→`⚙︎`, `👤 Human-led`→`☻`, `🧟/👻`→`☠︎/◌`, `🔎 Найти`→`⌕`.
+`✎`, `⬇`, `↻` оставлены (уже текст). NAV не тронут. Критерий: ноль emoji-иконок в
+кнопках/действиях (enforced vitest'ом).
+
+| Файл | Что |
+|------|-----|
+| `frontend/src/lib/fleet.ts` (NEW) | `composeFleetRows` / `computeActiveRoleIds` / `fleetDotState` / `fleetCtxTone` / `FLEET_MAX_ROWS` — чистые композеры |
+| `frontend/src/components/Dashboard/FleetPanel.tsx` (NEW) | блок Fleet: 3 useQuery + 5s-поллинг, строки, bounded, empty-state, CTA |
+| `frontend/src/pages/DashboardPage.tsx` | `<FleetPanel/>` между KPI и «Active tasks» |
+| `frontend/src/components/Topology/nodes/RoleNode.tsx` | className `role-ring role-ring-${act}` (обводка по activityState) |
+| `frontend/src/components/Topology/edges/TaskEdge.tsx` | `active?: boolean` → circle+animateMotion + бегущий пунктир; reduced-motion; areEqual |
+| `frontend/src/components/Topology/TopologyCanvas.tsx` | prop `activeRoleIds`; чистая `buildRelEdges` (edge.active = to∈activeRoleIds) |
+| `frontend/src/pages/TeamBuilderPage.tsx` | tasks useQuery + 5s-поллинг → `activeRoleIds` (computeActiveRoleIds) → канвас; `⌖/≡/⚙︎` |
+| `frontend/src/topology.css` | `.role-ring-*` (running pulse + failed/idle/stopped) + reduced-motion; `.task-edge-active` (бегущий пунктир) + reduced-motion |
+| `frontend/src/styles.css` | `.fleet-*` (card/row/dot/ctx/cta/more/empty) + reduced-motion |
+| страницы/компоненты (W1.4) | монохромные глифы в кнопках/заголовках (TranscriptSearch, SessionDetail, Tasks, WorkflowEditor, Library, Settings, Diagnostics, BottomPanel, Toolbar, ConfigPanel, AgentResources, CaptureModal, BriefingPreviewModal, SendToSession, PosturePanel, CommandPalette, BlockNode) |
+| `frontend/scripts/contrast-check.mjs` | +6 пар (role ring running/failed/idle, fleet dot running/idle/failed) — non-text 3:1 |
+| `frontend/tests/fleet.test.tsx` (NEW) | 11: композеры (dot-state, task-join, ctx-пороги, bounded, sort) + UI (Fleet-блок, bounded, empty-state) |
+| `frontend/tests/roleRing.test.tsx` (NEW) | 7: ring-классы (4 состояния) + activityState + CSS pulse + reduced-motion |
+| `frontend/tests/taskEdgeActive.test.tsx` (NEW) | 5: circle+animateMotion по bezier, пунктир, статично без active, areEqual учитывает active, reduced-motion |
+| `frontend/tests/teamBuilderActiveEdges.test.tsx` (NEW) | 5: семантика buildRelEdges (in_progress→active) + TeamBuilderPage activeRoleIds из api.tasks.list (mock) |
+| `frontend/tests/monochromeButtons.test.ts` (NEW) | 2: ноль emoji в `<button>` (скан src) + NAV не изменён |
+| `frontend/tests/node-shims.d.ts` (NEW) | минимальные ambient-объявления node:fs/url/path (без @types/node) |
+| `frontend/tests/settings.test.tsx`, `wake.test.tsx` | обновлены под новые глифы (`🔒`→`⊘`, `⛔`→`⊘`) |
+
+**Проверки:** `tsc --noEmit` 0; `vitest run` — 286 passed / 21 skipped (было 256/21,
++30 новых); `go build`/тесты не тронуты (backend не изменялся). Контраст:
+`node scripts/contrast-check.mjs` — 28 пар, exit 0 (все новые ring/dot — pass 3:1).
+
+Скриншоты @2560: `uxw1-dashboard-2560x1440.png` (Fleet: dot/роль/задача/ctx%/CTA,
+bounded), `uxw1-teams-builder-2560x1440.png` (activity ring running/idle + «пакет»
+по активной связи Lead→Worker), `uxw1-teams-builder-reduced-motion-2560x1440.png`
+(статично: без pulse/пакета/бегущего пунктира). До — существующие
+`after-2560x1440-dashboard.png` / `after-2560x1440-teams-builder.png`.
+
 ## 5. Команды
 ```bash
 cd frontend
