@@ -89,7 +89,7 @@ export default function DiagnosticsPage() {
                 <div className="doctor-links">
                   {links.map((s) => (
                     <EntityLink key={`${s.tag}-${s.id}`} to={`/sessions/${s.id}`} title={`Открыть сессию #${s.id}`} className={`doctor-link doctor-link--${s.tag}`}>
-                      {s.tag === 'zombie' ? '🧟' : '👻'} {s.label ?? `Сессия #${s.id}`}
+                      {s.tag === 'zombie' ? '☠\uFE0E' : '◌'} {s.label ?? `Сессия #${s.id}`}
                     </EntityLink>
                   ))}
                 </div>

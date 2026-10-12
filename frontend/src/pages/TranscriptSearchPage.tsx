@@ -120,7 +120,7 @@ export default function TranscriptSearchPage() {
             </select>
           </label>
           <button type="submit" className="btn btn-primary" disabled={activeQ.length < 2 || search.pending}>
-            {search.pending ? 'Ищу…' : '🔎 Найти'}
+            {search.pending ? 'Ищу…' : '⌕ Найти'}
           </button>
         </div>
         {search.error ? <div className="error-banner">{errorMessage(search.error)}</div> : null}

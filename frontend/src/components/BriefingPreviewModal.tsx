@@ -156,7 +156,7 @@ export default function BriefingPreviewModal({
 
             <div className="briefing-launch-actions">
               <button className="btn btn-primary" onClick={doLaunch} disabled={launch.pending || !role}>
-                {launch.pending ? 'Запускаю…' : '🚀 Запустить с этим брифингом'}
+                {launch.pending ? 'Запускаю…' : '▶\uFE0E Запустить с этим брифингом'}
               </button>
             </div>
           </>

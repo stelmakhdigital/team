@@ -66,7 +66,7 @@ export default function BottomPanel(props: BottomPanelProps) {
           </button>
         )}
         <button className="btn" onClick={() => setBriefingOpen(true)} disabled={!previewRole} title="Предпросмотр брифинга + запуск сессии с ним">
-          📋 Брифинг
+          ☰ Брифинг
         </button>
         <button className="btn" onClick={onValidate} disabled={validating}>
           {validating ? 'Validating…' : 'Validate'}

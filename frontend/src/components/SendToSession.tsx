@@ -42,7 +42,7 @@ export default function SendToSession({ sessionId }: { sessionId: number }) {
         ) : null}
       </div>
       <p className="send-warning">
-        ⚠️ Текст будет введён в терминал живой сессии (действие на работающий процесс).
+        {'⚠\uFE0E'} Текст будет введён в терминал живой сессии (действие на работающий процесс).
       </p>
       <textarea
         className="send-input"

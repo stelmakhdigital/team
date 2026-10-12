@@ -61,7 +61,7 @@ function RoleNodeInner({ data }: NodeProps) {
 
   return (
     <div
-      className={`topo-node role-node topo-act-${act} ${selected ? 'topo-selected' : ''}`}
+      className={`topo-node role-node role-ring role-ring-${act} topo-act-${act} ${selected ? 'topo-selected' : ''}`}
       data-role-id={role.id}
       aria-label={`role ${role.name} activity ${act}`}
     >

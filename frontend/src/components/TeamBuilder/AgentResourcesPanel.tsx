@@ -175,7 +175,7 @@ export default function AgentResourcesPanel({ roleId, roleSpec, initialConfig, o
       <div className="modal agent-resources-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
-            <h2>⚙ Agent resources</h2>
+            <h2>{'⚙\uFE0E'} Agent resources</h2>
             <div className="muted small">base (spec: {roleSpec.name}) · override перекрывает по key</div>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Close">×</button>

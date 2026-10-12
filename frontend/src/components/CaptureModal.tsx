@@ -47,7 +47,7 @@ export default function CaptureModal({ sessionId, onClose }: { sessionId: number
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal capture-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>📷 Capture — Session #{sessionId}</h2>
+          <h2>⎙ Capture — Session #{sessionId}</h2>
           <button type="button" className="modal-close" aria-label="Close" onClick={onClose}>×</button>
         </div>
         <div className="modal-body">
@@ -68,7 +68,7 @@ export default function CaptureModal({ sessionId, onClose }: { sessionId: number
               onClick={() => doCapture(lines)}
               disabled={captureMut.pending}
             >
-              {captureMut.pending ? 'Снимаю…' : '📷 Capture'}
+              {captureMut.pending ? 'Снимаю…' : '⎙ Capture'}
             </button>
           </div>
 
@@ -96,7 +96,7 @@ export default function CaptureModal({ sessionId, onClose }: { sessionId: number
               </div>
               <div className="capture-actions">
                 <button type="button" className="btn btn-sm" onClick={copy}>
-                  {copied ? '✓ Copied' : '📋 Copy'}
+                  {copied ? '✓ Copied' : '⧉ Copy'}
                 </button>
               </div>
             </div>

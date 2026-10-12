@@ -287,6 +287,42 @@
   pointer-events: none;
 }
 
+/* ---------- UX Wave 1 — W1.2: activity ring (обводка по session-state) ---------- */
+/* running — зелёная + CSS pulse (без JS-тик'а); reduced-motion → статичная обводка */
+.role-node.role-ring-running {
+  border-color: var(--emerald, #10b981);
+  animation: role-ring-pulse 1.8s ease-in-out infinite;
+}
+@keyframes role-ring-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  50% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+}
+.role-node.role-ring-failed {
+  border-color: var(--red, #f85149);
+}
+.role-node.role-ring-idle {
+  /* янтарная, тоньше/мягче running/failed */
+  border-color: rgba(245, 158, 11, 0.55);
+}
+.role-node.role-ring-stopped {
+  border-color: var(--border, rgba(148, 163, 184, 0.25));
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-node.role-ring-running { animation: none; }
+}
+
+/* ---------- UX Wave 1 — W1.3: «пакет» по активному ребру (bегущий пунктир) ---------- */
+.task-edge-active {
+  animation: task-dash-flow 1s linear infinite;
+}
+@keyframes task-dash-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -12; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-edge-active { animation: none; }
+}
+
 /* ---------- R4: live-метрики + live-терминал (session.output) ---------- */
 .role-node-metrics .ctx.ctx-ok { color: var(--emerald); }
 .role-node-metrics .ctx.ctx-warn { color: var(--amber); }

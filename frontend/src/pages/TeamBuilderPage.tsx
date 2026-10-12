@@ -12,6 +12,7 @@ import TopologyCanvas, { type TopologySelection } from '../components/Topology/T
 import TopologyTableView from '../components/Topology/TopologyTableView';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { autoLayoutMoves } from '../components/Topology/layout/autoLayout';
+import { computeActiveRoleIds } from '../lib/fleet';
 import Toolbar from '../components/TeamBuilder/Toolbar';
 import SpecYamlPanel from '../components/TeamBuilder/SpecYamlPanel';
 import ConfigPanel, { type ConfigSelection } from '../components/TeamBuilder/ConfigPanel';
@@ -54,11 +55,24 @@ export default function TeamBuilderPage() {
   // чтобы интервал/эффекты не пересоздавались на каждый рендер страницы
   const sessionsRefetchRef = useRef(sessionsQ.refetch);
   sessionsRefetchRef.current = sessionsQ.refetch;
+
+  // UX Wave 1 — W1.3: задачи команды → activeRoleIds (роли с in_progress-задачей),
+  // refetch 5s вместе с сессиями
+  const tasksQ = useQuery(`team.tasks.${id}`, () => api.tasks.list({ team_id: id }), [id]);
+  const tasksRefetchRef = useRef(tasksQ.refetch);
+  tasksRefetchRef.current = tasksQ.refetch;
   // опрос: context%/tokens меняются со временем (WS даёт только терминал)
   useEffect(() => {
-    const t = setInterval(() => sessionsRefetchRef.current(), 5000);
+    const t = setInterval(() => {
+      sessionsRefetchRef.current();
+      tasksRefetchRef.current();
+    }, 5000);
     return () => clearInterval(t);
   }, [id]);
+  const activeRoleIds = useMemo(
+    () => computeActiveRoleIds(tasksQ.data?.tasks ?? []),
+    [tasksQ.data],
+  );
 
   const [outputs, setOutputs] = useState<Map<number, string[]>>(() => new Map());
   const { onMessage: setWs } = useWebSocket([`team:${id}`]);
@@ -322,10 +336,10 @@ export default function TeamBuilderPage() {
           )}
           <span className="muted small">{editMode ? 'edit mode — drag nodes / palette / connect' : 'topology: auto-layout'}</span>
           <button className="btn" onClick={applyAutoLayout} title="Recompute auto layout and save positions">
-            ✨ Auto layout
+            ⌖ Auto layout
           </button>
           <button className={specOpen ? 'btn btn-primary' : 'btn'} onClick={() => setSpecOpen((v) => !v)} aria-pressed={specOpen} title="YAML spec: export / create / merge">
-            ⧉ YAML
+            ≡ YAML
           </button>
           <button className={editMode ? 'btn btn-primary' : 'btn'} onClick={() => setEditMode((v) => !v)} aria-pressed={editMode}>
             {editMode ? '✓ Done' : '✎ Edit'}
@@ -377,7 +391,7 @@ export default function TeamBuilderPage() {
               </button>
             )}
             <button className="btn" onClick={() => setDrawer((d) => (d === 'config' ? 'none' : 'config'))} aria-pressed={drawer === 'config'}>
-              ⚙ Config
+              {'⚙\uFE0E Config'}
             </button>
           </div>
         )}
@@ -407,6 +421,7 @@ export default function TeamBuilderPage() {
                   onDropRole={onDropRole}
                   liveSessions={liveSessions}
                   outputs={outputs}
+                  activeRoleIds={activeRoleIds}
                 />
               </div>
             ) : (

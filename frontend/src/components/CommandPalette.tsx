@@ -44,7 +44,7 @@ interface FlatItem {
 const PAGES: PageItem[] = [
   { label: 'Dashboard', path: '/', desc: 'Обзор команды и задач', icon: '▦' },
   { label: 'Attention', path: '/attention', desc: 'Что требует меня', icon: '⚑' },
-  { label: 'Pulse', path: '/pulse', desc: 'Единая лента событий', icon: '📡' },
+  { label: 'Pulse', path: '/pulse', desc: 'Единая лента событий', icon: '∿' },
   { label: 'Teams', path: '/teams', desc: 'Команды и топологии', icon: '⬡' },
   { label: 'Projects', path: '/projects', desc: 'Проекты', icon: '▣' },
   { label: 'Tasks', path: '/tasks', desc: 'Задачи', icon: '☰' },
@@ -53,8 +53,8 @@ const PAGES: PageItem[] = [
   { label: 'Messages', path: '/messages', desc: 'Сообщения', icon: '✉' },
   { label: 'Library', path: '/library', desc: 'Библиотека', icon: '▤' },
   { label: 'History', path: '/history', desc: 'История и аудит', icon: '⏱' },
-  { label: 'Transcript search', path: '/transcript-search', desc: 'Поиск по транскриптам', icon: '🔎' },
-  { label: 'Diagnostics', path: '/diagnostics', desc: 'Диагностика / health', icon: '🩺' },
+  { label: 'Transcript search', path: '/transcript-search', desc: 'Поиск по транскриптам', icon: '⌕' },
+  { label: 'Diagnostics', path: '/diagnostics', desc: 'Диагностика / health', icon: '✚' },
   { label: 'Settings', path: '/settings', desc: 'Настройки', icon: '⚙' },
 ];
 
@@ -110,7 +110,7 @@ export default function CommandPalette() {
       { label: 'New project', icon: '＋', run: () => navigate('/projects') },
       { label: 'New task', icon: '＋', run: () => navigate('/tasks') },
       { label: 'New workflow', icon: '＋', run: () => navigate('/workflows') },
-      { label: 'Run diagnostics', icon: '🩺', run: () => navigate('/diagnostics') },
+      { label: 'Run diagnostics', icon: '✚', run: () => navigate('/diagnostics') },
       { label: 'Go to Attention', icon: '⚑', run: () => navigate('/attention') },
     ],
     [navigate],

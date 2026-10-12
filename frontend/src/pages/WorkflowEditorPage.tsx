@@ -217,7 +217,7 @@ export default function WorkflowEditorPage() {
               refetch();
             }}
           >
-            ✨ Auto layout
+            ⌖ Auto layout
           </button>
           <button
             className="btn btn-danger"
@@ -234,7 +234,7 @@ export default function WorkflowEditorPage() {
               }
             }}
           >
-            🗑
+            ⌫
           </button>
         </div>
       </div>

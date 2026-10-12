@@ -21,7 +21,7 @@ describe('P0.3: Block with wake', () => {
     renderAt('/tasks');
     await screen.findByRole('heading', { name: 'Tasks' }, { timeout: 10_000 });
     // in_progress/pending задачи имеют действие "block" (несколько строк — берём первую)
-    const blockBtns = await screen.findAllByRole('button', { name: /⛔ block/ }, { timeout: 10_000 });
+    const blockBtns = await screen.findAllByRole('button', { name: /⊘ block/ }, { timeout: 10_000 });
     fireEvent.click(blockBtns[0]);
     expect(await screen.findByRole('heading', { name: /Block task/ }, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.getByText(/timer — after a duration/)).toBeInTheDocument();

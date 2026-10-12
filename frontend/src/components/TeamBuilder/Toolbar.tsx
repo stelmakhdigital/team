@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { DragEvent } from 'react';
 import { DRAG_TYPES, DEFAULT_PALETTE } from './palette';
+import { useAgentSpecs } from '../../hooks/useAgentSpecs';
 
 interface ToolbarSegment {
   id: number;
@@ -17,11 +18,10 @@ interface ToolbarProps {
   adding?: boolean;
 }
 
-const AGENT_SPEC_SUGGESTIONS = ['pi-lead', 'pi-worker', 'pi-reviewer', 'pi-watchdog', 'pi-go-backend', 'pi-go-worker'];
-
 /** Left palette: draggable segments/roles + relation type picker + «Add role» form. */
 export default function Toolbar({ connectType, onConnectType, segments, onAddRole, addError, adding }: ToolbarProps) {
   const palette = DEFAULT_PALETTE;
+  const specSuggestions = useAgentSpecs();
   const [roleName, setRoleName] = useState('');
   const [roleSpec, setRoleSpec] = useState('');
   const [roleSeg, setRoleSeg] = useState('');
@@ -41,7 +41,7 @@ export default function Toolbar({ connectType, onConnectType, segments, onAddRol
   return (
     <aside className="toolbar" aria-label="Builder palette">
       <section>
-        <h3>📦 Segments</h3>
+        <h3>▦ Segments</h3>
         <ul className="palette-list">
           {palette.segments.map((s) => (
             <li key={s.name} draggable onDragStart={dragPayload('segment', s.name)} className="palette-item">
@@ -56,7 +56,7 @@ export default function Toolbar({ connectType, onConnectType, segments, onAddRol
         </ul>
       </section>
       <section>
-        <h3>👤 Roles</h3>
+        <h3>☻ Roles</h3>
         <ul className="palette-list">
           {palette.roles.map((r) => (
             <li key={r.name} draggable onDragStart={dragPayload('role', r.name, r.agent_spec)} className="palette-item">
@@ -67,7 +67,7 @@ export default function Toolbar({ connectType, onConnectType, segments, onAddRol
         </ul>
       </section>
       <section>
-        <h3>➕ Add role</h3>
+        <h3>+ Add role</h3>
         <form onSubmit={submitRole} className="add-role-form">
           <label>
             Name
@@ -78,7 +78,7 @@ export default function Toolbar({ connectType, onConnectType, segments, onAddRol
             <input value={roleSpec} onChange={(e) => setRoleSpec(e.target.value)} placeholder="pi-worker" list="add-role-specs" aria-label="New role agent spec" />
           </label>
           <datalist id="add-role-specs">
-            {AGENT_SPEC_SUGGESTIONS.map((s) => (
+            {specSuggestions.map((s) => (
               <option key={s} value={s} />
             ))}
           </datalist>
@@ -100,7 +100,7 @@ export default function Toolbar({ connectType, onConnectType, segments, onAddRol
         </form>
       </section>
       <section>
-        <h3>🔗 Relations</h3>
+        <h3>⇄ Relations</h3>
         <p className="muted small">Connection type for new links</p>
         <select value={connectType} onChange={(e) => onConnectType(e.target.value)} aria-label="Connection type">
           {palette.relations.map((t) => (

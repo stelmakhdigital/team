@@ -79,7 +79,7 @@ describe('U4: Settings page', () => {
     expect(screen.getAllByText('DAEMON_LISTEN_ADDR').length).toBeGreaterThan(0);
     // a read-only secret key shows the lock (no edit button) in the security section
     const sec = screen.getByRole('heading', { name: 'security' }).closest<HTMLElement>('.cfg-section')!;
-    expect(within(sec).getAllByText('🔒').length).toBeGreaterThan(0);
+    expect(within(sec).getAllByText('⊘').length).toBeGreaterThan(0);
   }, 20_000);
 
   it('M2: renders the default value per key (host-derived marked as derived)', async () => {

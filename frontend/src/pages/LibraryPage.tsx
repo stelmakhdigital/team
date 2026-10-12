@@ -203,7 +203,7 @@ export default function LibraryPage() {
                 {libRename === null ? (
                   detail.data.item.is_starter ? (
                     <button className="btn btn-small lib-rename-btn" title="Starters are pinned (not editable)" aria-label="Rename disabled (starter)" disabled>
-                      🔒
+                      ⊘
                     </button>
                   ) : (
                     <button className="btn btn-small lib-rename-btn" title="Rename item" aria-label="Rename item" onClick={() => setLibRename(detail.data!.item.name)}>
@@ -443,7 +443,7 @@ export default function LibraryPage() {
                         }
                       }}
                     >
-                      {detail.data.item.is_pinned ? '📌 Unpin' : '📌 Pin'}
+                      {detail.data.item.is_pinned ? '⚑\uFE0E Unpin' : '⚑\uFE0E Pin'}
                     </button>
                     <button
                       className="btn btn-small btn-danger"
@@ -461,7 +461,7 @@ export default function LibraryPage() {
                         }
                       }}
                     >
-                      🗑 Prune
+                      ⌫ Prune
                     </button>
                   </div>
                   <h4>Launch session</h4>

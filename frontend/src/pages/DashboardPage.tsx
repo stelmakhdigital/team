@@ -5,6 +5,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import SummaryCards from '../components/Dashboard/SummaryCards';
 import TaskList from '../components/Dashboard/TaskList';
 import SessionGrid from '../components/Dashboard/SessionGrid';
+import FleetPanel from '../components/Dashboard/FleetPanel';
 import AlertsPanel from '../components/Dashboard/AlertsPanel';
 import ContextWallPanel from '../components/Dashboard/ContextWallPanel';
 import MetricsChart from '../components/Dashboard/MetricsChart';
@@ -41,6 +42,7 @@ export default function DashboardPage() {
       </div>
 
       {summary.data && <SummaryCards summary={summary.data} />}
+      <FleetPanel />
       <div className="dash-grid">
         <div className="dash-row">
           <div>{tasks.loading ? (

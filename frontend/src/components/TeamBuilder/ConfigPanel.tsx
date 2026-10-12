@@ -177,7 +177,7 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
           Plugins ({spec.pi_config.plugins.length}) · Skills ({spec.pi_config.skills.length}) ·
           Startup files ({spec.startup.files.length}) — base (spec) + override (role).
         </div>
-        <button type="button" className="btn" onClick={() => setShowResources(true)}>⚙ Configure resources…</button>
+        <button type="button" className="btn" onClick={() => setShowResources(true)}>{'⚙\uFE0E'} Configure resources…</button>
       </section>
 
       <section>

@@ -78,6 +78,13 @@ const pairs = [
   ['White on critical badge', '#ffffff', P.redStrong, 4.5, '.badge-sev-critical bg'],
   // non-text (borders/icons that convey meaning) → 3:1
   ['Dim border on panel (transcript)', P.dim, P.panel, 3.0, 'non-text border (conveys tool-result)', true],
+  // UX Wave 1: activity ring (RoleNode) + Fleet dot — non-text, 3:1
+  ['Role ring running (emerald on panel)', '#10b981', P.panel, 3.0, '.role-ring-running border', true],
+  ['Role ring failed (red on panel)', P.red, P.panel, 3.0, '.role-ring-failed border', true],
+  ['Role ring idle (amber on panel)', '#f59e0b', P.panel, 3.0, '.role-ring-idle border', true],
+  ['Fleet dot running (green on panel)', P.green, P.panel, 3.0, '.fleet-dot-running', true],
+  ['Fleet dot idle (yellow on panel)', P.yellow, P.panel, 3.0, '.fleet-dot-idle', true],
+  ['Fleet dot failed (red on panel)', P.red, P.panel, 3.0, '.fleet-dot-failed', true],
   ['Panel/card border on page', '#2d333b', P.page, 3.0, 'decorative grouping (WCAG 1.4.11 n/a — visual enhancement, card bg already delineates)', false],
 ];
 

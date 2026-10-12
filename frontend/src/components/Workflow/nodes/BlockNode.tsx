@@ -13,8 +13,8 @@ export const BLOCK_META: Record<WorkflowBlock['type'], { icon: string; cls: stri
   decision: { icon: '◇', cls: 'wf-decision', hint: 'Ветка (yes/no)' },
   parallel: { icon: '⑂', cls: 'wf-parallel', hint: 'Параллельные ветки' },
   loop: { icon: '↻', cls: 'wf-loop', hint: 'Повторять N раз' },
-  agent: { icon: '⚙', cls: 'wf-agent', hint: 'Шаг агента' },
-  manual: { icon: '✋', cls: 'wf-manual', hint: 'Ручное утверждение' },
+  agent: { icon: '⚙\uFE0E', cls: 'wf-agent', hint: 'Шаг агента' },
+  manual: { icon: '☑', cls: 'wf-manual', hint: 'Ручное утверждение' },
 };
 
 function configSummary(block: WorkflowBlock): string | null {

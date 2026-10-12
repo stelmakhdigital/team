@@ -51,6 +51,31 @@ export type TopologySelection =
   | { type: 'relative'; id: number }
   | null;
 
+// UX Wave 1 — W1.3: ребро from→to активно, если у роли-получателя (to) есть
+// in_progress-задача (activeRoleIds). Чистая функция — проверяется vitest'ом.
+export function buildRelEdges(
+  relatives: Relative[],
+  selection: TopologySelection,
+  activeRoleIds?: Set<number>,
+): Edge[] {
+  return relatives.map((rel) => {
+    const color = KIND_COLORS[rel.type] ?? '#10b981';
+    return {
+      id: `rel:${rel.id}`,
+      type: 'task',
+      source: `role:${rel.from_role_id}`,
+      target: `role:${rel.to_role_id}`,
+      data: {
+        kind: rel.type,
+        selected: selection?.type === 'relative' && selection.id === rel.id,
+        active: activeRoleIds?.has(rel.to_role_id) ?? false,
+      },
+      markerEnd: { type: MarkerType.ArrowClosed, color, width: 18, height: 18 },
+      selectable: true,
+    };
+  });
+}
+
 interface Props {
   data: GetTopologyResponse;
   editMode?: boolean;
@@ -65,6 +90,8 @@ interface Props {
   liveSessions?: Map<number, SessionDetail>;
   /** R4: строки live-терминала по session_id (WS session.output) */
   outputs?: Map<number, string[]>;
+  /** UX Wave 1 — W1.3: id ролей с in_progress-задачей → ребро from→to активно, если to в наборе */
+  activeRoleIds?: Set<number>;
 }
 
 interface InnerProps extends Props {
@@ -85,6 +112,7 @@ function TopologyCanvasInner({
   onDropRole,
   liveSessions,
   outputs,
+  activeRoleIds,
   tl,
 }: InnerProps) {
   const { segments, roles, relatives, layout } = data;
@@ -137,21 +165,10 @@ function TopologyCanvasInner({
       };
     });
 
-    const relEdges: Edge[] = relatives.map((rel: Relative) => {
-      const color = KIND_COLORS[rel.type] ?? '#10b981';
-      return {
-        id: `rel:${rel.id}`,
-        type: 'task',
-        source: `role:${rel.from_role_id}`,
-        target: `role:${rel.to_role_id}`,
-        data: { kind: rel.type, selected: selection?.type === 'relative' && selection.id === rel.id },
-        markerEnd: { type: MarkerType.ArrowClosed, color, width: 18, height: 18 },
-        selectable: true,
-      };
-    });
+    const relEdges = buildRelEdges(relatives, selection, activeRoleIds);
 
     return { nodes: [...segNodes, ...roleNodes], edges: relEdges };
-  }, [segments, roles, relatives, layout, selection, editMode, tl, liveSessions, outputs]);
+  }, [segments, roles, relatives, layout, selection, editMode, tl, liveSessions, outputs, activeRoleIds]);
 
   // DnD из палитры (HTML5): screen → flow координаты; роль — только внутрь segment
   const onDragOver = (e: React.DragEvent) => {

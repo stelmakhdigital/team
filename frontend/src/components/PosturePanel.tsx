@@ -63,7 +63,7 @@ export default function PosturePanel({ kind, id, current, teamPosture }: Posture
       <div className="card-head">
         <h2>Posture</h2>
         <span className={`posture-badge posture-badge--${effective}`} data-testid="posture-badge" title="Effective posture">
-          {effective === 'human_led' ? '👤 Human-led' : '🤖 Delegated'}
+          {effective === 'human_led' ? '☻ Human-led' : '⚙\uFE0E Delegated'}
         </span>
       </div>
       <p className="muted small posture-hint">

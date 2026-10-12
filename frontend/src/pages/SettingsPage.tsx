@@ -134,7 +134,7 @@ function ConfigKeyRow({ kv, onChanged }: { kv: ConfigKeyView; onChanged: () => v
             {kv.editable ? (
               <button className="btn btn-small" onClick={openEdit} title="Edit (set override)" aria-label={`Edit ${kv.key}`}>✎</button>
             ) : (
-              <span className="muted small" title="read-only">🔒</span>
+              <span className="muted small" title="read-only">⊘</span>
             )}
             {kv.source === 'override' && (
               <button className="btn btn-small" onClick={reset} disabled={resetM.pending} title="Reset to previous layer">Reset</button>

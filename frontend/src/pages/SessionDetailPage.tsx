@@ -111,10 +111,10 @@ export default function SessionDetailPage() {
               <h2>Transcript ({transcript.length})</h2>
               <div className="wf-config-actions">
                 <button type="button" className="btn btn-sm" onClick={() => setCapture(true)}>
-                  📷 Capture
+                  ⎙ Capture
                 </button>
                 <button type="button" className="btn btn-sm" onClick={() => setSnapshotOpen(true)} title="Save this session's agent config as a reusable image">
-                  📸 Agent image
+                  ▣ Agent image
                 </button>
               </div>
             </div>

@@ -143,6 +143,69 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
   .dash-row { grid-template-columns: 1fr; }
 }
 
+/* ---------- UX Wave 1 — W1.1: Fleet на Dashboard ---------- */
+/* Строки = live-роли по всем командам: dot / команда→роль / текущая задача / ctx% / uptime / CTA.
+   Контраст: dot-цвета из палитры (3:1 non-text, см. contrast-check.mjs), текст — --text/--muted (4.5:1). */
+.fleet-card { margin-bottom: 16px; }
+.fleet-rows { display: flex; flex-direction: column; }
+.fleet-row {
+  display: grid;
+  grid-template-columns: 14px minmax(140px, 2fr) minmax(0, 3fr) 72px 64px 60px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 4px;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  min-width: 0;
+}
+.fleet-row:first-child { border-top: none; }
+.fleet-who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fleet-who .entity-link { color: var(--accent); }
+.fleet-task { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fleet-task .entity-link { color: var(--text); font-weight: 500; }
+.fleet-task .entity-link:hover { color: var(--accent); }
+.fleet-ctx {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.fleet-ctx-ok { color: var(--green); }
+.fleet-ctx-warn { color: var(--yellow); }
+.fleet-ctx-crit { color: var(--red); }
+.fleet-up { white-space: nowrap; }
+.fleet-cta { display: flex; gap: 8px; justify-content: flex-end; }
+.fleet-cta .entity-link { color: var(--muted); font-size: 0.95rem; }
+.fleet-cta .entity-link:hover { color: var(--accent); text-decoration: none; }
+.fleet-more { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 2px; font-size: 0.8rem; }
+.fleet-empty { padding: 8px 0; font-size: 0.9rem; }
+
+/* activity-dot Fleet: running=green+pulse, idle=amber, failed=red, stopped=нейтральный (3:1 non-text) */
+.fleet-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--dim);
+}
+.fleet-dot-running { background: var(--green); animation: fleet-pulse 1.8s ease-in-out infinite; }
+@keyframes fleet-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.5); }
+  50% { box-shadow: 0 0 0 4px rgba(63, 185, 80, 0); }
+}
+.fleet-dot-idle { background: var(--yellow); }
+.fleet-dot-failed { background: var(--red); }
+.fleet-dot-stopped { background: var(--dim); }
+@media (prefers-reduced-motion: reduce) {
+  .fleet-dot-running { animation: none; }
+}
+
+@media (max-width: 1100px) {
+  .fleet-row { grid-template-columns: 14px minmax(120px, 1fr) minmax(0, 1.6fr) 64px; }
+  .fleet-up, .fleet-cta { display: none; }
+}
+
 /* ---------- table ---------- */
 
 .table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
