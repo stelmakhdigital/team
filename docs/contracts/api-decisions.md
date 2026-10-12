@@ -1842,3 +1842,47 @@ reversible, ok)`. Правила (порядок — специфичные пе
 - **Frontend vitest** (4): team panel (badge + toggle optimistic+persist), session
   inherit→effective=team, human-request approve→replayed, mock setSession
   override+reset.
+
+## P4.1 / W2.2 — Git-attribution в Artifacts (T-20261012111917)
+
+`GET /projects/{id}/files[?path=<rel>][&attribute=true]` — для **файлов** (не
+каталогов) добавлены поля `last_author` (string|null), `last_commit`
+(string|null, subject последнего коммита), `last_at` (ISO|null, committer-date).
+В ответе проекта-списка — флаг `attributed` (bool): `true` = git-атрибуция
+реально выполнена.
+
+### Семантика (честно, без инферирования)
+- **`attribute=true` + проект git + файлов ≤ 100** → `attributed=true`, у каждого
+  файла — результат `git log -1 --format=%an%x1f%s%x1f%cI -- <relpath>`
+  (один вызов per file, bounded). Файл без истории (untracked) → поля null, но
+  `attributed=true` (атрибуция была, данных нет).
+- **Проект не git** (`project.git=false`) → `attributed=false`, поля null.
+- **Git недоступен / ошибка git-вызова** → `attributed=false`, поля null
+  (не блокируем основной список файлов; attribution — best-effort).
+- **> 100 файлов** в списке → `attributed=false` (лимит: git log per file не
+  должен тянуть запрос; 100 — компромисс между полезностью и latency).
+- **`attribute` не задан (default false)** → `attributed=false`, поля null
+  (атрибуция — опция, не включена по умолчанию, чтобы не платить за git-вызовы
+  в обычном списке).
+
+### Контракт (additive)
+- Новый query-параметр `attribute` (boolean, default false).
+- Новые поля файла: `last_author`/`last_commit`/`last_at` (`[string, "null"]`).
+- Новое поле ответа: `attributed` (boolean).
+- Существующий контракт **не изменён** (только добавления).
+
+### Реализация
+- `service.ProjectService.ListProjectFiles(ctx, id, subPath, attribute bool)`:
+  после сборки списка — `attributeFiles` (git log per file) при условиях выше.
+- `gitLastCommit(ctx, root, relPath)` — `git -C <root> log -1 --format=... -- <rel>`;
+  пустой вывод → три пустые строки без ошибки.
+- Handler читает `?attribute=true`.
+
+### Тесты
+- **Service** (`project_service_test.go`): `TestProjectFilesAttribution`
+  (git-repo с 2 авторами/2 коммитами → поля заполнены, последний коммит alpha.txt
+  = второй автор; `attribute=false` → null; non-git → null + attributed=false),
+  `TestProjectFilesAttributionLimit` (101 файл → attributed=false).
+- **Frontend vitest** (w2_ux): подпись `author · subject · N days ago` под именем
+  файла + toolbar-хейдер «attribution: git»; non-git → «attribution: нет
+  git-данных» + без author-строк.

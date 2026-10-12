@@ -2322,6 +2322,7 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Id' }
         - { name: path, in: query, required: false, schema: { type: string }, description: 'относительный подкаталог ("" = корень)' }
+        - { name: attribute, in: query, required: false, schema: { type: boolean, default: false }, description: 'W2.2: git-атрибуция файлов (last_author/last_commit/last_at); bounded ≤100 файлов, иначе attributed:false' }
       responses:
         '200':
           description: Записи (файлы + каталоги) на один уровень
@@ -2334,6 +2335,7 @@ paths:
                   root: { type: string }
                   path: { type: string, description: 'подкаталог списка ("" = корень)' }
                   truncated: { type: boolean }
+                  attributed: { type: boolean, description: 'W2.2: true = git-атрибуция реально выполнена' }
                   files:
                     type: array
                     items:
@@ -2344,11 +2346,14 @@ paths:
                         is_dir: { type: boolean }
                         size: { type: integer }
                         modified_at: { type: string, format: date-time }
+                        last_author: { type: [string, "null"], description: 'W2.2: git author последнего коммита (null = нет данных/untracked)' }
+                        last_commit: { type: [string, "null"], description: 'W2.2: subject последнего коммита' }
+                        last_at: { type: [string, "null"], description: 'W2.2: committer-date (ISO)' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
-  /api/v1/projects/{id}/files/{rel}:
+  /api/v1/projects/{id}/files/{rel...}:
     get:
       operationId: getProjectFile
       summary: "Содержимое файла (download; traversal-защита, лимит 10 MB) — P4 2026-10-12"
