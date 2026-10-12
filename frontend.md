@@ -794,6 +794,36 @@ bounded), `uxw1-teams-builder-2560x1440.png` (activity ring running/idle + «п�
 (статично: без pulse/пакета/бегущего пунктира). До — существующие
 `after-2560x1440-dashboard.png` / `after-2560x1440-teams-builder.png`.
 
+### 3aa. Team bundle — перенос команды (export/import) (C1 / P4.3, 2026-10-12, T-20261012181231)
+
+Команду (топология + конфиг ролей + layout + воркфлоу) можно перенести между
+daemons/проектами как один JSON-файл (`.teambundle.json`) — аналог RigBundle.
+Контракт: `docs/contracts/api-decisions.md` §P4.3.
+
+**Export** (два места, один эндпоинт `GET /api/v1/teams/{id}/export`):
+- **TeamsPage** — кнопка «Export» у каждой команды: скачивает
+  `team-<name>.teambundle.json` через Blob (паттерн Download из W3 SpecModal,
+  общий хелпер `lib/download.ts`).
+- **TeamBuilder toolbar** — кнопка «⇩ Export» рядом с «≡ YAML»:
+  «взять текущую команду».
+
+**Import** (TeamsPage, `POST /api/v1/teams/import`):
+- Кнопка «⇪ Import» → скрытый file-input (`.teambundle.json`/`.json`).
+- **Preview-модалка**: имя, N сегментов, M ролей, K воркфлоу + примечание
+  «Проект не переносится (будет назначен после). Сессии, задачи и история не
+  переносятся» + имя файла. Confirm → POST → тост с именем из ответа
+  (auto-suffix: «Dev Team (2)») → навигация на `/teams/{new_id}`.
+- **Ошибки**: некорректный JSON / version≠1 / field-ошибки валидации —
+  список в модалке (модалка остаётся открытой, команда не создаётся).
+  `unsupported_version`/`invalid_bundle` подхватились в `States.tsx`
+  friendly-сообщения (hint = сырой текст).
+- Auto-suffix UX: имя новой команды/воркфлоу — из ответа (без 409).
+
+**Тесты** (`tests/c1_bundle.test.tsx`, 6): export TeamsPage (Blob с
+bundle-структурой), export TeamBuilder, import file → preview-поля → confirm
+→ навигация + auto-suffix + layout-перенос (mock db), field-ошибки в модалке,
+parse-ошибка, version≠1. Скриншот @2560: import-preview-модалка.
+
 ## 5. Команды
 ```bash
 cd frontend

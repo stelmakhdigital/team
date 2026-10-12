@@ -314,6 +314,67 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  # ---- C1/P4.3: team bundle (перенос команды между даemons/проектами) ----
+  /api/v1/teams/{id}/export:
+    get:
+      operationId: exportTeam
+      summary: Экспорт команды в team-bundle (топология + конфиг ролей + layout + воркфлоу)
+      description: >
+        C1/P4.3. Возвращает самодостаточный JSON-bundle (формат v1) команды:
+        meta (name/description/posture), segments/roles (name/profile/agent_spec/config),
+        relatives (адреса "Segment.Role"), layout (та же форма, что TopologyResponse.layout,
+        но *_id — 0-based индексы в массивы bundle) и воркфлоу команды
+        (name/description/engine_enabled + blocks/connections в config).
+        НЕ переносится: project (project_id = null при импорте), sessions/tasks/
+        messages/history/attention (состояние, а не топология).
+        RBAC: teams.read.
+      tags: [teams]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: TeamBundle (формат v1)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamBundle' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/teams/import:
+    post:
+      operationId: importTeam
+      summary: Импорт team-bundle (создание команды + воркфлоу)
+      description: >
+        C1/P4.3. Body — bundle JSON (формат v1, GET /teams/{id}/export).
+        Валидация: version только 1 (иначе 400 unsupported_version), kind =
+        "team-bundle" (иначе 400 invalid_bundle), name не пуст, segments ≥1,
+        роли ≥1, все from/to relatives существуют в bundle (иначе 400 с
+        field-ошибками), config-схемы ролей как при create.
+        Создание: команда со всеми segment/role/relative + layout (одна
+        транзакция, как create team) + воркфлоу команды с team_id новой команды
+        (state начальный — draft, не активируются при импорте; engine_enabled
+        сохраняется). project_id = null (проект назначается после).
+        Конфликты имён — auto-suffix: команда/воркфлоу с тем же именем уже
+        есть → "name (2)", "name (3)", ... (без 409).
+        RBAC: teams.update.
+      tags: [teams]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TeamBundle' }
+      responses:
+        '201':
+          description: Команда (+воркфлоу) создана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportTeamResponse' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   # ---- topology: segments / roles / relatives ----
   /api/v1/segments/{id}:
     patch:
@@ -2909,6 +2970,137 @@ components:
         id: { type: integer, format: int64 }
         name: { type: string }
         status: { type: string, enum: [created, archived] }
+    # ---- C1/P4.3: Team bundle (перенос команды) ----
+    TeamBundle:
+      type: object
+      required: [version, kind, team, workflows]
+      properties:
+        version: { type: integer, enum: [1], description: Версия формата (import принимает только 1) }
+        kind: { type: string, enum: [team-bundle] }
+        exported_at: { type: string, format: date-time }
+        team:
+          type: object
+          required: [name, segments, relatives]
+          properties:
+            name: { type: string }
+            description: { type: string, nullable: true }
+            posture: { type: string, enum: [delegated, human_led], nullable: true }
+            segments:
+              type: array
+              items:
+                type: object
+                required: [name, roles]
+                properties:
+                  name: { type: string }
+                  description: { type: string, nullable: true }
+                  config: { type: object, additionalProperties: true, description: config сегмента без layout }
+                  roles:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, agent_spec]
+                      properties:
+                        name: { type: string }
+                        role: { type: string, nullable: true, description: profile роли ("" → null) }
+                        agent_spec: { type: string }
+                        config: { type: object, additionalProperties: true, description: config роли без layout }
+            relatives:
+              type: array
+              items:
+                type: object
+                required: [from, to, kind]
+                properties:
+                  from: { type: string, description: "адрес роли \"Segment.Role\"" }
+                  to: { type: string, description: "адрес роли \"Segment.Role\"" }
+                  kind: { type: string, enum: [delegates_to, spawned_by, can_observe, collaborates_with] }
+                  label: { type: object, nullable: true, properties: { x: { type: number }, y: { type: number } } }
+                  config: { type: object, additionalProperties: true, description: config relative без layout }
+            layout:
+              type: object
+              description: >
+                Та же форма, что layout в TopologyResponse, но segment_id/role_id/
+                relative_id/from_role_id/to_role_id — 0-based ИНДЕКСЫ в массивы
+                bundle (team.segments / flat-роли в порядке сегментов / team.relatives).
+              properties:
+                segments:
+                  type: array
+                  items:
+                    type: object
+                    required: [segment_id, position, collapsed]
+                    properties:
+                      segment_id: { type: integer }
+                      position:
+                        type: object
+                        properties:
+                          x: { type: number }
+                          y: { type: number }
+                          width: { type: number }
+                          height: { type: number }
+                      collapsed: { type: boolean }
+                roles:
+                  type: array
+                  items:
+                    type: object
+                    required: [role_id, segment_id, position]
+                    properties:
+                      role_id: { type: integer }
+                      segment_id: { type: integer }
+                      position:
+                        type: object
+                        properties:
+                          x: { type: number }
+                          y: { type: number }
+                relatives:
+                  type: array
+                  items:
+                    type: object
+                    required: [relative_id, from_role_id, to_role_id]
+                    properties:
+                      relative_id: { type: integer }
+                      from_role_id: { type: integer }
+                      to_role_id: { type: integer }
+                      path:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            x: { type: number }
+                            y: { type: number }
+        workflows:
+          type: array
+          description: Только воркфлоу с team_id экспортируемой команды
+          items:
+            type: object
+            required: [name, config, engine_enabled]
+            properties:
+              name: { type: string }
+              description: { type: string, nullable: true }
+              config:
+                type: object
+                description: >
+                  Структура воркфлоу: { blocks: [{type, position {x,y}, config, label}],
+                  connections: [{from, to, condition}]} — from/to — индексы blocks (0-based).
+                properties:
+                  blocks:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  connections:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+              engine_enabled: { type: boolean, description: Сохраняется при импорте; state при импорте — draft }
+    ImportTeamResponse:
+      type: object
+      required: [team, workflows]
+      properties:
+        team: { $ref: '#/components/schemas/Team' }
+        workflows:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string, description: Имя с учётом auto-suffix }
     Segment:
       type: object
       required: [id, team_id, name, roles_count, created_at, updated_at]

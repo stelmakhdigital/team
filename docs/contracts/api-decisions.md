@@ -1925,3 +1925,113 @@ RoleNode (иконка), FleetPanel (иконка), ConfigPanel (кнопка «
 - **Frontend vitest** (w3_ux): SpecModal (yaml в pre, 404-состояние),
   RoleNode-иконка (клик → onOpenSpec(name)), ConfigPanel «Open spec»,
   FleetPanel-иконка у ролей с agent_spec.
+
+## P4.3. Team bundle — перенос команды (export/import) (C1, T-20261012181231)
+
+### Контекст
+Аналог RigBundle: перенос команды (топология + конфиг ролей + layout +
+воркфлоу команды) между даemons/проектами как один JSON-файл
+(`.teambundle.json`).
+
+### Формат v1 (GET /api/v1/teams/{id}/export)
+```json
+{
+  "version": 1,
+  "kind": "team-bundle",
+  "exported_at": "ISO",
+  "team": {
+    "name": "...", "description": null, "posture": "delegated",
+    "segments": [ { "name": "...", "description": null, "config": {…},
+      "roles": [ { "name": "...", "role": "lead|null", "agent_spec": "pi-worker",
+                   "config": {…} } ] } ],
+    "relatives": [ { "from": "<Seg>.<Role>", "to": "<Seg>.<Role>",
+                     "kind": "delegates_to", "label": null|"{"x","y"}",
+                     "config": {…} } ],
+    "layout": { "segments": [...], "roles": [...], "relatives": [...] }
+  },
+  "workflows": [ { "name": "...", "description": null,
+                   "config": { "blocks": [...], "connections": [...] },
+                   "engine_enabled": false } ]
+}
+```
+Ключевые решения:
+- **layout** — та же форма, что контракт `TopologyResponse.layout`
+  (segments/roles/relatives с position/path/collapsed), но `segment_id` /
+  `role_id` / `relative_id` / `from_role_id` / `to_role_id` — **0-based
+  индексы в массивы bundle**: `team.segments`, flat-роли (порядок сегментов ×
+  ролей внутри), `team.relatives`. DB-идентификаторы не переносятся —
+  bundle самодостаточен.
+- **`config` у segment/role/relative** — config без ключа `layout` (layout
+  живёт только в `team.layout`, чтобы не дублироваться); пустой → поле
+  опущено. Позиция label relative (label_x/label_y) — в `label`, path —
+  в `layout.relatives[].path`.
+- **`role` у роли** — её `profile` ("" → null).
+- **workflows** — только воркфлоу с `team_id = id` экспортируемой команды.
+  `config` несёт структуру воркфлоу: `blocks: [{type, position{x,y}, config,
+  label}]` и `connections: [{from, to, condition}]`, где from/to — индексы
+  blocks (0-based), как в `CreateWorkflowRequest`. Колонка `workflows.config`
+  (DB) приложением не используется — структура только в blocks/connections.
+- **НЕ переносится** (документировано в bundle-формате и UI):
+  - `project` — dir, локальная сущность; при импорте `project_id = null`
+    (проект назначается после);
+  - sessions/tasks/messages/history/attention/instances/steps — состояние,
+    а не топология.
+- **relative-адреса** — как в контракте (`Segment.Role`).
+
+### API + RBAC
+- `GET /api/v1/teams/{id}/export` → 200 `TeamBundle`; 404 — нет команды.
+  RBAC: `teams.read` (default-маппинг GET /teams/*).
+- `POST /api/v1/teams/import`, body — bundle JSON → 201
+  `{ team: <TeamView>, workflows: [{id, name}] }`. RBAC: `teams.update`
+  (явный case в middleware: `res == "teams" && id == "import"`).
+
+### Валидация импорта (400, field-ошибки по каждому)
+- `version` только 1 → иначе 400 code `unsupported_version`;
+- `kind` = "team-bundle" → иначе 400 code `invalid_bundle`;
+- `team.name` не пуст; `segments ≥ 1`; `роли ≥ 1` (и ≥1 роль в каждом
+  сегменте — паритет с create); дубли сегментов/ролей;
+- `from`/`to` relatives существуют в bundle; `kind` — валидный
+  RelativeType; дубль (from,to,kind);
+- config-схемы ролей — как при create (name/agent_spec обязательны).
+  **Файл agent_spec на целевом даемоне НЕ обязателен** — bundle портативен
+  (create-team-путь (`applySpec`) и так не проверяет существование файла;
+  только явный CreateRole проверяет I4).
+
+### Создание (одна транзакция, additive)
+- Команда + segments + roles + relatives + layout + chatrooms (как
+  CreateTeam/applySpec, те же store-функции) — **одна транзакция**.
+- Workflows — в той же транзакции, с `team_id` новой команды:
+  **state = draft (не активируем при импорте — state-инвариант)**,
+  `engine_enabled` сохраняется; blocks/connections — по индексам.
+- **Auto-suffix (общая логика)**: команда с именем `X` уже есть →
+  `X (2)`, `X (3)`, ... (teams.name UNIQUE глобально); воркфлоу с тем же
+  именем (уникальны в команде; конфликт — внутри bundle) → `X (2)`, ...
+  Без 409.
+- Адрес роли `«имя команды»:Seg.Role` не конфликтует (имя команды новое).
+
+### Реализация
+- Backend (additive): `service/team_bundle.go` (формат v1 + ExportTeam +
+  ImportTeam + uniqueName helpers), `http/team_bundle_handlers.go` (2
+  handler'а), `server.go` (2 маршрута), `middleware.go` (1 case RBAC).
+  TeamService получил workflow-репозитории (additive-поля).
+  Существующие create-team-пути не тронуты.
+- Frontend: `api.teams.exportTeam/importTeam` (real + mock),
+  `lib/download.ts` (Blob-download), TeamsPage (Export у команды +
+  Import: file → preview-модалка → confirm → навигация; ошибки валидации —
+  список field-ошибок в модалке), TeamBuilder toolbar (Export),
+  `States.tsx` (friendly-сообщения для unsupported_version/invalid_bundle).
+
+### Тесты
+- **Go** (`team_bundle_handlers_test.go`, 7 сценариев): roundtrip
+  (create 2seg+3roles+relative+layout+workflow → export → import →
+  структура 1-в-1, layout сохранился (позиции + path), workflow привязан к
+  новой команде, state draft, engine_enabled сохраняется), version=2 →
+  400 unsupported_version, kind ≠ team-bundle → 400, relative на
+  несуществующую роль + invalid kind → 400 field-ошибки, name-collision →
+  (2)/(3), RBAC (viewer export 200 / import 403), export 404.
+- **Vitest** (`c1_bundle.test.tsx`, 6 сценариев): TeamsPage export →
+  Blob с bundle-структурой, TeamBuilder export, import file → preview
+  (имя/segments/roles/workflows + «проект не переносится») → confirm →
+  навигация на `/teams/{new_id}` + auto-suffix из ответа, field-ошибки в
+  модалке, parse-ошибка, version≠1 → ошибка в модалке.
+- check_openapi PASS (125/125).
