@@ -90,6 +90,8 @@ export interface Role {
   profile?: string;
   state: RoleState;
   session?: RoleSession;
+  // T4: pi_config override (map, без layout): model/temperature/max_tokens/thinking/mcp/startup_files.
+  config?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -327,6 +329,7 @@ export interface AgentSpec {
     model: string;
     temperature: number;
     max_tokens: number;
+    thinking?: string;
     plugins: PluginSpec[];
     skills: SkillSpec[];
     hooks: HookSpec[];
@@ -347,27 +350,27 @@ export interface GetRoleConfigResponse {
   available_profiles: Profile[];
   available_skills: SkillSpec[];
   available_plugins: PluginSpec[];
+  // T4: pi_config override роли (map, без layout): model/temperature/max_tokens/
+  // thinking/mcp/startup_files/plugins/skills. Пустая — нет override'ов.
+  config?: Record<string, unknown>;
 }
 
+// T4: update config через flat-карту (backend хранит в role.Config, merge'ит c layout).
+// Ключи: model, temperature, max_tokens, thinking, mcp (list), startup_files (list),
+// plugins, skills. null-значение → сброс override'а (у ключа).
 export interface UpdateRoleConfigRequest {
   agent_spec?: string;
   profile?: string;
-  pi_config?: {
-    model?: string;
-    temperature?: number;
-    plugins?: Record<string, boolean>;
-    skills?: string[];
-  };
-  resources?: { cpu?: string; memory?: string };
-  startup?: { files?: StartupFile[] };
+  config?: Record<string, unknown>;
 }
 
 export interface UpdateRoleConfigResponse {
   id: number;
   status: 'updated';
-  previous_config: AgentSpec;
-  new_config: AgentSpec;
-  requires_restart: boolean;
+  previous_config: Record<string, unknown>;
+  new_config: Record<string, unknown>;
+  // mock-only (real backend не возвращает; UI не критичен)
+  requires_restart?: boolean;
 }
 
 // ---- Workflow Editor ----

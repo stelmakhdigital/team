@@ -102,6 +102,7 @@ export function makeAgentSpec(name: string): AgentSpec {
       model: 'claude-3-7-sonnet',
       temperature: 0.7,
       max_tokens: 8192,
+      thinking: 'medium',
       plugins: rolePlugins.map((p) => ({ ...p })),
       skills: roleSkills.map((s) => ({ ...s })),
       hooks: [{ path: 'hooks/pre-commit.sh', enabled: true, description: 'Pre-commit hook' }],

@@ -212,6 +212,20 @@ export default function TeamBuilderPage() {
     }
   };
 
+  // T4: явное создание роли через форму (name + agent_spec + target segment).
+  const [addRoleError, setAddRoleError] = useState<string | null>(null);
+  const onAddRole = async (name: string, agentSpec: string, segmentId: number) => {
+    setAddRoleError(null);
+    try {
+      // дефолт-позиция (можно двигать после создания на канвасе)
+      await createRole.mutate(segmentId, { name, agent_spec: agentSpec, layout: { x: 120, y: 120 } });
+      toast('success', `Role '${name}' added — configure it in the panel`);
+      commitRefetch();
+    } catch (e) {
+      setAddRoleError(errorMessage(e ?? new Error('Failed to add role')));
+    }
+  };
+
   const applyAutoLayout = async () => {
     if (!data) return;
     const ops = autoLayoutMoves(segments, roles, relatives);
@@ -345,7 +359,16 @@ export default function TeamBuilderPage() {
       <PosturePanel kind="team" id={id} current={data.team.posture} />
 
       <div className={`${editMode ? 'builder builder--edit' : 'builder'} ${drawer === 'config' ? 'drawer-open' : ''} ${drawer === 'palette' ? 'drawer-open-palette' : ''}`}>
-        {editMode && <Toolbar connectType={connectType} onConnectType={(t) => setConnectType(t as RelativeType)} />}
+        {editMode && (
+          <Toolbar
+            connectType={connectType}
+            onConnectType={(t) => setConnectType(t as RelativeType)}
+            segments={segments.map((s) => ({ id: s.id, name: s.name }))}
+            onAddRole={onAddRole}
+            addError={addRoleError}
+            adding={createRole.pending}
+          />
+        )}
         {narrowBuilder && (
           <div className="builder-fab">
             {editMode && (

@@ -610,12 +610,18 @@ export function createMockAdapter(): Api {
           { name: 'project-x', description: 'Project X profile' },
           { name: 'default', description: 'Default profile' },
         ];
+        // T4: config override (без layout) — из role.config
+        const cfg: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(role.config ?? {})) {
+          if (k !== 'layout') cfg[k] = v;
+        }
         return {
           role: clone(role),
           agent_spec,
           available_profiles: profiles,
           available_skills: agent_spec.pi_config.skills,
           available_plugins: agent_spec.pi_config.plugins,
+          config: cfg,
         };
       },
 
@@ -625,35 +631,24 @@ export function createMockAdapter(): Api {
         const db = getDb();
         const role = db.roles.find((r) => r.id === id);
         if (!role) throw new ApiClientError(404, 'not_found', `Role ${id} not found`);
-        const prev = makeAgentSpec(role.agent_spec);
+        const prevCfg: Record<string, unknown> = { ...role.config };
         if (req.agent_spec) role.agent_spec = req.agent_spec;
         if (req.profile) role.profile = req.profile;
+        // T4: merge config override (сохраняем layout + непритронутые ключи; null → сброс)
+        if (req.config) {
+          const merged: Record<string, unknown> = { ...(role.config ?? {}) };
+          for (const [k, v] of Object.entries(req.config)) {
+            if (v === null) delete merged[k];
+            else merged[k] = v;
+          }
+          role.config = merged;
+        }
         role.updated_at = now();
-        const next = makeAgentSpec(role.agent_spec);
-        if (req.pi_config) {
-          if (req.pi_config.model) next.pi_config.model = req.pi_config.model;
-          if (req.pi_config.temperature !== undefined) next.pi_config.temperature = req.pi_config.temperature;
-          if (req.pi_config.plugins) {
-            for (const p of next.pi_config.plugins) {
-              const v = req.pi_config.plugins[p.name];
-              if (v !== undefined) p.enabled = v;
-            }
-          }
-          if (req.pi_config.skills) {
-            const enabled = new Set(req.pi_config.skills);
-            for (const s of next.pi_config.skills) s.enabled = enabled.has(s.path);
-          }
-        }
-        if (req.resources) {
-          if (req.resources.cpu) next.resources.cpu = req.resources.cpu;
-          if (req.resources.memory) next.resources.memory = req.resources.memory;
-        }
         return {
           id,
-          status: 'updated',
-          previous_config: prev,
-          new_config: next,
-          requires_restart: !!req.agent_spec && req.agent_spec !== role.agent_spec,
+          status: 'updated' as const,
+          previous_config: prevCfg,
+          new_config: { ...role.config },
         };
       },
 
