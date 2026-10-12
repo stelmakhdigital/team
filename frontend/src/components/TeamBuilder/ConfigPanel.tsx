@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import { useQuery } from '../../hooks/useQuery';
 import { useMutation } from '../../hooks/useMutation';
+import { useAgentSpecs } from '../../hooks/useAgentSpecs';
 import { errorMessage, Spinner } from '../ui/States';
 import { useToast } from '../ui/Toast';
 import type { Role, Segment, UpdateRoleConfigRequest } from '../../types/api';
@@ -21,7 +22,6 @@ interface ConfigPanelProps {
 }
 
 const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
-const AGENT_SPEC_SUGGESTIONS = ['pi-lead', 'pi-worker', 'pi-reviewer', 'pi-watchdog', 'pi-go-backend', 'pi-go-worker'];
 
 interface McpServerDraft { name: string; url: string; enabled: boolean; }
 
@@ -31,6 +31,7 @@ function DefaultHint({ label, def }: { label: string; def: string }) {
 }
 
 function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }) {
+  const specSuggestions = useAgentSpecs();
   const { data, loading, error, refetch } = useQuery(`role.config.${roleId}`, () => api.teams.getRoleConfig(roleId));
   const save = useMutation((req: UpdateRoleConfigRequest) => api.teams.updateRoleConfig(roleId, req));
   const { toast } = useToast();
@@ -108,7 +109,7 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
           <input value={agentSpec} onChange={(e) => setAgentSpec(e.target.value)} list="agent-specs" placeholder="pi-worker" />
         </label>
         <datalist id="agent-specs">
-          {AGENT_SPEC_SUGGESTIONS.map((s) => (
+          {specSuggestions.map((s) => (
             <option key={s} value={s} />
           ))}
         </datalist>
@@ -181,9 +182,10 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
       </section>
 
       <section>
-        <h4>Resources</h4>
+        <h4>Resources (from spec)</h4>
         <div className="muted small">
-          CPU {spec.resources.cpu} · {spec.resources.memory}{spec.resources.gpu ? ' · GPU' : ''}
+          CPU {spec.resources.cpu} · {spec.resources.memory}{spec.resources.gpu ? ' · GPU' : ''} —
+          read-only, defined in the agent spec ({data.role.agent_spec}). No extra config needed here.
         </div>
       </section>
 

@@ -7,22 +7,25 @@ import type { MockErrorKind } from '../../api/mock/adapter';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import CommandPalette from '../CommandPalette';
 
+// Навигация: единый монохромный набор глифов (текстовая презентация, U+FE0E —
+// запрет emoji-рендера на Windows/macOS).
+const TEXT = '\uFE0E';
 const NAV = [
   { to: '/', label: 'Dashboard', icon: '▦', end: true },
-  { to: '/attention', label: 'Attention', icon: '⚑' },
-  { to: '/pulse', label: 'Pulse', icon: '📡' },
+  { to: '/attention', label: 'Attention', icon: `⚑${TEXT}` },
+  { to: '/pulse', label: 'Pulse', icon: '∿' },
   { to: '/teams', label: 'Teams', icon: '⬡' },
   { to: '/projects', label: 'Projects', icon: '▣' },
   { to: '/tasks', label: 'Tasks', icon: '☰' },
   { to: '/sessions', label: 'Sessions', icon: '◉' },
   { to: '/workflows', label: 'Workflows', icon: '⑃' },
-  { to: '/watchdog/jobs', label: 'Watchdog', icon: '⏰' },
-  { to: '/messages', label: 'Messages', icon: '✉' },
+  { to: '/watchdog/jobs', label: 'Watchdog', icon: '◷' },
+  { to: '/messages', label: 'Messages', icon: `✉${TEXT}` },
   { to: '/library', label: 'Library', icon: '▤' },
-  { to: '/history', label: 'History', icon: '⏱' },
-  { to: '/transcript-search', label: 'Search', icon: '🔎' },
-  { to: '/diagnostics', label: 'Health', icon: '🩺' },
-  { to: '/settings', label: 'Settings', icon: '⚙' },
+  { to: '/history', label: 'History', icon: '↺' },
+  { to: '/transcript-search', label: 'Search', icon: '⌕' },
+  { to: '/diagnostics', label: 'Health', icon: '✚' },
+  { to: '/settings', label: 'Settings', icon: `⚙${TEXT}` },
 ];
 
 const MOCK_ERRORS: (MockErrorKind | '')[] = ['', 'unauthorized', 'forbidden', 'not_found', 'conflict', 'server', 'network'];

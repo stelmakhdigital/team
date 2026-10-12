@@ -1741,6 +1741,28 @@ export interface GetProjectResponse {
   estimated_cost?: CostInfo | null; // P2.14: оценка
 }
 
+// P4: Artifacts — файлы проекта (read-only, GET /projects/{id}/files[?path=...])
+export interface ProjectFileEntry {
+  name: string;
+  path: string; // относительно корня проекта
+  is_dir: boolean;
+  size: number;
+  modified_at: string;
+}
+
+export interface ListProjectFilesResponse {
+  project_id: number;
+  root: string;
+  path: string; // подкаталог списка ("" = корень)
+  files: ProjectFileEntry[];
+  truncated: boolean;
+}
+
+// P4: список доступных agent spec (GET /agentspecs)
+export interface ListAgentSpecsResponse {
+  specs: string[];
+}
+
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;

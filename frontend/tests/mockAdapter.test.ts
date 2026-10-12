@@ -45,6 +45,36 @@ describe('MockAdapter contract compatibility', () => {
     expect(top.relatives.length).toBe(1);
   });
 
+  it('deleteRole cascades relatives; deleteSegment 409 with roles then 200', async () => {
+    const api = createMockAdapter();
+    const team = await api.teams.createTeam({ name: 'T' });
+    const seg = await api.teams.createSegment(team.id, { name: 'S' });
+    const role1 = await api.teams.createRole(seg.id, { name: 'A', agent_spec: 'pi-a' });
+    const role2 = await api.teams.createRole(seg.id, { name: 'B', agent_spec: 'pi-b' });
+    const rel = await api.teams.createRelative(team.id, { from_role_id: role1.id, to_role_id: role2.id, type: 'delegates_to' });
+    expect(rel.status).toBe('created');
+
+    // segment с ролями → 409
+    await expect(api.teams.deleteSegment(seg.id)).rejects.toMatchObject({ status: 409, code: 'conflict' });
+
+    // deleteRole каскадом удаляет relatives
+    const dr = await api.teams.deleteRole(role1.id);
+    expect(dr.status).toBe('deleted');
+    expect(dr.relatives_deleted).toBe(1);
+    await expect(api.teams.deleteRole(role1.id)).rejects.toMatchObject({ status: 404, code: 'not_found' });
+
+    // topology: relatives больше нет
+    const top = await api.teams.getTopology(team.id);
+    expect(top.relatives.length).toBe(0);
+    expect(top.roles.length).toBe(1);
+
+    // вторая роль → segment теперь 200
+    await api.teams.deleteRole(role2.id);
+    const ds = await api.teams.deleteSegment(seg.id);
+    expect(ds.status).toBe('deleted');
+    await expect(api.teams.deleteSegment(seg.id)).rejects.toMatchObject({ status: 404, code: 'not_found' });
+  });
+
   it('duplicate relative → conflict (409)', async () => {
     const api = createMockAdapter();
     const top = await api.teams.getTopology(1);

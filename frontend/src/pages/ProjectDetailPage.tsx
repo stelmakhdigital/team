@@ -6,6 +6,7 @@ import { useQuery } from '../hooks/useQuery';
 import { Badge, ErrorState, PageSkeleton, errorMessage } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import EntityLink from '../components/ui/EntityLink';
+import ProjectArtifacts from '../components/ProjectArtifacts';
 import { formatRelative, formatCost } from '../lib/format';
 
 export default function ProjectDetailPage() {
@@ -170,6 +171,12 @@ export default function ProjectDetailPage() {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="card">
+        <h2>Artifacts (файлы проекта)</h2>
+        <p className="muted small">Файлы и артефакты, созданные в процессе работы над проектом (read-only, по каталогу проекта).</p>
+        <ProjectArtifacts projectId={projectKey} root={p.path} />
       </div>
 
       <div className="card">

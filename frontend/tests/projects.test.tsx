@@ -97,3 +97,43 @@ describe('P1.0: Project detail + bindings', () => {
     expect(screen.getByText('All projects')).toBeInTheDocument();
   }, 20_000);
 });
+
+describe('P4: Project artifacts + agent specs', () => {
+  beforeEach(() => resetMockDb());
+
+  it('project detail shows an artifacts tree (top level, lazy expand)', async () => {
+    renderAt('/projects/1');
+    expect(await screen.findByText('Artifacts (файлы проекта)', {}, { timeout: 10_000 })).toBeInTheDocument();
+    // верхний уровень: README.md + каталоги docs/artifacts (без вложенных файлов)
+    expect(await screen.findByText('README.md', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByText('docs')).toBeInTheDocument();
+    expect(screen.getByText('artifacts')).toBeInTheDocument();
+    // вложенные файлы НЕ показаны до раскрытия
+    expect(screen.queryByText('report-2026-10-12.md')).not.toBeInTheDocument();
+    // раскрыть каталог artifacts (последний на верхнем уровне) → lazy-список внутри
+    const expandBtns = screen.getAllByRole('button', { name: 'Expand' });
+    expect(expandBtns.length).toBe(2); // docs + artifacts
+    fireEvent.click(expandBtns[expandBtns.length - 1]);
+    expect(await screen.findByText('report-2026-10-12.md', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.getByText('schema.sql')).toBeInTheDocument();
+  }, 20_000);
+
+  it('artifact preview opens content in a modal', async () => {
+    renderAt('/projects/1');
+    await screen.findByText('Artifacts (файлы проекта)', {}, { timeout: 10_000 });
+    // на верхнем уровне один файл (README.md) → одна кнопка Preview
+    const previewBtns = await screen.findAllByRole('button', { name: 'Preview' }, { timeout: 10_000 });
+    expect(previewBtns.length).toBe(1);
+    fireEvent.click(previewBtns[0]);
+    // превью показывает содержимое mock-файла
+    expect(await screen.findByText(/Mock artifact content/, {}, { timeout: 10_000 })).toBeInTheDocument();
+  }, 20_000);
+
+  it('agent spec field is backed by GET /agentspecs (mock)', async () => {
+    const { createMockAdapter } = await import('../src/api/mock/adapter');
+    const api = createMockAdapter();
+    const res = await api.teams.listAgentSpecs();
+    expect(res.specs).toContain('pi-lead');
+    expect(res.specs).toContain('pi-worker');
+  }, 20_000);
+});

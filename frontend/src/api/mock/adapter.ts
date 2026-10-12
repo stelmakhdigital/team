@@ -16,6 +16,7 @@ import type {
   Message,
   Profile,
   Project,
+  ProjectFileEntry,
   ProjectKind,
   RenameRequest,
   Segment,
@@ -639,6 +640,39 @@ export function createMockAdapter(): Api {
         return { id, status: 'deleted', from_role_name: rel.from_role_name, to_role_name: rel.to_role_name };
       },
 
+      async deleteRole(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const role = db.roles.find((r) => r.id === id);
+        if (!role) throw new ApiClientError(404, 'not_found', `Role ${id} not found`);
+        const relativesDeleted = db.relatives.filter((r) => r.from_role_id === id || r.to_role_id === id).length;
+        db.relatives = db.relatives.filter((r) => r.from_role_id !== id && r.to_role_id !== id);
+        db.roles = db.roles.filter((r) => r.id !== id);
+        if (db.layouts) {
+          db.layouts.roles = db.layouts.roles.filter((r) => r.role_id !== id);
+          db.layouts.relatives = db.layouts.relatives.filter(
+            (r) => r.from_role_id !== id && r.to_role_id !== id,
+          );
+        }
+        return { id, name: role.name, status: 'deleted', relatives_deleted: relativesDeleted };
+      },
+
+      async deleteSegment(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const seg = db.segments.find((s) => s.id === id);
+        if (!seg) throw new ApiClientError(404, 'not_found', `Segment ${id} not found`);
+        const roleCount = db.roles.filter((r) => r.segment_id === id).length;
+        if (roleCount > 0) {
+          throw new ApiClientError(409, 'conflict', `Segment ${seg.name} contains ${roleCount} role(s) — delete them first`);
+        }
+        db.segments = db.segments.filter((s) => s.id !== id);
+        if (db.layouts) db.layouts.segments = db.layouts.segments.filter((s) => s.segment_id !== id);
+        return { id, name: seg.name, status: 'deleted' };
+      },
+
       async getRoleConfig(id) {
         maybeFail();
         await latency();
@@ -729,6 +763,12 @@ export function createMockAdapter(): Api {
           return { team_id: id, status: 'saved', library_item_id: libraryId, validation };
         }
         return { team_id: id, status: 'saved', validation };
+      },
+      async listAgentSpecs() {
+        maybeFail();
+        await latency();
+        // Mock: фиксированный набор (реальный читает SpecsDir с диска).
+        return { specs: ['pi-lead', 'pi-reviewer', 'pi-worker', 'pi-backend', 'pi-frontend'] };
       },
     },
 
@@ -2436,6 +2476,53 @@ export function createMockAdapter(): Api {
         p.archived = true; // idempotent
         p.updated_at = new Date().toISOString();
         return { project: p };
+      },
+      // Mock: нет реального ФС — детерминированное фейк-дерево по project.path
+      // (один уровень за запрос, как backend: UI раскрывает каталоги).
+      async listFiles(id, path) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const p = db.projects.find((x) => x.id === id);
+        if (!p) throw new ApiClientError(404, 'not_found', `project ${id} not found`);
+        const clean = (path ?? '').replace(/^\//, '');
+        if (clean.includes('..')) throw new ApiClientError(400, 'validation_failed', 'invalid path');
+        const mk = (name: string, rel: string, isDir: boolean, size: number, daysAgo: number): ProjectFileEntry => ({
+          name, path: rel, is_dir: isDir, size, modified_at: new Date(Date.now() - daysAgo * 864e5).toISOString(),
+        });
+        const tree: Record<string, ProjectFileEntry[]> = {
+          '': [
+            mk('docs', 'docs', true, 0, 5),
+            mk('artifacts', 'artifacts', true, 0, 0),
+            mk('README.md', 'README.md', false, 545, 2),
+          ],
+          'docs': [mk('spec.md', 'docs/spec.md', false, 1204, 1)],
+          'artifacts': [
+            mk('report-2026-10-12.md', 'artifacts/report-2026-10-12.md', false, 2310, 0),
+            mk('schema.sql', 'artifacts/schema.sql', false, 870, 0),
+          ],
+        };
+        const files = tree[clean];
+        if (!files) throw new ApiClientError(404, 'not_found', `path ${clean || '(root)'} not found`);
+        return { project_id: id, root: p.path, path: clean, files, truncated: false };
+      },
+      async getFile(id, path) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const p = db.projects.find((x) => x.id === id);
+        if (!p) throw new ApiClientError(404, 'not_found', `project ${id} not found`);
+        const clean = path.replace(/^\//, '');
+        if (clean.includes('..')) throw new ApiClientError(400, 'validation_failed', 'invalid path');
+        const fake: Record<string, { content: string; contentType: string }> = {
+          'README.md': { content: '# Project\n\nMock artifact content.\n', contentType: 'text/markdown; charset=utf-8' },
+          'docs/spec.md': { content: '# Spec\n\nMock spec.\n', contentType: 'text/markdown; charset=utf-8' },
+          'artifacts/report-2026-10-12.md': { content: '# Report\n\n- task done\n- evidence ok\n', contentType: 'text/markdown; charset=utf-8' },
+          'artifacts/schema.sql': { content: 'CREATE TABLE demo (id INTEGER PRIMARY KEY);\n', contentType: 'application/sql' },
+        };
+        const hit = fake[clean];
+        if (!hit) throw new ApiClientError(404, 'not_found', `file ${path} not found`);
+        return { content: hit.content, contentType: hit.contentType, filename: clean.split('/').pop() ?? clean };
       },
     },
     // P1.6: watchdog-джобы (mock-симуляция)

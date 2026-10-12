@@ -147,6 +147,8 @@ export default function TeamBuilderPage() {
   );
   const createRelative = useMutation((req: Parameters<typeof api.teams.createRelative>[1]) => api.teams.createRelative(id, req));
   const deleteRelative = useMutation((rid: number) => api.teams.deleteRelative(rid));
+  const deleteRole = useMutation((rid: number) => api.teams.deleteRole(rid));
+  const deleteSegment = useMutation((sid: number) => api.teams.deleteSegment(sid));
   const validate = useMutation(() => api.teams.validateTopology(id));
   const save = useMutation(() => api.teams.saveTopology(id, { save_to_library: false }));
 
@@ -282,15 +284,28 @@ export default function TeamBuilderPage() {
   };
 
   const onDeleteSelection = async () => {
-    if (selection?.type !== 'relative') return;
+    if (!selection) return;
     try {
-      const res = await deleteRelative.mutate(selection.id);
-      toast('success', `Deleted ${res.from_role_name} → ${res.to_role_name}`);
+      if (selection.type === 'relative') {
+        const res = await deleteRelative.mutate(selection.id);
+        toast('success', `Deleted ${res.from_role_name} → ${res.to_role_name}`);
+      } else if (selection.type === 'role') {
+        const res = await deleteRole.mutate(selection.id);
+        toast('success', `Role '${res.name}' deleted${res.relatives_deleted ? ` (+${res.relatives_deleted} connection(s))` : ''}`);
+      } else if (selection.type === 'segment') {
+        const res = await deleteSegment.mutate(selection.id);
+        toast('success', `Segment '${res.name}' deleted`);
+      }
       setSelection(null);
       commitRefetch();
     } catch {
-      toast('error', errorMessage(deleteRelative.error ?? new Error('Delete failed')));
+      toast('error', errorMessage(deleteRelative.error ?? deleteRole.error ?? deleteSegment.error ?? new Error('Delete failed')));
+      commitRefetch();
     }
+  };
+
+  const confirmDelete = (label: string, fn: () => void) => {
+    if (window.confirm(`Delete ${label}? This cannot be undone.`)) fn();
   };
 
   if (loading) return <div className="page"><PageSkeleton rows={5} label="Loading topology…" /></div>;
@@ -474,8 +489,16 @@ export default function TeamBuilderPage() {
         onValidate={onValidate}
         saving={save.pending}
         onSave={onSave}
-        onDeleteSelection={selectionIsRelative ? onDeleteSelection : null}
-        selectionLabel={selectionIsRelative ? `${selectionIsRelative.from_role_name} → ${selectionIsRelative.to_role_name}` : null}
+        onDeleteSelection={selection ? () => {
+          const label =
+            selection.type === 'relative' && selectionIsRelative
+              ? `connection ${selectionIsRelative.from_role_name} → ${selectionIsRelative.to_role_name}`
+              : selection.type === 'role'
+                ? `role '${selectionIsRole?.name ?? selection.id}'`
+                : `segment '${selectionIsSegment?.name ?? selection.id}'`;
+          confirmDelete(label, onDeleteSelection);
+        } : null}
+        selectionLabel={selection ? (selection.type === 'relative' ? `${selectionIsRelative?.from_role_name ?? ''} → ${selectionIsRelative?.to_role_name ?? ''}` : selection.type === 'role' ? `role '${selectionIsRole?.name ?? ''}'` : `segment '${selectionIsSegment?.name ?? ''}'`) : null}
         teamId={id}
         roles={roles}
         selectedRole={selectionIsRole}

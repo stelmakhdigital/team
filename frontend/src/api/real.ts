@@ -1,5 +1,8 @@
 import type { Api } from './types';
+import type { ListAgentSpecsResponse, ListProjectFilesResponse } from '../types/api';
 import { http, toQuery } from './http';
+import { getApiConfig } from './config';
+import { ApiClientError, parseErrorBody } from './errors';
 
 const B = '/api/v1';
 
@@ -20,10 +23,13 @@ export function createRealAdapter(): Api {
       updateSegment: (id, req) => http(`${B}/segments/${id}`, { method: 'PATCH', body: req }),
       updateRoleLayout: (id, req) => http(`${B}/roles/${id}/layout`, { method: 'PATCH', body: req }),
       deleteRelative: (id) => http(`${B}/relatives/${id}`, { method: 'DELETE' }),
+      deleteRole: (id) => http(`${B}/roles/${id}`, { method: 'DELETE' }),
+      deleteSegment: (id) => http(`${B}/segments/${id}`, { method: 'DELETE' }),
       getRoleConfig: (id) => http(`${B}/roles/${id}/config`),
       updateRoleConfig: (id, req) => http(`${B}/roles/${id}/config`, { method: 'PATCH', body: req }),
       validateTopology: (id, req) => http(`${B}/teams/${id}/validate`, { method: 'POST', body: req ?? {} }),
       saveTopology: (id, req) => http(`${B}/teams/${id}/save`, { method: 'POST', body: req ?? {} }),
+      listAgentSpecs: () => http<ListAgentSpecsResponse>(`${B}/agentspecs`),
     },
     workflows: {
       // NOTE: GET /workflows is not in the frozen contract yet (blockers #3)
@@ -209,6 +215,26 @@ export function createRealAdapter(): Api {
       get: (id) => http(`${B}/projects/${id}`),
       update: (id, req) => http(`${B}/projects/${id}`, { method: 'PATCH', body: req }),
       archive: (id) => http(`${B}/projects/${id}`, { method: 'DELETE' }),
+      listFiles: (id, path) => http<ListProjectFilesResponse>(`${B}/projects/${id}/files${toQuery({ path })}`),
+      getFile: async (id, path) => {
+        const cfg = getApiConfig();
+        const headers: Record<string, string> = { Accept: 'text/plain, application/json' };
+        if (cfg.apiKey) headers['X-API-Key'] = cfg.apiKey;
+        const url = `${cfg.baseUrl}${B}/projects/${id}/files/${encodeURI(path).split('/').map(encodeURIComponent).join('/')}`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          let parsed: unknown = null;
+          try { parsed = JSON.parse(text); } catch { parsed = text; }
+          const e = parseErrorBody(parsed, res.status);
+          throw new ApiClientError(res.status, e.code, e.message, e.details);
+        }
+        const content = await res.text();
+        const contentType = res.headers.get('Content-Type') ?? 'text/plain';
+        const disposition = res.headers.get('Content-Disposition') ?? '';
+        const m = disposition.match(/filename="?([^";]+)"?/);
+        return { content, contentType, filename: m ? m[1] : path.split('/').pop() ?? path };
+      },
     },
     watchdogJobs: {
       list: () => http(`${B}/watchdog/jobs`),

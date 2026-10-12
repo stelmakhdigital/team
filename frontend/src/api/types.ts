@@ -118,6 +118,8 @@ import type {
   CreateProjectRequest,
   CreateProjectResponse,
   GetProjectResponse,
+  ListProjectFilesResponse,
+  ListAgentSpecsResponse,
   UpdateProjectRequest,
   WatchdogJob,
   WatchdogJobDetail,
@@ -143,6 +145,19 @@ export interface DeleteRelativeResponse {
   to_role_name: string;
 }
 
+export interface DeleteRoleResponse {
+  id: number;
+  name: string;
+  status: 'deleted';
+  relatives_deleted: number;
+}
+
+export interface DeleteSegmentResponse {
+  id: number;
+  name: string;
+  status: 'deleted';
+}
+
 /** Single API surface used by the UI. Implemented by MockAdapter and
  * RealAdapter; the UI never knows which one is active. */
 export interface Api {
@@ -160,10 +175,13 @@ export interface Api {
     updateSegment(id: number, req: RenameRequest): Promise<RenameResponse>;
     updateRoleLayout(id: number, req: UpdateRoleLayoutRequest): Promise<UpdateRoleLayoutResponse>;
     deleteRelative(id: number): Promise<DeleteRelativeResponse>;
+    deleteRole(id: number): Promise<DeleteRoleResponse>;
+    deleteSegment(id: number): Promise<DeleteSegmentResponse>;
     getRoleConfig(id: number): Promise<GetRoleConfigResponse>;
     updateRoleConfig(id: number, req: UpdateRoleConfigRequest): Promise<UpdateRoleConfigResponse>;
     validateTopology(id: number, req?: ValidateTopologyRequest): Promise<ValidateTopologyResponse>;
     saveTopology(id: number, req?: SaveTopologyRequest): Promise<SaveTopologyResponse>;
+    listAgentSpecs(): Promise<ListAgentSpecsResponse>;
   };
   workflows: {
     getWorkflows(params?: GetWorkflowsParams): Promise<GetWorkflowsResponse>;
@@ -284,6 +302,8 @@ export interface Api {
     get(id: number): Promise<GetProjectResponse>;
     update(id: number, req: UpdateProjectRequest): Promise<ProjectResponse>;
     archive(id: number): Promise<ProjectResponse>;
+    listFiles(id: number, path?: string): Promise<ListProjectFilesResponse>;
+    getFile(id: number, path: string): Promise<{ content: string; contentType: string; filename: string }>;
   };
   watchdogJobs: {
     list: () => Promise<WatchdogJobListResponse>;
