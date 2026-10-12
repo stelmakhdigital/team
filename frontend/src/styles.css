@@ -1555,6 +1555,13 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .ctx-tree-more { padding: 2px 0 2px 22px; }
 .ctx-tree-more-link { font-size: 0.82rem; color: var(--muted); text-decoration: underline; }
 .ctx-tree-more-link:hover { color: var(--text); }
+/* W3.3: 3-й уровень — роли команды */
+.ctx-tree-row--team { display: flex; align-items: center; gap: 2px; }
+.ctx-tree-roles { list-style: none; margin: 0; padding: 0 0 2px; }
+.ctx-tree-link--role { margin-left: 40px; font-size: 0.8rem; color: var(--muted); }
+.ctx-tree-link--role.active { color: var(--accent); }
+.ctx-tree-rolename { overflow: hidden; text-overflow: ellipsis; }
+.ctx-tree-roles .ctx-tree-more { padding-left: 40px; }
 .ctx-tree-empty-state { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 /* live-точки: running/failed/active/none (фон с контрастом ≥3:1 к панели) */
 .ctx-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-right: 6px; vertical-align: middle; }
@@ -1569,3 +1576,75 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .firstrun-sub { margin: 0; max-width: 560px; line-height: 1.5; }
 .firstrun-cta { display: flex; gap: 12px; flex-wrap: wrap; }
 .firstrun-steps { margin: 0; padding-left: 20px; line-height: 1.7; }
+
+/* ============ W3.2: SpecModal (read-only agent spec) ============ */
+.spec-modal { max-width: 720px; width: 92vw; }
+.spec-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.spec-modal-head h3 { margin: 0; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spec-modal-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.spec-modal-status { padding: 14px 0; }
+.spec-yaml {
+  margin: 0;
+  padding: 12px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  max-height: 60vh;
+  overflow: auto;
+  white-space: pre;
+  color: var(--text);
+}
+
+/* W3.2: иконка spec (RoleNode / FleetPanel) — монохромная, currentColor */
+.role-node-spec-btn, .fleet-spec-btn {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  margin-left: 4px;
+  cursor: pointer;
+  color: var(--muted);
+  vertical-align: -1px;
+  display: inline-flex;
+  align-items: center;
+}
+.role-node-spec-btn:hover, .fleet-spec-btn:hover { color: var(--accent); }
+
+/* W3.2: ConfigPanel — кнопка «Open spec» */
+.cfg-open-spec { margin-left: 8px; flex-shrink: 0; }
+
+/* ============ W3.1: HotkeysHint (Dashboard, «?») ============ */
+.hotkeys-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hotkeys-hint-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.35));
+  padding: 18px 22px;
+  max-width: 380px;
+  width: calc(100vw - 48px);
+}
+.hotkeys-hint-card h3 { margin: 0 0 10px; font-size: 0.95rem; }
+.hotkeys-hint-card ul { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.hotkeys-hint-card li { font-size: 0.85rem; color: var(--text); }
+.hotkeys-hint-card kbd {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.75rem;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 6px;
+  color: var(--text);
+}

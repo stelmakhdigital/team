@@ -1769,6 +1769,12 @@ export interface ListAgentSpecsResponse {
   specs: string[];
 }
 
+// W3.2: содержимое agent spec (read-only; GET /agentspecs/{name})
+export interface GetAgentSpecResponse {
+  name: string;
+  yaml: string;
+}
+
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;

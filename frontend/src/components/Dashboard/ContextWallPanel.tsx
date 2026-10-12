@@ -18,7 +18,7 @@ export default function ContextWallPanel() {
     <div className="card">
       <h2>Context wall</h2>
       {entries.length === 0 ? (
-        <div className="empty-line">Нет сессий у контекст-стены (порог {wall}%).</div>
+        <div className="empty-line">Нет сессий выше порога {wall}% · Сессии появятся, когда контекст вырастёт.</div>
       ) : (
         <ul className="context-wall-list">
           {entries.map((e) => (

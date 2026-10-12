@@ -138,7 +138,7 @@ export default function MessagesPage() {
               <ErrorState error={chatrooms.error} onRetry={chatrooms.refetch} />
             ))}
             {chatrooms.data && chatrooms.data.chatrooms.length === 0 && (
-              <p className="muted small dialog-empty-section">No rooms yet</p>
+              <p className="muted small dialog-empty-section">Каналов пока нет · Создайте канал, чтобы команда могла обмениваться сообщениями.</p>
             )}
             {chatrooms.data && chatrooms.data.chatrooms.length > 0 && (
               <>
@@ -187,7 +187,7 @@ export default function MessagesPage() {
               <div className="chat-scroll">
                 {roomMessages.loading && <Spinner />}
                 {roomMessages.data && roomMessages.data.messages.length === 0 && (
-                  <p className="muted small chat-empty">No messages in this room yet.</p>
+                  <p className="muted small chat-empty">В этом канале пока нет сообщений · Напишите первым.</p>
                 )}
                 {roomMessages.data?.messages.map((m) => (
                   <div key={m.id} className={`chat-bubble${m.is_mine ? ' chat-mine' : ''}`}>
@@ -211,7 +211,7 @@ export default function MessagesPage() {
             <>
               <h3 className="dialog-view-title">{dialog.roleName}</h3>
               <div className="chat-scroll">
-                {directMessages.length === 0 && <p className="muted small chat-empty">No direct messages.</p>}
+                {directMessages.length === 0 && <p className="muted small chat-empty">Прямых сообщений нет · Выберите роль слева и напишите.</p>}
                 {directMessages.map((m) => (
                   <div key={m.id} className={`chat-bubble${m.is_mine ? ' chat-mine' : ''}`}>
                     <div className="muted small">

@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import type { Project, Team, SessionDetail } from '../types/api';
+import type { Project, Team, SessionDetail, Role } from '../types/api';
 
-// W2.1: ContextTree — «где я и над чем работаю» в сайдбаре (Projects → Teams,
-// live-точки, bounded, lazy). Сводка: проекты (active) → команды проекта →
-// live-статус сессий (green/red/amber/gray).
+// W2.1 + W3.3: ContextTree — «где я и над чем работаю» в сайдбаре
+// (Projects → Teams → Roles, live-точки, bounded, lazy).
+// W3.3: 3-й уровень — роли команды (lazy через getTeam, кэш в памяти),
+// live-точка роли (сессии по role_id), ссылка роли → /teams/{id},
+// максимум 20 ролей + «+N».
 const COLLAPSE_KEY = 'context-tree.collapsed';
 const MAX_PROJECTS = 10;
+const MAX_ROLES = 20;
 const POLL_MS = 30_000;
 
 type DotKind = 'running' | 'failed' | 'active' | 'none';
@@ -21,13 +24,21 @@ const DOT_LABEL: Record<DotKind, string> = {
   none: 'no session',
 };
 
-// live-точка команды: running > failed > idle/stopped > нет сессий
-function teamDot(sessions: SessionDetail[], teamId: number): DotKind {
-  const own = sessions.filter((s) => s.team_id === teamId);
-  if (own.length === 0) return 'none';
-  if (own.some((s) => s.state === 'running')) return 'running';
-  if (own.some((s) => s.state === 'failed')) return 'failed';
+// live-точка по сессиям: running > failed > idle/stopped > нет сессий
+function dotFrom(sessions: SessionDetail[]): DotKind {
+  if (sessions.length === 0) return 'none';
+  if (sessions.some((s) => s.state === 'running')) return 'running';
+  if (sessions.some((s) => s.state === 'failed')) return 'failed';
   return 'active';
+}
+
+function teamDot(sessions: SessionDetail[], teamId: number): DotKind {
+  return dotFrom(sessions.filter((s) => s.team_id === teamId));
+}
+
+// W3.3: live-точка роли (сессии по role_id)
+function roleDot(sessions: SessionDetail[], roleId: number): DotKind {
+  return dotFrom(sessions.filter((s) => s.role_id === roleId));
 }
 
 export default function ContextTree({ sessionTick }: { sessionTick: number }) {
@@ -72,6 +83,18 @@ export default function ContextTree({ sessionTick }: { sessionTick: number }) {
     });
   }, []);
 
+  // W3.3: роли команд — lazy (первое раскрытие команды), in-memory cache
+  const [teamRoles, setTeamRoles] = useState<Map<number, Role[]>>(new Map());
+  const rolesRequested = useRef<Set<number>>(new Set());
+  const ensureRoles = useCallback((teamId: number) => {
+    if (rolesRequested.current.has(teamId)) return;
+    rolesRequested.current.add(teamId);
+    api.teams
+      .getTeam(teamId)
+      .then((r) => setTeamRoles((prev) => new Map(prev).set(teamId, r.roles ?? [])))
+      .catch(() => setTeamRoles((prev) => new Map(prev).set(teamId, [])));
+  }, []);
+
   // live-точки: сессии (poll 30s + WS через sessionTick из AppShell)
   const [sessions, setSessions] = useState<SessionDetail[]>([]);
   const loadSessions = useCallback(() => {
@@ -86,6 +109,7 @@ export default function ContextTree({ sessionTick }: { sessionTick: number }) {
     return () => clearInterval(id);
   }, [loadSessions, sessionTick]);
 
+  // раскрытые проекты (2-й уровень)
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
   const toggleExpanded = useCallback((id: number) => {
     ensureTeams();
@@ -96,6 +120,18 @@ export default function ContextTree({ sessionTick }: { sessionTick: number }) {
       return next;
     });
   }, [ensureTeams]);
+
+  // W3.3: раскрытые команды (3-й уровень)
+  const [teamOpen, setTeamOpen] = useState<Set<number>>(() => new Set());
+  const toggleTeam = useCallback((teamId: number) => {
+    ensureRoles(teamId);
+    setTeamOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(teamId)) next.delete(teamId);
+      else next.add(teamId);
+      return next;
+    });
+  }, [ensureRoles]);
 
   if (collapsed) {
     return (
@@ -165,12 +201,62 @@ export default function ContextTree({ sessionTick }: { sessionTick: number }) {
                       pTeams.map((tm) => {
                         const dot = teamDot(sessions, tm.id);
                         const tActive = activeKind === 'teams' && activeId === tm.id;
+                        // W3.3: роли команды (lazy; null = ещё не загружены)
+                        const roles = teamRoles.get(tm.id) ?? null;
+                        const teamExpanded = teamOpen.has(tm.id);
                         return (
                           <li key={tm.id}>
-                            <Link to={`/teams/${tm.id}`} className={`ctx-tree-link ctx-tree-link--team${tActive ? ' active' : ''}`}>
-                              <span className={`ctx-dot ctx-dot--${dot}`} title={DOT_LABEL[dot]} aria-label={DOT_LABEL[dot]} />
-                              <span className="ctx-tree-teamname">{tm.name}</span>
-                            </Link>
+                            <div className="ctx-tree-row ctx-tree-row--team">
+                              <button
+                                type="button"
+                                className="ctx-tree-toggle"
+                                onClick={() => toggleTeam(tm.id)}
+                                aria-expanded={teamExpanded}
+                                aria-label={teamExpanded ? 'Свернуть команду' : 'Развернуть команду'}
+                                data-testid={`ctx-team-toggle-${tm.id}`}
+                              >
+                                {teamExpanded ? '▾' : '▸'}
+                              </button>
+                              <Link to={`/teams/${tm.id}`} className={`ctx-tree-link ctx-tree-link--team${tActive ? ' active' : ''}`}>
+                                <span className={`ctx-dot ctx-dot--${dot}`} title={DOT_LABEL[dot]} aria-label={DOT_LABEL[dot]} />
+                                <span className="ctx-tree-teamname">{tm.name}</span>
+                              </Link>
+                            </div>
+                            {teamExpanded && (
+                              <ul className="ctx-tree-roles" role="group" data-testid={`ctx-roles-${tm.id}`}>
+                                {!roles ? (
+                                  <li className="ctx-tree-empty muted">…</li>
+                                ) : roles.length === 0 ? (
+                                  <li className="ctx-tree-empty muted">—</li>
+                                ) : (
+                                  <>
+                                    {roles.slice(0, MAX_ROLES).map((r) => {
+                                      const rd = roleDot(sessions, r.id);
+                                      return (
+                                        <li key={r.id}>
+                                          <Link
+                                            to={`/teams/${tm.id}`}
+                                            className="ctx-tree-link ctx-tree-link--role"
+                                            title={`${r.name} (${r.agent_spec})`}
+                                            data-testid={`ctx-role-${r.id}`}
+                                          >
+                                            <span className={`ctx-dot ctx-dot--${rd}`} title={DOT_LABEL[rd]} aria-label={DOT_LABEL[rd]} />
+                                            <span className="ctx-tree-rolename">{r.name}</span>
+                                          </Link>
+                                        </li>
+                                      );
+                                    })}
+                                    {roles.length > MAX_ROLES && (
+                                      <li className="ctx-tree-more">
+                                        <Link to={`/teams/${tm.id}`} className="ctx-tree-more-link">
+                                          +{roles.length - MAX_ROLES} ещё
+                                        </Link>
+                                      </li>
+                                    )}
+                                  </>
+                                )}
+                              </ul>
+                            )}
                           </li>
                         );
                       })

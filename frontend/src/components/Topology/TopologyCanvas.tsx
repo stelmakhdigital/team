@@ -92,6 +92,8 @@ interface Props {
   outputs?: Map<number, string[]>;
   /** UX Wave 1 — W1.3: id ролей с in_progress-задачей → ребро from→to активно, если to в наборе */
   activeRoleIds?: Set<number>;
+  /** W3.2: открыть содержимое agent spec роли (read-only) — иконка на RoleNode */
+  onOpenSpec?: (name: string) => void;
 }
 
 interface InnerProps extends Props {
@@ -113,6 +115,7 @@ function TopologyCanvasInner({
   liveSessions,
   outputs,
   activeRoleIds,
+  onOpenSpec,
   tl,
 }: InnerProps) {
   const { segments, roles, relatives, layout } = data;
@@ -157,6 +160,7 @@ function TopologyCanvasInner({
           tokensOut: sess?.context_total_output_tokens ?? null,
           model: sess?.model ?? null,
           output: out ? out.slice(-MAX_TERM_LINES) : undefined,
+          onOpenSpec, // W3.2
         },
         draggable: editMode,
         selectable: true,
@@ -168,7 +172,7 @@ function TopologyCanvasInner({
     const relEdges = buildRelEdges(relatives, selection, activeRoleIds);
 
     return { nodes: [...segNodes, ...roleNodes], edges: relEdges };
-  }, [segments, roles, relatives, layout, selection, editMode, tl, liveSessions, outputs, activeRoleIds]);
+  }, [segments, roles, relatives, layout, selection, editMode, tl, liveSessions, outputs, activeRoleIds, onOpenSpec]);
 
   // DnD из палитры (HTML5): screen → flow координаты; роль — только внутрь segment
   const onDragOver = (e: React.DragEvent) => {

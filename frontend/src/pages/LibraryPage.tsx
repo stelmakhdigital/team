@@ -155,7 +155,7 @@ export default function LibraryPage() {
           ) : (
             <ErrorState error={list.error} onRetry={list.refetch} />
           ))}
-          {list.data && items.length === 0 && <EmptyState title="Nothing here" hint="Try a different search or type." />}
+          {list.data && items.length === 0 && <EmptyState title="Ничего не найдено" hint="Попробуйте другой запрос или другой тип (стартеры / спецификации / шаблоны)." />}
           {items.some((i) => i.is_starter) && (
             <div className="library-starters-banner">
               <span className="library-starters-title">Starters</span>

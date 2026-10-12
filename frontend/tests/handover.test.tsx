@@ -70,7 +70,7 @@ describe('P1.5: session handover + compact-plan', () => {
     renderAt('/');
     const wallHeading = await screen.findByRole('heading', { name: 'Context wall' }, { timeout: 10_000 });
     const wallCard = wallHeading.closest<HTMLElement>('.card')!;
-    expect(await within(wallCard).findByText(/Нет сессий у контекст-стены/)).toBeInTheDocument();
+    expect(await within(wallCard).findByText(/Нет сессий выше порога/)).toBeInTheDocument();
     expect(within(wallCard).queryByRole('button', { name: 'Продолжить в новой сессии' })).not.toBeInTheDocument();
   }, 20_000);
 

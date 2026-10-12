@@ -52,7 +52,7 @@ export default function HistoryPage() {
           ) : (
             <ErrorState error={audit.error} onRetry={audit.refetch} />
           ))}
-          {audit.data && audit.data.entries.length === 0 && <EmptyState title="No audit entries" />}
+          {audit.data && audit.data.entries.length === 0 && <EmptyState title="Журнала аудита пока нет" hint="Записи появятся после действий в системе (создание команд, задач, запуски сессий)." />}
           {audit.data && audit.data.entries.length > 0 && (
             <div className="card">
               <div className="table-wrap"><table className="table">
@@ -106,7 +106,7 @@ export default function HistoryPage() {
         <>
           {taskHistory.loading && <PageSkeleton label="Loading task history…" rows={5} />}
           {taskHistory.error && <ErrorState error={taskHistory.error} onRetry={taskHistory.refetch} />}
-          {taskHistory.data && taskHistory.data.history.length === 0 && <EmptyState title="No task history available" />}
+          {taskHistory.data && taskHistory.data.history.length === 0 && <EmptyState title="История задач пуста" hint="Выберите задачу — её переходы между состояниями появятся здесь." />}
           {taskHistory.data && taskHistory.data.history.length > 0 && (
             <div className="card">
               <h2>Task #{taskId} timeline</h2>
@@ -138,7 +138,7 @@ export default function HistoryPage() {
         <>
           {transcript.loading && <PageSkeleton label="Loading transcript…" rows={5} />}
           {transcript.error && <ErrorState error={transcript.error} onRetry={transcript.refetch} />}
-          {transcript.data && transcript.data.transcript.length === 0 && <EmptyState title="No transcript available" />}
+          {transcript.data && transcript.data.transcript.length === 0 && <EmptyState title="Транскрипта пока нет" hint="События сессии появятся здесь, когда агент начнёт работу." />}
           {transcript.data && transcript.data.transcript.length > 0 && (
             <div className="card">
               <h2>Session #{sessionId} transcript</h2>

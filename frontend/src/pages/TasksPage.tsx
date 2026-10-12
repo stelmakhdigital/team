@@ -161,11 +161,11 @@ export default function TasksPage() {
       {active.error && <ErrorState error={active.error} onRetry={refetch} />}
       {active.data && rows.length === 0 && (
         <EmptyState
-          title={view === 'overdue' ? 'No overdue tasks' : teamFilter === 'all' && stateFilter === 'all' ? 'No tasks' : 'No tasks match the filters'}
+          title={view === 'overdue' ? 'Переданных сроков нет' : teamFilter === 'all' && stateFilter === 'all' ? 'Нет задач' : 'Нет задач по заданным фильтрам'}
           hint={
             view === 'overdue'
-              ? 'Every in-progress / blocked task is within its closure deadline. ✓'
-              : 'Create a task to put it into a role’s queue, or clear the filters above.'
+              ? 'Все в-progress и blocked задачи в графике. ✓'
+              : 'Создайте задачу, чтобы положить её в очередь роли — или сбросьте фильтры выше.'
           }
           action={view === 'overdue' ? undefined : <button className="btn btn-primary" onClick={() => setCreating(true)}>+ New task</button>}
         />

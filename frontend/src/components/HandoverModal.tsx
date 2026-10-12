@@ -1,3 +1,5 @@
+
+import { useEscapeStack } from '../hooks/useEscapeStack';
 import { useState } from 'react';
 import type { HandoverResult, HandoverStep } from '../types/api';
 import { api } from '../api';
@@ -44,8 +46,11 @@ export default function HandoverModal({ sessionId, onClose }: { sessionId: numbe
     execute.mutate().then(setResult).catch((e) => setError(errorMessage(e)));
   };
 
-  return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    // W3.1: Esc закрывает модалку (если она верхний оверлей)
+  useEscapeStack(onClose, true);
+
+return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={onClose}>
       <div className="modal handover-modal" onClick={(e) => e.stopPropagation()}>
         <h2>Продолжить в новой сессии</h2>
         <label>

@@ -6,7 +6,7 @@ import EntityLink from '../ui/EntityLink';
 
 function SessionGridInner({ sessions }: { sessions: Session[] }) {
   if (sessions.length === 0) {
-    return <EmptyState title="No sessions" hint="Agent sessions will appear here when teams start." />;
+    return <EmptyState title="Сессий пока нет" hint="Запустите команду — live-сессии появятся здесь." />;
   }
   return (
     <div className="card">

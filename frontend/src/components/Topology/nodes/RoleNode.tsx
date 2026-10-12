@@ -13,7 +13,18 @@ export interface RoleNodeData extends Record<string, unknown> {
   model?: string | null;
   // live-терминал: последние строки session.output (подрезано канвасом)
   output?: string[];
+  /** W3.2: открыть содержимое agent spec (read-only) */
+  onOpenSpec?: (name: string) => void;
 }
+
+// W3.2: иконка «spec» (монохромная, currentColor — W1-ограничение на иконки)
+const ICON_SPEC = (
+  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+    <path d="M4 1.5h7.5L14 5v9a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 3 14V3a1.5 1.5 0 0 1 1-1.5z" />
+    <path d="M11 1.5V5h3.5" />
+    <path d="M5.5 9.5h5M5.5 12h3.5" />
+  </svg>
+);
 
 export function activityState(role: Role): 'running' | 'failed' | 'stopped' | 'idle' {
   if (role.session?.state === 'running') return 'running';
@@ -50,7 +61,7 @@ function ctxClass(pct?: number | null): string {
 const MAX_TERM_LINES = 6;
 
 function RoleNodeInner({ data }: NodeProps) {
-  const { role, selected, editMode, ctxPct, tokensIn, tokensOut, model, output } = data as RoleNodeData;
+  const { role, selected, editMode, ctxPct, tokensIn, tokensOut, model, output, onOpenSpec } = data as RoleNodeData;
   const act = activityState(role);
   const up = uptimeSince(role.session?.started_at);
   const ctxKnown = ctxPct !== null && ctxPct !== undefined;
@@ -74,7 +85,24 @@ function RoleNodeInner({ data }: NodeProps) {
       </div>
       <div className="role-node-body">
         <div className="role-node-line">
-          <span className="mono dim">{role.agent_spec}</span>
+          <span className="mono dim">
+            {role.agent_spec}
+            {typeof onOpenSpec === 'function' && (
+              <button
+                type="button"
+                className="role-node-spec-btn"
+                title={`Открыть spec «${role.agent_spec}» (read-only)`}
+                aria-label={`Открыть spec ${role.agent_spec}`}
+                data-testid="role-node-spec"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenSpec(role.agent_spec);
+                }}
+              >
+                {ICON_SPEC}
+              </button>
+            )}
+          </span>
           {role.profile && <span className="mono badge">{role.profile}</span>}
         </div>
         <div className="role-node-line">

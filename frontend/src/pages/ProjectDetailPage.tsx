@@ -198,7 +198,7 @@ export default function ProjectDetailPage() {
       <div className="card">
         <h2>Tasks ({relatedTasks.length})</h2>
         {relatedTasks.length === 0 ? (
-          <div className="muted">No tasks in this project.</div>
+          <div className="muted">В этом проекте пока нет задач · Задачи появятся, когда агент начнёт работу.</div>
         ) : (
           <ul className="entity-list">
             {relatedTasks.map((t) => (

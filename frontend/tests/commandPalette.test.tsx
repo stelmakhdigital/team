@@ -5,7 +5,7 @@ import App from '../src/App';
 import { resetMockDb } from '../src/api/mock/data';
 
 // P2.10: Command palette (Cmd+K) — открытие, закрытие Esc, навигация Enter, разделы.
-const PH = /Поиск: страницы/;
+const PH = /type a command or search/;
 
 function renderApp(path: string) {
   return render(

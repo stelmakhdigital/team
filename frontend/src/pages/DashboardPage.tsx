@@ -7,6 +7,7 @@ import SummaryCards from '../components/Dashboard/SummaryCards';
 import TaskList from '../components/Dashboard/TaskList';
 import SessionGrid from '../components/Dashboard/SessionGrid';
 import FleetPanel from '../components/Dashboard/FleetPanel';
+import HotkeysHint from '../components/Dashboard/HotkeysHint';
 import AlertsPanel from '../components/Dashboard/AlertsPanel';
 import ContextWallPanel from '../components/Dashboard/ContextWallPanel';
 import MetricsChart from '../components/Dashboard/MetricsChart';
@@ -45,6 +46,7 @@ export default function DashboardPage() {
 
   return (
     <div className="page">
+      <HotkeysHint />
       <div className="page-head">
         <h1>Dashboard</h1>
       </div>

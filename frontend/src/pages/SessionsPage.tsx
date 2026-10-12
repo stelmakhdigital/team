@@ -133,8 +133,8 @@ export default function SessionsPage() {
       {list.data && sessions.length === 0 && (
         <div className="card">
           <EmptyState
-            title={teamFilter === 'all' && stateFilter === 'all' ? 'No sessions' : 'No sessions match the filters'}
-            hint="Sessions appear once agents are launched, or clear the filters above."
+            title={teamFilter === 'all' && stateFilter === 'all' ? 'Нет сессий' : 'Нет сессий по заданным фильтрам'}
+            hint="Сессии появятся, когда вы запустите агента в команде — или сбросьте фильтры выше."
           />
         </div>
       )}

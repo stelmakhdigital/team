@@ -1,3 +1,5 @@
+
+import { useEscapeStack } from '../hooks/useEscapeStack';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { api } from '../api';
@@ -28,6 +30,8 @@ export default function ProjectArtifacts({ projectId, root }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   // children[path] = записи подкаталога (после первого раскрытия); null = грузится
   const [children, setChildren] = useState<Map<string, ProjectFileEntry[] | null>>(() => new Map());
+  // W3.1: Esc закрывает preview-модалку (если она верхний оверлей)
+  useEscapeStack(() => setPreview(null), true);
 
   const openPreview = async (path: string) => {
     setPreviewError(null);
@@ -155,7 +159,8 @@ export default function ProjectArtifacts({ projectId, root }: Props) {
     return rows;
   };
 
-  return (
+
+return (
     <>
       <div className="artifacts-toolbar">
         <span className="muted small mono" title="Каталог проекта">
@@ -186,7 +191,7 @@ export default function ProjectArtifacts({ projectId, root }: Props) {
       </div>
 
       {preview && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setPreview(null)}>
+        <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={() => setPreview(null)}>
           <div className="modal artifacts-preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <h2 className="mono small">{preview.path}</h2>

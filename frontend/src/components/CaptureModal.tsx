@@ -1,3 +1,5 @@
+
+import { useEscapeStack } from '../hooks/useEscapeStack';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import type { CaptureResult } from '../types/api';
@@ -43,8 +45,11 @@ export default function CaptureModal({ sessionId, onClose }: { sessionId: number
   };
 
   const err = captureMut.error;
-  return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    // W3.1: Esc закрывает модалку (если она верхний оверлей)
+  useEscapeStack(onClose, true);
+
+return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={onClose}>
       <div className="modal capture-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>⎙ Capture — Session #{sessionId}</h2>

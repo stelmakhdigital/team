@@ -19,6 +19,8 @@ interface ConfigPanelProps {
   segment?: Segment;
   onClose: () => void;
   onChanged: () => void;
+  /** W3.2: открыть содержимое agent spec (read-only) */
+  onOpenSpec?: (name: string) => void;
 }
 
 const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
@@ -30,7 +32,7 @@ function DefaultHint({ label, def }: { label: string; def: string }) {
   return <span className="muted small"> ({label}: {def})</span>;
 }
 
-function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }) {
+function RoleConfig({ roleId, onSaved, onOpenSpec }: { roleId: number; onSaved: () => void; onOpenSpec?: (name: string) => void }) {
   const specSuggestions = useAgentSpecs();
   const { data, loading, error, refetch } = useQuery(`role.config.${roleId}`, () => api.teams.getRoleConfig(roleId));
   const save = useMutation((req: UpdateRoleConfigRequest) => api.teams.updateRoleConfig(roleId, req));
@@ -107,6 +109,18 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
         <label>
           Agent spec *
           <input value={agentSpec} onChange={(e) => setAgentSpec(e.target.value)} list="agent-specs" placeholder="pi-worker" />
+          {onOpenSpec && (
+            <button
+              type="button"
+              className="btn btn-small cfg-open-spec"
+              onClick={() => onOpenSpec(agentSpec.trim())}
+              disabled={!agentSpec.trim()}
+              title="Открыть содержимое spec (read-only)"
+              data-testid="cfg-open-spec"
+            >
+              Open spec
+            </button>
+          )}
         </label>
         <datalist id="agent-specs">
           {specSuggestions.map((s) => (
@@ -254,7 +268,7 @@ function SegmentConfig({ segment, onSaved }: { segment: Segment; onSaved: () => 
   );
 }
 
-export default function ConfigPanel({ selection, role, segment, onClose, onChanged }: ConfigPanelProps) {
+export default function ConfigPanel({ selection, role, segment, onClose, onChanged, onOpenSpec }: ConfigPanelProps) {
   return (
     <aside className="config-panel" aria-label="Configuration panel">
       <div className="panel-header">
@@ -264,7 +278,7 @@ export default function ConfigPanel({ selection, role, segment, onClose, onChang
         </button>
       </div>
       {!selection && <p className="muted">Select a role or segment on the canvas to configure it.</p>}
-      {selection?.type === 'role' && role && <RoleConfig roleId={selection.id} onSaved={onChanged} />}
+      {selection?.type === 'role' && role && <RoleConfig roleId={selection.id} onSaved={onChanged} onOpenSpec={onOpenSpec} />}
       {selection?.type === 'segment' && segment && <SegmentConfig segment={segment} onSaved={onChanged} />}
     </aside>
   );

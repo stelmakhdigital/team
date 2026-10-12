@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { fuzzyRank, highlightParts, type FuzzyResult } from '../lib/fuzzy';
+import { isEditableTarget, hasExcludedOverlay } from '../lib/hotkeys';
+import { useEscapeStack } from '../hooks/useEscapeStack';
 
 // P2.10 — Command palette (Cmd+K / Ctrl+K): fuzzy-переход по страницам + сущностям
 // + быстрым действиям. Собственный компонент (без UI-библиотек); fuzzy — lib/fuzzy.ts.
@@ -104,6 +106,8 @@ export default function CommandPalette() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fetchToken = useRef(0);
 
+  const close = useCallback(() => setOpen(false), []);
+
   const actions = useMemo<ActionItem[]>(
     () => [
       { label: 'New team', icon: '＋', run: () => navigate('/teams') },
@@ -116,10 +120,20 @@ export default function CommandPalette() {
     [navigate],
   );
 
-  // Открытие: Cmd+K / Ctrl+K (глобально)
+  // Открытие: Cmd+K / Ctrl+K (существующее) + W3.1: K / Shift+K.
+  // K — только когда фокус НЕ в input/textarea/contenteditable и нет
+  // открытых модалок-исключений ([data-hotkey-exclude]).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setOpen(true);
+        return;
+      }
+      if (e.key === 'k' || e.key === 'K') {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (isEditableTarget(e.target)) return;
+        if (hasExcludedOverlay()) return;
         e.preventDefault();
         setOpen(true);
       }
@@ -127,6 +141,10 @@ export default function CommandPalette() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // W3.1: Esc закрывает палитру (если она верхний оверлей) — глобально,
+  // не только при фокусе в input.
+  useEscapeStack(close, open);
 
   // Autofocus input при открытии + сброс
   useEffect(() => {
@@ -222,7 +240,6 @@ export default function CommandPalette() {
     if (activeIndex >= sections.flat.length) setActiveIndex(Math.max(0, sections.flat.length - 1));
   }, [sections.flat.length, activeIndex]);
 
-  const close = useCallback(() => setOpen(false), []);
   const runItem = useCallback(
     (item: FlatItem | undefined) => {
       if (!item) return;
@@ -303,7 +320,7 @@ export default function CommandPalette() {
   const entitiesStart = sections.pages.length + sections.actions.length;
 
   return (
-    <div className="palette-overlay" onMouseDown={close} aria-hidden={false}>
+    <div className="palette-overlay" onMouseDown={close} aria-hidden={false} data-hotkey-exclude>
       <div
         className="palette-modal"
         role="dialog"
@@ -319,7 +336,7 @@ export default function CommandPalette() {
           aria-controls="palette-listbox"
           aria-activedescendant={sections.flat[activeIndex] ? `palette-opt-${activeIndex}` : undefined}
           aria-label="Command palette"
-          placeholder="Поиск: страницы, сущности, действия…  (Esc — закрыть)"
+          placeholder="type a command or search…  (K · Esc — закрыть)"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);

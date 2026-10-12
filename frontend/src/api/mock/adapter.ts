@@ -770,6 +770,29 @@ export function createMockAdapter(): Api {
         // Mock: фиксированный набор (реальный читает SpecsDir с диска).
         return { specs: ['pi-lead', 'pi-reviewer', 'pi-worker', 'pi-backend', 'pi-frontend'] };
       },
+      async getAgentSpec(name) {
+        maybeFail();
+        await latency();
+        // W3.2: mock-содержимое spec (детерминированное; реальный читает файл с диска)
+        const clean = String(name ?? '');
+        if (clean.includes('/') || clean.includes('\\') || clean.includes('..') || clean.startsWith('/')) {
+          throw new ApiClientError(400, 'validation_failed', 'invalid spec name');
+        }
+        const known: Record<string, string> = {
+          'pi-lead': 'name: pi-lead\nversion: 1.2.0\nruntime:\n  type: pi\n  version: "1.1.0"\npi_config:\n  model: claude-3-7-sonnet\n  temperature: 0.2\n  max_tokens: 8192\n  plugins:\n    - name: planner\n      enabled: true\n      description: task planning\n  skills:\n    - path: ./skills/lead.md\n      enabled: true\n',
+          'pi-worker': 'name: pi-worker\nversion: 2.0.1\nruntime:\n  type: pi\n  version: "1.1.0"\npi_config:\n  model: claude-3-5-haiku\n  temperature: 0.1\n  max_tokens: 16384\n  plugins:\n    - name: executor\n      enabled: true\n      description: step execution\n',
+          'pi-reviewer': 'name: pi-reviewer\nversion: 1.0.0\nruntime:\n  type: pi\n  version: "1.1.0"\npi_config:\n  model: claude-3-7-sonnet\n  temperature: 0.0\n  max_tokens: 8192\n',
+          'pi-backend': 'name: pi-backend\nversion: 1.0.3\nruntime:\n  type: pi\npi_config:\n  model: claude-3-7-sonnet\n  temperature: 0.2\n  max_tokens: 16384\n',
+          'pi-frontend': 'name: pi-frontend\nversion: 1.0.0\nruntime:\n  type: pi\npi_config:\n  model: claude-3-7-sonnet\n  temperature: 0.3\n  max_tokens: 16384\n',
+          'pi-go-backend': 'name: pi-go-backend\nversion: 1.4.0\nruntime:\n  type: pi\n  version: "1.1.0"\npi_config:\n  model: claude-3-7-sonnet\n  temperature: 0.2\n  max_tokens: 16384\n  plugins:\n    - name: go-lint\n      enabled: true\n      description: go vet + golangci-lint\n',
+          'pi-go-worker': 'name: pi-go-worker\nversion: 2.1.0\nruntime:\n  type: pi\npi_config:\n  model: claude-3-5-haiku\n  temperature: 0.1\n  max_tokens: 16384\n',
+          'pi-infra-lead': 'name: pi-infra-lead\nversion: 1.0.0\nruntime:\n  type: pi\npi_config:\n  model: claude-3-7-sonnet\n  temperature: 0.2\n  max_tokens: 8192\n',
+          'pi-docs': 'name: pi-docs\nversion: 1.0.0\nruntime:\n  type: pi\npi_config:\n  model: claude-3-5-haiku\n  temperature: 0.3\n  max_tokens: 8192\n',
+        };
+        const yaml = known[clean];
+        if (!yaml) throw new ApiClientError(404, 'not_found', `agent spec ${clean} not found`);
+        return { name: clean, yaml };
+      },
     },
 
     workflows: {

@@ -18,6 +18,7 @@ import SpecYamlPanel from '../components/TeamBuilder/SpecYamlPanel';
 import ConfigPanel, { type ConfigSelection } from '../components/TeamBuilder/ConfigPanel';
 import BottomPanel from '../components/TeamBuilder/BottomPanel';
 import PosturePanel from '../components/PosturePanel';
+import SpecModal from '../components/SpecModal';
 import EntityLink from '../components/ui/EntityLink';
 
 export default function TeamBuilderPage() {
@@ -39,6 +40,8 @@ export default function TeamBuilderPage() {
   const [editMode, setEditMode] = useState(false);
   const [connectType, setConnectType] = useState<RelativeType>('delegates_to');
   const [specOpen, setSpecOpen] = useState(false);
+  // W3.2: содержимое agent spec (read-only) — имя spec или null
+  const [specName, setSpecName] = useState<string | null>(null);
   const [view, setView] = useState<'graph' | 'table'>('graph');
   const narrow = useMediaQuery('(max-width: 900px)');
   // R6.2: на узких экранах панели-конфигурации — выдвижные drawery + FAB
@@ -437,6 +440,7 @@ export default function TeamBuilderPage() {
                   liveSessions={liveSessions}
                   outputs={outputs}
                   activeRoleIds={activeRoleIds}
+                  onOpenSpec={setSpecName}
                 />
               </div>
             ) : (
@@ -479,6 +483,7 @@ export default function TeamBuilderPage() {
               setDrawer('none');
             }}
             onChanged={commitRefetch}
+            onOpenSpec={setSpecName}
           />
         )}
       </div>
@@ -503,6 +508,7 @@ export default function TeamBuilderPage() {
         roles={roles}
         selectedRole={selectionIsRole}
       />
+      <SpecModal name={specName} onClose={() => setSpecName(null)} />
     </div>
   );
 }

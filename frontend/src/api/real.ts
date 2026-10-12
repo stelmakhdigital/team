@@ -1,5 +1,5 @@
 import type { Api } from './types';
-import type { ListAgentSpecsResponse, ListProjectFilesResponse } from '../types/api';
+import type { GetAgentSpecResponse, ListAgentSpecsResponse, ListProjectFilesResponse } from '../types/api';
 import { http, toQuery } from './http';
 import { getApiConfig } from './config';
 import { ApiClientError, parseErrorBody } from './errors';
@@ -30,6 +30,7 @@ export function createRealAdapter(): Api {
       validateTopology: (id, req) => http(`${B}/teams/${id}/validate`, { method: 'POST', body: req ?? {} }),
       saveTopology: (id, req) => http(`${B}/teams/${id}/save`, { method: 'POST', body: req ?? {} }),
       listAgentSpecs: () => http<ListAgentSpecsResponse>(`${B}/agentspecs`),
+      getAgentSpec: (name) => http<GetAgentSpecResponse>(`${B}/agentspecs/${encodeURIComponent(name)}`),
     },
     workflows: {
       // NOTE: GET /workflows is not in the frozen contract yet (blockers #3)

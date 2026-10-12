@@ -19,6 +19,8 @@ export interface FleetRow {
   /** context% (null = нет данных — «—») */
   ctxPct: number | null;
   uptimeSeconds?: number;
+  /** W3.2: agent spec роли (null = не задан/неизвестен) — иконка-CTA в строке */
+  agentSpec: string | null;
 }
 
 export const FLEET_MAX_ROWS = 12;
@@ -62,6 +64,8 @@ export function composeFleetRows(
   sessions: SessionDetail[],
   _teams: Team[],
   tasks: Task[],
+  /** W3.2: roleId → agent_spec (lazy-загружается FleetPanel'ом через getTeam) */
+  roleSpecs?: Map<number, string>,
 ): FleetRow[] {
   const activeTaskByRole = new Map<number, Task>();
   for (const t of tasks) {
@@ -81,6 +85,7 @@ export function composeFleetRows(
       taskTitle: task ? task.title : null,
       ctxPct: typeof s.context_used_percentage === 'number' ? s.context_used_percentage : null,
       uptimeSeconds: uptimeSinceCreated(s.created_at),
+      agentSpec: roleSpecs?.get(s.role_id) ?? null,
     };
   });
   return rows.sort((a, b) => {

@@ -38,6 +38,7 @@ import type {
   GetSessionsResponse,
   GetTaskHistoryResponse,
   GetTeamResponse,
+  GetAgentSpecResponse,
   GetTeamsResponse,
   GetTopologyResponse,
   GetTranscriptResponse,
@@ -182,6 +183,7 @@ export interface Api {
     validateTopology(id: number, req?: ValidateTopologyRequest): Promise<ValidateTopologyResponse>;
     saveTopology(id: number, req?: SaveTopologyRequest): Promise<SaveTopologyResponse>;
     listAgentSpecs(): Promise<ListAgentSpecsResponse>;
+    getAgentSpec(name: string): Promise<GetAgentSpecResponse>; // W3.2: содержимое spec (read-only)
   };
   workflows: {
     getWorkflows(params?: GetWorkflowsParams): Promise<GetWorkflowsResponse>;

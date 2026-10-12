@@ -48,8 +48,8 @@ export default function ProjectsPage() {
       {error && <ErrorState error={error} onRetry={refetch} />}
       {data && data.projects.length === 0 && (
         <EmptyState
-          title={showArchived ? 'No projects' : 'No active projects'}
-          hint="Projects are working directories that teams, tasks and sessions run against."
+          title={showArchived ? 'Нет проектов' : 'Нет активных проектов'}
+          hint="Проект — рабочая директория, над которой работают команды, задачи и сессии. Создайте первый проект."
           action={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ New project</button>}
         />
       )}
