@@ -45,7 +45,7 @@ describe('P3.14: walk (paced onboarding)', () => {
   it('create: форма + редактор шагов → новый walk появляется', async () => {
     renderPanel(1);
     await screen.findByTestId('walk-item', {}, { timeout: 10_000 });
-    fireEvent.click(screen.getByRole('button', { name: /New walk/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Новый walk/ }));
     fireEvent.change(screen.getByLabelText('Walk name'), { target: { value: 'My walk' } });
     fireEvent.change(screen.getByPlaceholderText('Шаг 1: что отправить'), { target: { value: 'step one' } });
     // добавим второй шаг
@@ -60,7 +60,7 @@ describe('P3.14: walk (paced onboarding)', () => {
   it('advance retained ([retain]) → step retained + walk paused + Resume', async () => {
     renderPanel(1);
     await screen.findByTestId('walk-item', {}, { timeout: 10_000 });
-    fireEvent.click(screen.getByRole('button', { name: /New walk/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Новый walk/ }));
     fireEvent.change(screen.getByLabelText('Walk name'), { target: { value: 'retain-walk' } });
     fireEvent.change(screen.getByPlaceholderText('Шаг 1: что отправить'), {
       target: { value: '[retain] do you want to proceed? (y/n)' },

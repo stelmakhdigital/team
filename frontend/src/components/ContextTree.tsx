@@ -167,7 +167,7 @@ export default function ContextTree({ sessionTick }: { sessionTick: number }) {
       ) : shown.length === 0 ? (
         <div className="ctx-tree-empty-state ctx-tree-pad">
           <div className="muted small">Нет проектов</div>
-          <Link to="/projects" className="btn btn-sm" data-testid="context-tree-create">
+          <Link to="/projects?new=1" className="btn btn-sm" data-testid="context-tree-create">
             Создать
           </Link>
         </div>

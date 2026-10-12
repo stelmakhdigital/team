@@ -46,7 +46,7 @@ describe('P1.0: Projects page', () => {
   it('creates an existing project via the modal', async () => {
     renderAt('/projects');
     await screen.findByRole('heading', { name: 'Projects' }, { timeout: 10_000 });
-    fireEvent.click(await screen.findByRole('button', { name: '+ New project' }));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Новый проект' }));
     // kind=existing (default)
     fireEvent.change(screen.getByPlaceholderText('my-project'), { target: { value: 'new-proj' } });
     fireEvent.change(screen.getByPlaceholderText('/abs/path/to/dir'), { target: { value: '/tmp/new-proj' } });
@@ -57,7 +57,7 @@ describe('P1.0: Projects page', () => {
   it('creates a new project (parent_path)', async () => {
     renderAt('/projects');
     await screen.findByRole('heading', { name: 'Projects' }, { timeout: 10_000 });
-    fireEvent.click(await screen.findByRole('button', { name: '+ New project' }));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Новый проект' }));
     // переключить на kind=new (на странице есть и dev-select «Simulate error» — берём тот, что 'existing')
     const kindSelect = screen
       .getAllByRole('combobox')
@@ -94,7 +94,7 @@ describe('P1.0: Project detail + bindings', () => {
   it('team create form has a project selector', async () => {
     renderAt('/teams');
     await screen.findByRole('heading', { name: 'Teams' }, { timeout: 10_000 });
-    fireEvent.click(await screen.findByRole('button', { name: '+ New team' }));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Новая команда' }));
     expect(await screen.findByText('Project (optional)', {}, { timeout: 10_000 })).toBeInTheDocument();
   }, 20_000);
 

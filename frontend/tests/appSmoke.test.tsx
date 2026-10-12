@@ -104,7 +104,7 @@ describe('App smoke', () => {
     const startButtons = await screen.findAllByText('▶ start', {}, { timeout: 10_000 });
     expect(startButtons.length).toBeGreaterThan(0);
     // create modal renders destination-role select
-    const newTask = await screen.findByRole('button', { name: /new task/i });
+    const newTask = await screen.findByRole('button', { name: /новая задача/i });
     newTask.click();
     expect(await screen.findByText('Destination role *', {}, { timeout: 10_000 })).toBeInTheDocument();
   }, 20_000);

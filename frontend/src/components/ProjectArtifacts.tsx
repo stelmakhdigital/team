@@ -30,8 +30,8 @@ export default function ProjectArtifacts({ projectId, root }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   // children[path] = записи подкаталога (после первого раскрытия); null = грузится
   const [children, setChildren] = useState<Map<string, ProjectFileEntry[] | null>>(() => new Map());
-  // W3.1: Esc закрывает preview-модалку (если она верхний оверлей)
-  useEscapeStack(() => setPreview(null), true);
+  // A4: Esc закрывает preview-модалку, только когда preview открыт (active-флаг)
+  useEscapeStack(() => setPreview(null), preview !== null);
 
   const openPreview = async (path: string) => {
     setPreviewError(null);

@@ -40,7 +40,7 @@ describe('[P0] New workflow — team select (real active teams)', () => {
     renderAt('/workflows');
     await screen.findByRole('heading', { name: 'Workflows' }, { timeout: 10_000 });
     // open the "New workflow" modal
-    fireEvent.click(await screen.findByRole('button', { name: /New workflow/ }, { timeout: 10_000 }));
+    fireEvent.click(await screen.findByRole('button', { name: /Новый workflow/ }, { timeout: 10_000 }));
     // wait for the teams to actually load into the select (was "Loading teams…" first)
     await screen.findByText('Dev Team (#1)', {}, { timeout: 10_000 });
 

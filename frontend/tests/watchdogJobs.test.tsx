@@ -30,7 +30,7 @@ describe('P1.6: Watchdog jobs page', () => {
   it('registers a new job via the form', async () => {
     renderAt('/watchdog/jobs');
     await screen.findByRole('heading', { name: 'Watchdog jobs' }, { timeout: 10_000 });
-    fireEvent.click(await screen.findByRole('button', { name: '+ New job' }));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Новый джоб' }));
     // заполняем форму
     fireEvent.change(await screen.findByLabelText(/Name/), { target: { value: 'new job' } });
     const select = await screen.findByLabelText(/Target-сессия/);
@@ -49,7 +49,7 @@ describe('P1.6: Watchdog jobs page', () => {
   it('does not register without a name', async () => {
     renderAt('/watchdog/jobs');
     await screen.findByRole('heading', { name: 'Watchdog jobs' }, { timeout: 10_000 });
-    fireEvent.click(await screen.findByRole('button', { name: '+ New job' }));
+    fireEvent.click(await screen.findByRole('button', { name: '+ Новый джоб' }));
     // без имени → кнопка disabled (Register)
     const register = await screen.findByRole('button', { name: 'Register' });
     expect(register).toBeDisabled();

@@ -5,6 +5,7 @@ import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
 import {  EmptyState, ErrorState, errorMessage, PageSkeleton , Badge } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
+import { useEscapeStack } from '../hooks/useEscapeStack';
 import { formatRelative } from '../lib/format';
 
 export default function WorkflowsPage() {
@@ -16,6 +17,8 @@ export default function WorkflowsPage() {
     }),
   );
   const [creating, setCreating] = useState(false);
+  // A2: Esc закрывает модалку создания (через useEscapeStack)
+  useEscapeStack(() => setCreating(false), creating);
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [teamId, setTeamId] = useState<number | null>(null);
@@ -111,7 +114,7 @@ export default function WorkflowsPage() {
       <div className="page-head">
         <h1>Workflows</h1>
         <button className="btn btn-primary" onClick={openCreate}>
-          + New workflow
+          + Новый workflow
         </button>
       </div>
 
@@ -121,7 +124,7 @@ export default function WorkflowsPage() {
         <EmptyState
           title="No workflows"
           hint="Create a workflow to orchestrate agent tasks."
-          action={<button className="btn btn-primary" onClick={openCreate}>+ New workflow</button>}
+          action={<button className="btn btn-primary" onClick={openCreate}>+ Новый workflow</button>}
         />
       )}
       {data && data.workflows.length > 0 && (

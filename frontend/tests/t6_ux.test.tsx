@@ -20,7 +20,7 @@ describe('T6.1: Workflow-имена — читаемое дефолтное им
   it('new workflow default name = "{team.name}-flow" (не timestamp)', async () => {
     renderAt('/workflows');
     await screen.findByRole('heading', { name: 'Workflows' }, { timeout: 10_000 });
-    fireEvent.click(screen.getByRole('button', { name: '+ New workflow' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ Новый workflow' }));
     // дефолтное имя подставлено (active team = Dev Team), input адресуется без неоднозначности
     await waitFor(
       () => {

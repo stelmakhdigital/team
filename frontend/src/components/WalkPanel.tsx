@@ -99,7 +99,7 @@ export default function WalkPanel({ sessionId }: { sessionId: number }) {
       <div className="card-head">
         <h2>Walk (paced onboarding)</h2>
         <button type="button" className="btn btn-sm" onClick={() => setFormOpen((v) => !v)}>
-          {formOpen ? '✕ Close' : '+ New walk'}
+          {formOpen ? '✕ Close' : '+ Новый walk'}
         </button>
       </div>
       <p className="muted small">

@@ -6,6 +6,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { Badge, EmptyState, ErrorState, errorMessage, PageSkeleton, Spinner } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
 import { useToast } from '../components/ui/Toast';
+import { useEscapeStack } from '../hooks/useEscapeStack';
 import { formatDateTime, formatRelative, formatRelativeFromSecs, stateTitle } from '../lib/format';
 import { CLOSURE_REASONS, TASK_TRANSITIONS, isTerminalTaskState } from '../lib/task';
 import type { ClosureReason, Task, TaskState, TaskWakeSpec, WakeKind } from '../types/api';
@@ -98,7 +99,7 @@ export default function TasksPage() {
       <div className="page-head">
         <h1>Tasks</h1>
         <button className="btn btn-primary" onClick={() => setCreating(true)}>
-          + New task
+          + Новая задача
         </button>
       </div>
 
@@ -164,10 +165,10 @@ export default function TasksPage() {
           title={view === 'overdue' ? 'Переданных сроков нет' : teamFilter === 'all' && stateFilter === 'all' ? 'Нет задач' : 'Нет задач по заданным фильтрам'}
           hint={
             view === 'overdue'
-              ? 'Все в-progress и blocked задачи в графике. ✓'
+              ? 'Все «in-progress» и «blocked» задачи в графике. ✓'
               : 'Создайте задачу, чтобы положить её в очередь роли — или сбросьте фильтры выше.'
           }
-          action={view === 'overdue' ? undefined : <button className="btn btn-primary" onClick={() => setCreating(true)}>+ New task</button>}
+          action={view === 'overdue' ? undefined : <button className="btn btn-primary" onClick={() => setCreating(true)}>+ Новая задача</button>}
         />
       )}
       {active.data && rows.length > 0 && (
@@ -411,6 +412,8 @@ function CreateTaskModal({
   const [priority, setPriority] = useState(3);
   const [formError, setFormError] = useState<string | null>(null);
 
+  useEscapeStack(onClose, true);
+
   const roles = useQuery(`tasks.create.roles.${teamId}`, () => api.teams.getTopology(teamId), [teamId]);
 
   const create = useMutation((req: Parameters<typeof api.tasks.create>[0]) => api.tasks.create(req));
@@ -491,6 +494,7 @@ function CloseTaskModal({
 }) {
   const [reason, setReason] = useState<ClosureReason>('no_follow_on');
   const [comment, setComment] = useState('');
+  useEscapeStack(onClose, true);
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -548,6 +552,7 @@ function BlockTaskModal({
   const [continuation, setContinuation] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   // P1.6: активные watchdog-джобы для выбора (kind=watchdog)
+  useEscapeStack(onClose, true);
   const { data: jobsData } = useQuery('watchdogJobs.list', () => api.watchdogJobs.list(), []);
   const activeJobs = (jobsData?.jobs ?? []).filter((j) => j.enabled);
 
@@ -656,6 +661,7 @@ function HandoffTaskModal({
   const [roleId, setRoleId] = useState<number | ''>('');
   const [comment, setComment] = useState('');
   const { toast } = useToast();
+  useEscapeStack(onClose, true);
 
   const handoff = useMutation((req: { to_role_id: number; comment?: string }) => api.tasks.handoff(taskId, req));
   const submit = async (e: React.FormEvent) => {

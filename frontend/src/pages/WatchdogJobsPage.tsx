@@ -78,7 +78,7 @@ export default function WatchdogJobsPage() {
         <h1>Watchdog jobs</h1>
         <div className="page-head-actions">
           <button className="btn btn-primary" onClick={() => setCreating((v) => !v)}>
-            {creating ? '× Cancel' : '+ New job'}
+            {creating ? '× Cancel' : '+ Новый джоб'}
           </button>
         </div>
       </div>
@@ -134,7 +134,7 @@ export default function WatchdogJobsPage() {
       {error ? (
         <ErrorState error={error} onRetry={refetch} />
       ) : !data || data.jobs.length === 0 ? (
-        <EmptyState title="Нет watchdog-джобов" hint="Создайте первый: выберите сессию и порог контекста." action={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ New job</button>} />
+        <EmptyState title="Нет watchdog-джобов" hint="Создайте первый: выберите сессию и порог контекста." action={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ Новый джоб</button>} />
       ) : (
         <div className="panel">
           <table className="data-table watchdog-table">

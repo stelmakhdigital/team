@@ -6,6 +6,7 @@ import { useQuery } from '../hooks/useQuery';
 import {  EmptyState, ErrorState, errorMessage, PageSkeleton , Badge } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative, formatDateTime, stateTitle } from '../lib/format';
+import { useEscapeStack } from '../hooks/useEscapeStack';
 import type { Team } from '../types/api';
 
 function TeamRow({
@@ -72,6 +73,8 @@ export default function TeamsPage() {
   const shown = teamsSorted.slice(0, visible);
   const projectsQ = useQuery('teams.create.projects', () => api.projects.list({}), []);
   const [creating, setCreating] = useState(false);
+  // A2: Esc закрывает модалку создания (через useEscapeStack)
+  useEscapeStack(() => setCreating(false), creating);
   // W2.4: ?new=1 — открыть форму создания (CTA с first-run дашборда)
   const [searchParams] = useSearchParams();
   useEffect(() => {
@@ -153,7 +156,7 @@ export default function TeamsPage() {
             Show archived
           </label>
           <button className="btn btn-primary" onClick={() => setCreating(true)}>
-            + New team
+            + Новая команда
           </button>
         </div>
       </div>

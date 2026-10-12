@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { api } from '../../api';
 import { useMutation } from '../../hooks/useMutation';
+import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { errorMessage } from '../ui/States';
 import { useToast } from '../ui/Toast';
 import type { AgentSpec } from '../../types/api';
@@ -76,6 +77,8 @@ function mergeByBase<TBase extends { name?: string; path?: string }, TOverride e
 
 export default function AgentResourcesPanel({ roleId, roleSpec, initialConfig, onClose, onSaved }: AgentResourcesPanelProps) {
   const { toast } = useToast();
+  // A2: Esc закрывает панель (через useEscapeStack)
+  useEscapeStack(onClose, true);
   const save = useMutation((req: { config: Record<string, unknown> }) => api.teams.updateRoleConfig(roleId, req));
 
   // override (delta) — из role.Config["agent_resources"]

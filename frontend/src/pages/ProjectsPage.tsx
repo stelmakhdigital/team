@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
+import { useEscapeStack } from '../hooks/useEscapeStack';
 import { Badge, EmptyState, ErrorState, PageSkeleton, errorMessage } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { formatRelative } from '../lib/format';
@@ -11,6 +12,12 @@ import type { ProjectKind } from '../types/api';
 export default function ProjectsPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [creating, setCreating] = useState(false);
+  // W2.4: ?new=1 — открыть форму создания (CTA из empty-state ContextTree)
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('new') === '1') setCreating(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { data, loading, error, refetch } = useQuery(
     'projects.list',
     () => api.projects.list({ include_archived: showArchived || undefined }),
@@ -39,7 +46,7 @@ export default function ProjectsPage() {
             show archived
           </label>
           <button className="btn btn-primary" onClick={() => setCreating(true)}>
-            + New project
+            + Новый проект
           </button>
         </div>
       </div>
@@ -50,7 +57,7 @@ export default function ProjectsPage() {
         <EmptyState
           title={showArchived ? 'Нет проектов' : 'Нет активных проектов'}
           hint="Проект — рабочая директория, над которой работают команды, задачи и сессии. Создайте первый проект."
-          action={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ New project</button>}
+          action={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ Новый проект</button>}
         />
       )}
       {data && data.projects.length > 0 && (
@@ -114,6 +121,7 @@ export default function ProjectsPage() {
 
 function CreateProjectModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { toast } = useToast();
+  useEscapeStack(onClose, true);
   const [kind, setKind] = useState<ProjectKind>('existing');
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
