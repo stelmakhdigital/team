@@ -1886,3 +1886,42 @@ reversible, ok)`. Правила (порядок — специфичные пе
 - **Frontend vitest** (w2_ux): подпись `author · subject · N days ago` под именем
   файла + toolbar-хейдер «attribution: git»; non-git → «attribution: нет
   git-данных» + без author-строк.
+
+## P4.2 / W3.2 — Содержимое agent spec (read-only)
+
+### Контекст
+Команды (TeamBuilder/Fleet) ссылаются на agent spec по имени
+(`role.agent_spec`), но посмотреть содержимое spec в UI было нельзя —
+только список имён (`GET /api/v1/agentspecs`). UX Wave 3: read-only вью
+spec (yaml в `<pre>`, Download, copy) с тремя точками входа:
+RoleNode (иконка), FleetPanel (иконка), ConfigPanel (кнопка «Open spec»).
+
+### Контракт (новый endpoint, additive)
+- `GET /api/v1/agentspecs/{name}` → `{ name, yaml }`.
+  - `name` — имя spec без расширения; читается `SpecsDir/<name>.yaml`
+    либо `SpecsDir/<name>.yml`.
+  - **404** — файла нет.
+  - **400** — имя с `/`, `\`, `..` или абсолютное (traversal-защита) либо
+    файл > 100 KB (лимит: spec не должен тянуть запрос).
+  - Гейт: `teams.read` (middleware, тот же case что и список).
+- Read-only: модификации spec — только через файлы на диске (P4.1);
+  UI не пишет spec.
+
+### Реализация
+- `service.TeamService.GetAgentSpecContent(name)`: валидация имени
+  (без разделителей/`..`/абсолютных путей) → resolve `.yaml|.yml` в SpecsDir
+  → 404 если нет → 400 если > 100 KB → содержимое.
+- Handler `GetAgentSpec` (PathValue("name")) → `{ name, yaml }`.
+- Фронт: `SpecModal` (useQuery per name, `<pre>`, Download через Blob,
+  copy в clipboard), `api.teams.getAgentSpec(name)` (real: GET; mock:
+  детерминированные yaml + 404 для неизвестных + 400 для traversal-имён).
+
+### Тесты
+- **Go service** (`agentspec_content_test.go`): normal (.yaml/.yml), 404,
+  traversal (a/b, ../etc/passwd, a\b, /etc/passwd, .., ., "" → 400),
+  >100 KB → 400.
+- **Go http** (`agentspec_content_test.go`): 200 (name+yaml), 404,
+  `a%2Fb`/`..%2Fetc%2Fpasswd` → non-200, 401 без auth.
+- **Frontend vitest** (w3_ux): SpecModal (yaml в pre, 404-состояние),
+  RoleNode-иконка (клик → onOpenSpec(name)), ConfigPanel «Open spec»,
+  FleetPanel-иконка у ролей с agent_spec.

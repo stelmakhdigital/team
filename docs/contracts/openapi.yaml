@@ -2314,6 +2314,41 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/agentspecs/{name}:
+    get:
+      operationId: getAgentSpec
+      summary: "Содержимое agent spec (read-only) — UX Wave 3 2026-10-12"
+      description: |
+        Возвращает YAML-файл spec по имени (без расширения): `SpecsDir/<name>.yaml|.yml`.
+        Read-only: модификации — только через файлы на диске (P4.1).
+        Защита от traversal: имя без `/`, `\`, `..` и не абсолютное (иначе 400);
+        лимит 100 KB (иначе 400). Гейт: `teams.read`.
+      tags: [topology]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+          description: "имя spec без расширения (без разделителей и ..)"
+      responses:
+        '200':
+          description: Содержимое spec
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  yaml: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Spec не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/projects/{id}/files:
     get:
       operationId: listProjectFiles
