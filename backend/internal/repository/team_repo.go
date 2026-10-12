@@ -50,16 +50,23 @@ func (r *TeamRepo) GetByName(ctx context.Context, tx DBTX, name string) (*models
 		FROM teams WHERE name = ?`, name))
 }
 
-func (r *TeamRepo) List(ctx context.Context, tx DBTX, limit, offset int) ([]*models.Team, int, error) {
+func (r *TeamRepo) List(ctx context.Context, tx DBTX, limit, offset int, state string) ([]*models.Team, int, error) {
+	where := ""
+	args := []any{}
+	if state != "" {
+		where = " WHERE state = ?"
+		args = append(args, state)
+	}
 	var total int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM teams`).Scan(&total); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM teams`+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
+	listArgs := append(append([]any{}, args...), limit, offset)
 	rows, err := tx.QueryContext(ctx, `
 		SELECT id, name, spec_path, description, state, project_id, posture, created_at, updated_at
-		FROM teams
-		ORDER BY id
-		LIMIT ? OFFSET ?`, limit, offset)
+		FROM teams`+where+`
+		ORDER BY updated_at DESC, id DESC
+		LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -79,6 +86,23 @@ func (r *TeamRepo) List(ctx context.Context, tx DBTX, limit, offset int) ([]*mod
 func (r *TeamRepo) UpdateState(ctx context.Context, tx DBTX, id int64, state models.TeamState) error {
 	res, err := tx.ExecContext(ctx,
 		`UPDATE teams SET state = ?, updated_at = ? WHERE id = ?`, state, timeNow(), id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// Delete — hard-delete команды. Все children (segments/roles/relatives/tasks/
+// sessions/…) уходят через ON DELETE CASCADE (FK team_id → teams, FK включены).
+func (r *TeamRepo) Delete(ctx context.Context, tx DBTX, id int64) error {
+	res, err := tx.ExecContext(ctx, `DELETE FROM teams WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}

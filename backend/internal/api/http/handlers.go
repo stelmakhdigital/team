@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -85,7 +86,12 @@ func (h *handlers) ListAttention(w http.ResponseWriter, r *http.Request) {
 // ListTeams — GET /api/v1/teams
 func (h *handlers) ListTeams(w http.ResponseWriter, r *http.Request) {
 	limit, offset := limitOffset(r.URL.Query())
-	teams, total, err := h.svc.ListTeams(r.Context(), limit, offset)
+	state := r.URL.Query().Get("state")
+	if state != "" && state != "active" && state != "archived" && state != "stopped" {
+		writeError(w, r, service.NewValidation(fmt.Sprintf("invalid state filter %q (want active|archived|stopped)", state)))
+		return
+	}
+	teams, total, err := h.svc.ListTeams(r.Context(), limit, offset, state)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -245,11 +251,20 @@ func (h *handlers) GetTeam(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ArchiveTeam — DELETE /api/v1/teams/{id}
+// ArchiveTeam — DELETE /api/v1/teams/{id}: archive (soft, по умолчанию) или
+// ?hard=true — permanent hard-delete (все children уходят по ON DELETE CASCADE).
 func (h *handlers) ArchiveTeam(w http.ResponseWriter, r *http.Request) {
 	id, err := parseIDParam(r.PathValue("id"))
 	if err != nil {
 		writeError(w, r, err)
+		return
+	}
+	if r.URL.Query().Get("hard") == "true" {
+		if err := h.svc.DeleteTeam(r.Context(), id); err != nil {
+			writeError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": id, "status": "deleted"})
 		return
 	}
 	if err := h.svc.ArchiveTeam(r.Context(), id); err != nil {
@@ -257,6 +272,28 @@ func (h *handlers) ArchiveTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "status": "archived"})
+}
+
+// SetTeamState — PATCH /api/v1/teams/{id} {state: active|archived|stopped}.
+// Архивирование/восстановление (unarchive)/остановка команды.
+func (h *handlers) SetTeamState(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var body struct {
+		State string `json:"state"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	if err := h.svc.SetTeamState(r.Context(), id, models.TeamState(body.State)); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "status": body.State})
 }
 
 // ---------- Segments / Roles / Relatives ----------

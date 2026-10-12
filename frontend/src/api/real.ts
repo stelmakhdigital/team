@@ -7,9 +7,11 @@ const B = '/api/v1';
 export function createRealAdapter(): Api {
   return {
     teams: {
-      getTeams: () => http(`${B}/teams`),
+      getTeams: (params) => http(`${B}/teams${toQuery({ state: params?.state })}`),
       createTeam: (req) => http(`${B}/teams`, { method: 'POST', body: req }),
       getTeam: (id) => http(`${B}/teams/${id}`),
+      setTeamState: (id, state) => http(`${B}/teams/${id}`, { method: 'PATCH', body: { state } }),
+      deleteTeam: (id, hard) => http(`${B}/teams/${id}${hard ? '?hard=true' : ''}`, { method: 'DELETE' }),
       getTopology: (id) => http(`${B}/teams/${id}/topology`),
       createSegment: (teamId, req) => http(`${B}/teams/${teamId}/segments`, { method: 'POST', body: req }),
       createRole: (segmentId, req) => http(`${B}/segments/${segmentId}/roles`, { method: 'POST', body: req }),

@@ -651,7 +651,7 @@ func TestListTeams(t *testing.T) {
 	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "s"})
 	_, _ = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "a", AgentSpec: specFile(t, svc, "x.yaml")})
 
-	teams, total, err := svc.ListTeams(ctx(), 50, 0)
+	teams, total, err := svc.ListTeams(ctx(), 50, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -739,5 +739,104 @@ func TestUpdateSegmentMeta(t *testing.T) {
 		t.Fatal("want validation_failed on empty name")
 	} else {
 		isAppErr(t, err, "validation_failed")
+	}
+}
+
+// ---------- SetTeamState / DeleteTeam / state filter (archive & delete) ----------
+
+func TestSetTeamStateArchiveAndRestore(t *testing.T) {
+	svc := newTestService(t)
+	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
+
+	// archive
+	if err := svc.SetTeamState(ctx(), team.ID, models.TeamArchived); err != nil {
+		t.Fatal(err)
+	}
+	d := mustGetTeam(t, svc, team.ID)
+	if d.Team.State != models.TeamArchived {
+		t.Fatalf("want archived, got %q", d.Team.State)
+	}
+
+	// restore (unarchive)
+	if err := svc.SetTeamState(ctx(), team.ID, models.TeamActive); err != nil {
+		t.Fatal(err)
+	}
+	d = mustGetTeam(t, svc, team.ID)
+	if d.Team.State != models.TeamActive {
+		t.Fatalf("want active after restore, got %q", d.Team.State)
+	}
+
+	// invalid state
+	if err := svc.SetTeamState(ctx(), team.ID, models.TeamState("bogus")); err == nil {
+		t.Fatal("want validation_failed on bogus state")
+	} else {
+		isAppErr(t, err, "validation_failed")
+	}
+
+	// not_found
+	if err := svc.SetTeamState(ctx(), 999999, models.TeamActive); err == nil {
+		t.Fatal("want not_found")
+	} else {
+		isAppErr(t, err, "not_found")
+	}
+}
+
+func TestDeleteTeamHardAndCascade(t *testing.T) {
+	svc := newTestService(t)
+	team, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "t"})
+	seg, _ := svc.CreateSegment(ctx(), service.CreateSegmentRequest{TeamID: team.ID, Name: "s"})
+	_, _ = svc.CreateRole(ctx(), service.CreateRoleRequest{SegmentID: seg.ID, Name: "a", AgentSpec: specFile(t, svc, "x.yaml")})
+
+	// hard delete
+	if err := svc.DeleteTeam(ctx(), team.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// team is gone
+	if _, err := svc.GetTeam(ctx(), team.ID); err == nil {
+		t.Fatal("want team gone after delete")
+	}
+	// no teams left (cascade removed the only team)
+	teams, total, _ := svc.ListTeams(ctx(), 50, 0, "")
+	if total != 0 || len(teams) != 0 {
+		t.Fatalf("want 0 teams after delete, got %d", total)
+	}
+
+	// not_found on second delete
+	if err := svc.DeleteTeam(ctx(), team.ID); err == nil {
+		t.Fatal("want not_found on second delete")
+	} else {
+		isAppErr(t, err, "not_found")
+	}
+}
+
+func TestListTeamsStateFilter(t *testing.T) {
+	svc := newTestService(t)
+	active, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "active"})
+	other, _ := svc.CreateTeam(ctx(), service.CreateTeamRequest{Name: "arch"})
+	if err := svc.SetTeamState(ctx(), other.ID, models.TeamArchived); err != nil {
+		t.Fatal(err)
+	}
+
+	allTotal, _ := func() (int, error) {
+		_, total, err := svc.ListTeams(ctx(), 50, 0, "")
+		return total, err
+	}()
+	if allTotal != 2 {
+		t.Fatalf("want 2 total, got %d", allTotal)
+	}
+	arch, archTotal, err := svc.ListTeams(ctx(), 50, 0, "archived")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if archTotal != 1 || arch[0].Team.ID != other.ID {
+		t.Fatalf("want 1 archived (%d), got %d", other.ID, archTotal)
+	}
+	act, actTotal, err := svc.ListTeams(ctx(), 50, 0, "active")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if actTotal != 1 || act[0].Team.ID != active.ID {
+		t.Fatalf("want 1 active (%d), got %d", active.ID, actTotal)
 	}
 }

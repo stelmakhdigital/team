@@ -12,6 +12,7 @@ import type {
   CreateRoleRequest,
   CreateSegmentRequest,
   CreateTeamRequest,
+  Team,
   Message,
   Profile,
   Project,
@@ -296,11 +297,50 @@ function wakeView(w: TaskWake & { id: number; created_at: string }): TaskWake {
 export function createMockAdapter(): Api {
   return {
     teams: {
-      async getTeams() {
+      async getTeams(params) {
         maybeFail();
         await latency();
         const db = getDb();
-        return { teams: clone(db.teams), total: db.teams.length };
+        let list = db.teams;
+        if (params?.state) list = list.filter((t) => t.state === params.state);
+        return { teams: clone(list), total: list.length };
+      },
+
+      async setTeamState(id, state) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const team = db.teams.find((t) => t.id === id);
+        if (!team) throw new ApiClientError(404, 'not_found', 'Team not found');
+        if (!['active', 'archived', 'stopped'].includes(state)) {
+          throw new ApiClientError(400, 'validation_failed', 'invalid team state');
+        }
+        team.state = state as Team['state'];
+        team.updated_at = now();
+        return { id, status: state };
+      },
+
+      async deleteTeam(id, hard) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const team = db.teams.find((t) => t.id === id);
+        if (!team) throw new ApiClientError(404, 'not_found', 'Team not found');
+        if (hard) {
+          // hard delete: команда + children (имитация ON DELETE CASCADE)
+          db.teams = db.teams.filter((t) => t.id !== id);
+          db.segments = db.segments.filter((s) => s.team_id !== id);
+          db.roles = db.roles.filter((r) => r.team_id !== id);
+          db.relatives = db.relatives.filter((r) => r.team_id !== id);
+          db.tasks = db.tasks.filter((t) => t.team_id !== id);
+          db.sessions = db.sessions.filter((s) => s.team_id !== id);
+          db.chatrooms = db.chatrooms.filter((c) => c.team_id !== id);
+          return { id, status: 'deleted' };
+        }
+        // soft archive
+        team.state = 'archived';
+        team.updated_at = now();
+        return { id, status: 'archived' };
       },
 
       async createTeam(req: CreateTeamRequest) {

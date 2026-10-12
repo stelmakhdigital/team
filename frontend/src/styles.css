@@ -332,6 +332,8 @@ tr:hover .wf-rename-btn, .wf-rename-btn:focus-visible { opacity: 0.7; }
   box-sizing: border-box;
 }
 .room-search:focus { outline: none; border-color: var(--muted); }
+.row-archived { opacity: 0.62; }
+.row-archived .team-link { text-decoration: line-through; }
 .btn-primary { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
 .btn-primary:hover { filter: brightness(0.92); } /* darken on hover to keep ≥4.5:1 (lightening would drop below) */
 .btn-danger { border-color: var(--red); color: var(--red); }

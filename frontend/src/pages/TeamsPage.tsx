@@ -8,9 +8,20 @@ import { useToast } from '../components/ui/Toast';
 import { formatRelative, formatDateTime, stateTitle } from '../lib/format';
 import type { Team } from '../types/api';
 
-function TeamRow({ team }: { team: Team }) {
+function TeamRow({
+  team,
+  busy,
+  onSetState,
+  onDelete,
+}: {
+  team: Team;
+  busy: boolean;
+  onSetState: (team: Team, state: string) => void;
+  onDelete: (team: Team) => void;
+}) {
+  const isArchived = team.state === 'archived';
   return (
-    <tr>
+    <tr className={isArchived ? 'row-archived' : undefined}>
       <td>
         <Link to={`/teams/${team.id}`} className="team-link">
           {team.name}
@@ -23,6 +34,26 @@ function TeamRow({ team }: { team: Team }) {
       <td>{team.segments_count}</td>
       <td>{team.roles_count}</td>
       <td className="muted" title={formatDateTime(team.updated_at)}>{formatRelative(team.updated_at)}</td>
+      <td>
+        <div className="row-actions">
+          {isArchived ? (
+            <button className="btn btn-sm" disabled={busy} onClick={() => onSetState(team, 'active')} title="Restore to active">
+              Restore
+            </button>
+          ) : team.state === 'active' ? (
+            <button className="btn btn-sm" disabled={busy} onClick={() => onSetState(team, 'archived')} title="Archive (hide from default list, keep data)">
+              Archive
+            </button>
+          ) : (
+            <button className="btn btn-sm" disabled={busy} onClick={() => onSetState(team, 'active')} title="Set to active">
+              Activate
+            </button>
+          )}
+          <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => onDelete(team)} title="Permanently delete team and all its data">
+            Delete
+          </button>
+        </div>
+      </td>
     </tr>
   );
 }
@@ -30,11 +61,14 @@ function TeamRow({ team }: { team: Team }) {
 export default function TeamsPage() {
   const { data, loading, error, refetch } = useQuery('teams.list', () => api.teams.getTeams());
   const [visible, setVisible] = useState(25);
-  // B-1: сортировка по свежести (новые сверху) — старые тестовые команды вниз.
-  const teamsSorted = useMemo(
-    () => [...(data?.teams ?? [])].sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? '')),
-    [data],
-  );
+  const [showArchived, setShowArchived] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  // B-1: сортировка по свежести (новые сверху). Архивные скрыты, если не showArchived.
+  const teamsSorted = useMemo(() => {
+    const all = data?.teams ?? [];
+    const filtered = showArchived ? all : all.filter((t) => t.state !== 'archived');
+    return [...filtered].sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+  }, [data, showArchived]);
   const shown = teamsSorted.slice(0, visible);
   const projectsQ = useQuery('teams.create.projects', () => api.projects.list({}), []);
   const [creating, setCreating] = useState(false);
@@ -72,13 +106,50 @@ export default function TeamsPage() {
     }
   };
 
+  const setState = async (team: Team, state: string) => {
+    setBusyId(team.id);
+    try {
+      await api.teams.setTeamState(team.id, state);
+      toast('success', `Team '${team.name}' → ${state}`);
+      refetch();
+    } catch (e) {
+      toast('error', errorMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const delTeam = async (team: Team) => {
+    if (
+      !window.confirm(
+        `Permanently delete team '${team.name}' and ALL its data (segments, roles, tasks, sessions, rooms)? This cannot be undone.`,
+      )
+    )
+      return;
+    setBusyId(team.id);
+    try {
+      await api.teams.deleteTeam(team.id, true);
+      toast('success', `Team '${team.name}' deleted`);
+      refetch();
+    } catch (e) {
+      toast('error', errorMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-head">
         <h1>Teams</h1>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}>
-          + New team
-        </button>
+        <div className="row-actions">
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.9rem', color: 'var(--muted)' }} title="Show archived teams in the list">
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+            Show archived
+          </label>
+          <button className="btn btn-primary" onClick={() => setCreating(true)}>
+            + New team
+          </button>
+        </div>
       </div>
 
       {loading && <PageSkeleton label="Loading teams…" />}
@@ -96,11 +167,12 @@ export default function TeamsPage() {
                 <th>Segments</th>
                 <th>Roles</th>
                 <th>Updated</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {shown.map((t) => (
-                <TeamRow key={t.id} team={t} />
+                <TeamRow key={t.id} team={t} busy={busyId === t.id} onSetState={setState} onDelete={delTeam} />
               ))}
             </tbody>
           </table></div>

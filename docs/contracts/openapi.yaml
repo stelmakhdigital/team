@@ -81,6 +81,11 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/Limit' }
         - { $ref: '#/components/parameters/Offset' }
+        - name: state
+          in: query
+          description: Фильтр по состоянию (active|archived|stopped); не задан = все
+          required: false
+          schema: { type: string, enum: [active, archived, stopped] }
       responses:
         '200':
           description: Список команд
@@ -126,15 +131,46 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
-    delete:
-      operationId: archiveTeam
-      summary: Архивировать команду (DELETE /teams/{id} = archive)
+    patch:
+      operationId: setTeamState
+      summary: Сменить состояние команды (archive / restore / stop)
       tags: [teams]
       parameters:
         - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { type: string, enum: [active, archived, stopped] }
       responses:
         '200':
-          description: Команда архивирована
+          description: Состояние команды изменено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamCreatedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: archiveTeam
+      summary: Архивировать команду (soft) или permanent hard-delete (?hard=true)
+      tags: [teams]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - name: hard
+          in: query
+          description: "true = permanent hard-delete (children уходят по ON DELETE CASCADE); по умолчанию archive (soft)"
+          required: false
+          schema: { type: string, enum: ['true'] }
+      responses:
+        '200':
+          description: Команда архивирована (или удалена при ?hard=true)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TeamCreatedResponse' }

@@ -147,9 +147,11 @@ export interface DeleteRelativeResponse {
  * RealAdapter; the UI never knows which one is active. */
 export interface Api {
   teams: {
-    getTeams(): Promise<GetTeamsResponse>;
+    getTeams(params?: { state?: string }): Promise<GetTeamsResponse>;
     createTeam(req: CreateTeamRequest): Promise<CreateTeamResponse>;
     getTeam(id: number): Promise<GetTeamResponse>;
+    setTeamState(id: number, state: string): Promise<{ id: number; status: string }>;
+    deleteTeam(id: number, hard?: boolean): Promise<{ id: number; status: string }>;
     getTopology(id: number): Promise<GetTopologyResponse>;
     createSegment(teamId: number, req: CreateSegmentRequest): Promise<CreateSegmentResponse>;
     createRole(segmentId: number, req: CreateRoleRequest): Promise<CreateRoleResponse>;

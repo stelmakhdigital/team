@@ -87,6 +87,7 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("GET /api/v1/teams", h.ListTeams)
 	mux.HandleFunc("POST /api/v1/teams", h.CreateTeam)
 	mux.HandleFunc("GET /api/v1/teams/{id}", h.GetTeam)
+	mux.HandleFunc("PATCH /api/v1/teams/{id}", h.SetTeamState)
 	mux.HandleFunc("DELETE /api/v1/teams/{id}", h.ArchiveTeam)
 	mux.HandleFunc("GET /api/v1/teams/{id}/topology", h.GetTopology)
 	mux.HandleFunc("POST /api/v1/teams/{id}/validate", h.ValidateTopology)

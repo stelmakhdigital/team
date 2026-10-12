@@ -168,7 +168,7 @@ func TestPostureCheck(t *testing.T) {
 	}
 
 	// human_led + sensitive → park
-	team, _, err := e.stores.Teams.List(e.ctx, e.db, 100, 0)
+	team, _, err := e.stores.Teams.List(e.ctx, e.db, 100, 0, "")
 	if err != nil {
 		t.Fatalf("list teams: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestPostureCheck(t *testing.T) {
 func TestPostureDecide(t *testing.T) {
 	e := setupPostureEnv(t)
 	_, sessionID := e.makeTeamSession(t, "posture-decide")
-	team, _, err := e.stores.Teams.List(e.ctx, e.db, 100, 0)
+	team, _, err := e.stores.Teams.List(e.ctx, e.db, 100, 0, "")
 	if err != nil {
 		t.Fatalf("list teams: %v", err)
 	}

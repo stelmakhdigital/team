@@ -958,7 +958,7 @@ type DashboardAlerts struct {
 }
 
 func (s *TaskService) DashboardSummary(ctx context.Context) (*DashboardSummary, error) {
-	teams, total, err := s.teams.List(ctx, s.db, 1000, 0)
+	teams, total, err := s.teams.List(ctx, s.db, 1000, 0, "")
 	if err != nil {
 		return nil, err
 	}

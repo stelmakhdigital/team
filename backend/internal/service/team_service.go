@@ -18,9 +18,10 @@ type teamStore interface {
 	Create(ctx context.Context, tx repository.DBTX, t *models.Team) error
 	GetByID(ctx context.Context, tx repository.DBTX, id int64) (*models.Team, error)
 	GetByName(ctx context.Context, tx repository.DBTX, name string) (*models.Team, error)
-	List(ctx context.Context, tx repository.DBTX, limit, offset int) ([]*models.Team, int, error)
+	List(ctx context.Context, tx repository.DBTX, limit, offset int, state string) ([]*models.Team, int, error)
 	UpdateState(ctx context.Context, tx repository.DBTX, id int64, state models.TeamState) error
 	UpdateMeta(ctx context.Context, tx repository.DBTX, id int64, name, description string) error
+	Delete(ctx context.Context, tx repository.DBTX, id int64) error
 }
 
 type segmentStore interface {
@@ -90,8 +91,8 @@ type TeamSummary struct {
 	RolesCount    int `json:"roles_count"`
 }
 
-func (s *TeamService) ListTeams(ctx context.Context, limit, offset int) ([]*TeamSummary, int, error) {
-	teams, total, err := s.teams.List(ctx, s.db, limit, offset)
+func (s *TeamService) ListTeams(ctx context.Context, limit, offset int, state string) ([]*TeamSummary, int, error) {
+	teams, total, err := s.teams.List(ctx, s.db, limit, offset, state)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -176,6 +177,32 @@ func (s *TeamService) ArchiveTeam(ctx context.Context, teamID int64) error {
 		return NewConflict(fmt.Sprintf("team %q is %s, only active teams can be archived", team.Name, team.State))
 	}
 	if err := s.teams.UpdateState(ctx, s.db, teamID, models.TeamArchived); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SetTeamState — сменить состояние команды (active/archived/stopped).
+// Позволяет архивировать, восстановить (unarchive) и остановить.
+func (s *TeamService) SetTeamState(ctx context.Context, teamID int64, state models.TeamState) error {
+	if !state.Valid() {
+		return validationf("invalid team state %q (want active|archived|stopped)", state)
+	}
+	if _, err := s.getTeam(ctx, teamID); err != nil {
+		return err
+	}
+	if err := s.teams.UpdateState(ctx, s.db, teamID, state); err != nil {
+		return err
+	}
+	return nil
+}
+
+// DeleteTeam — hard-delete команды и всех связанных данных (ON DELETE CASCADE).
+func (s *TeamService) DeleteTeam(ctx context.Context, teamID int64) error {
+	if _, err := s.getTeam(ctx, teamID); err != nil {
+		return err
+	}
+	if err := s.teams.Delete(ctx, s.db, teamID); err != nil {
 		return err
 	}
 	return nil
