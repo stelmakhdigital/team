@@ -44,3 +44,6 @@ task-evidence.md
 task-inbox.md
 task-walk.md
 task-posture.md
+
+# Runtime session configs/prompts (generated at session launch)
+configs/
