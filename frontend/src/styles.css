@@ -925,9 +925,30 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   padding: 14px;
 }
 .topo-table th { position: static; }
-.topo-table-row { cursor: pointer; }
+.topo-table-row { cursor: default; }
 .topo-table-row:hover td { background: var(--bg-panel-2); }
-.topo-table-role { font-weight: 600; margin-left: 2px; }
+.topo-table-role { font-weight: 600; margin-left: 2px; color: var(--text); }
+/* W4.1: Table view — секции по segment + rich role-строки */
+.topo-table-seg { position: sticky; top: 0; z-index: 1; }
+.topo-table-seg td { background: var(--bg-panel-2); border-top: 1px solid var(--border); }
+.topo-table-seg-name { font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.topo-table-seg-count {
+  margin-left: 8px;
+  font-size: 0.7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+.topo-table-state { display: inline-flex; align-items: center; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; }
+.topo-table-state .fleet-dot { width: 8px; height: 8px; }
+.topo-table-state-running { color: var(--green); }
+.topo-table-state-idle { color: var(--yellow); }
+.topo-table-state-failed { color: var(--red); }
+.topo-table-state-stopped { color: var(--muted); }
+.topo-table-task { min-width: 0; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topo-table-cta { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
 
 /* ---------- R6.2: responsive sidebar ---------- */
 @media (max-width: 1100px) {
@@ -1647,4 +1668,35 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   padding: 1px 6px;
   margin-right: 6px;
   color: var(--text);
+}
+
+/* ---------- W4.2: onboarding-тур (spotlight-дырка + tooltip) ---------- */
+.tour-overlay { position: fixed; inset: 0; z-index: 1090; }
+.tour-spot {
+  position: fixed;
+  border-radius: 8px;
+  border: 1px solid var(--sky, #38bdf8);
+  box-shadow: 0 0 0 99999px rgba(1, 4, 11, 0.72);
+  pointer-events: none;
+  z-index: 1100;
+  transition: top 0.18s ease, left 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+.tour-tip {
+  position: fixed;
+  z-index: 1110;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  transition: top 0.18s ease, left 0.18s ease;
+}
+.tour-tip-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.tour-tip-title { font-weight: 700; font-size: 0.95rem; color: var(--text); }
+.tour-tip-counter { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; color: var(--muted); }
+.tour-tip-body { margin: 0 0 12px; font-size: 0.86rem; color: var(--text); line-height: 1.4; }
+.tour-tip-actions { display: flex; justify-content: flex-end; gap: 8px; }
+@media (prefers-reduced-motion: reduce) {
+  .tour-spot,
+  .tour-tip { transition: none; }
 }

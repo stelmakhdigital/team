@@ -243,6 +243,9 @@ export default function SettingsPage() {
         <h1>Settings</h1>
         <div className="head-actions">
           <span className="muted small">resolution: default &lt; file &lt; env &lt; override</span>
+          <button className="btn" onClick={() => window.dispatchEvent(new CustomEvent('team:tour-restart'))} title="Повторить onboarding-тур" aria-label="Повторить тур">
+            ▶ Повторить тур
+          </button>
           <button className="btn btn-primary" onClick={q.refetch} title="Обновить конфигурацию">↻ Refresh</button>
         </div>
       </div>

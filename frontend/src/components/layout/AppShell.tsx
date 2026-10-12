@@ -7,6 +7,7 @@ import type { MockErrorKind } from '../../api/mock/adapter';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import CommandPalette from '../CommandPalette';
 import ContextTree from '../ContextTree';
+import OnboardingTour, { type TourStep } from '../OnboardingTour';
 
 // Навигация: единый монохромный набор глифов (текстовая презентация, U+FE0E —
 // запрет emoji-рендера на Windows/macOS).
@@ -31,6 +32,18 @@ const NAV = [
 
 const MOCK_ERRORS: (MockErrorKind | '')[] = ['', 'unauthorized', 'forbidden', 'not_found', 'conflict', 'server', 'network'];
 
+// W4.2: onboarding-тур — 6 шагов по data-tour целям (первый экран).
+const TOUR_STEPS: TourStep[] = [
+  { id: 'nav', title: 'Навигация', body: 'Главная навигация: Dashboard, Attention, Teams, Projects…' },
+  { id: 'fleet', title: 'Fleet', body: 'Live-статус всех ролей: состояние, задача, контекст' },
+  { id: 'attention', title: 'Attention', body: 'Что требует вашего решения' },
+  { id: 'context', title: 'Контекст', body: 'Дерево проектов → команд → ролей с live-точками' },
+  { id: 'palette', title: 'Палитра команд', body: 'K — быстрая навигация и действия' },
+  { id: 'settings', title: 'Настройки', body: 'Конфиг, ключи, постеры' },
+];
+
+const TOUR_RESTART_EVENT = 'team:tour-restart';
+
 // X3: global real-time status (one connection in the shell → badge on every page).
 const WS_LABEL: Record<string, string> = {
   mock: 'live · mock',
@@ -53,6 +66,42 @@ export default function AppShell() {
   const cfg = getApiConfig();
   const [simError, setSimError] = useState<MockErrorKind | ''>(getMockError() ?? '');
   const { status: wsStatus, onMessage } = useWebSocket([]);
+
+  // W4.2: onboarding-тур (first visit) — показывается, если tour.dismissed не задан.
+  const [tourOpen, setTourOpen] = useState<boolean>(() => {
+    try {
+      const dismissed = localStorage.getItem('tour.dismissed') === '1';
+      if (import.meta.env.MODE === 'test') {
+        // test-affordance: в тестах тур показывается только при явном tour.force=1
+        // (и не dismissed) — иначе ломал бы сотни full-App тестов (оверлей + Esc-стек).
+        return localStorage.getItem('tour.force') === '1' && !dismissed;
+      }
+      return !dismissed;
+    } catch {
+      return false;
+    }
+  });
+  const dismissTour = useCallback(() => {
+    setTourOpen(false);
+    try {
+      localStorage.setItem('tour.dismissed', '1');
+    } catch {
+      /* no-op */
+    }
+  }, []);
+  const restartTour = useCallback(() => {
+    try {
+      localStorage.removeItem('tour.dismissed');
+    } catch {
+      /* no-op */
+    }
+    setTourOpen(true);
+  }, []);
+  useEffect(() => {
+    const onRestart = () => restartTour();
+    window.addEventListener(TOUR_RESTART_EVENT, onRestart);
+    return () => window.removeEventListener(TOUR_RESTART_EVENT, onRestart);
+  }, [restartTour]);
 
   // W2.1: ContextTree — sessionTick инкрементируется на session.* (WS) →
   // дерево refetch'ит сессии (live-точки), не создавая второй WS (используем
@@ -105,19 +154,20 @@ export default function AppShell() {
           <span className="brand-icon" aria-hidden="true">◧</span>
           <span className="brand-label">Team Console</span>
         </div>
-        <nav aria-label="Main">
+        <nav aria-label="Main" data-tour="nav">
           {NAV.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
               end={n.end}
               title={n.label}
+              data-tour={n.to === '/settings' ? 'settings' : undefined}
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             >
               <span aria-hidden="true">{n.icon}</span>
               <span className="nav-label">{n.label}</span>
               {n.to === '/attention' && attentionCount > 0 && (
-                <span className="nav-badge" data-testid="attention-count" title={`${attentionCount} требуют внимания`}>
+                <span className="nav-badge" data-testid="attention-count" data-tour="attention" title={`${attentionCount} требуют внимания`}>
                   {attentionCount}
                 </span>
               )}
@@ -169,6 +219,7 @@ export default function AppShell() {
         <Outlet />
       </main>
       <CommandPalette />
+      {tourOpen && <OnboardingTour steps={TOUR_STEPS} onClose={dismissTour} />}
     </div>
   );
 }

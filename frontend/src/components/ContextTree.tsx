@@ -135,7 +135,7 @@ export default function ContextTree({ sessionTick }: { sessionTick: number }) {
 
   if (collapsed) {
     return (
-      <section className="ctx-tree ctx-tree--collapsed" data-testid="context-tree">
+      <section className="ctx-tree ctx-tree--collapsed" data-testid="context-tree" data-tour="context">
         <button type="button" className="ctx-tree-header" onClick={toggleCollapse} aria-expanded={false} data-testid="context-tree-toggle">
           <span aria-hidden="true">▸</span>
           <span className="ctx-tree-title">Context</span>
@@ -154,7 +154,7 @@ export default function ContextTree({ sessionTick }: { sessionTick: number }) {
   const hidden = Math.max(0, total - MAX_PROJECTS);
 
   return (
-    <section className="ctx-tree" data-testid="context-tree">
+    <section className="ctx-tree" data-testid="context-tree" data-tour="context">
       <button type="button" className="ctx-tree-header" onClick={toggleCollapse} aria-expanded={true} data-testid="context-tree-toggle">
         <span aria-hidden="true">▾</span>
         <span className="ctx-tree-title">Context</span>

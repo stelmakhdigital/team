@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '../src/App';
 
 // Smoke test: full app (routes + mock API + dashboard) renders without crashing.
 describe('App smoke', () => {
+  // W4.1: Graph/Table view-персист (teambuilder.view) живёт в localStorage —
+  // чистим между тестами, иначе клик по «Table» в одном тесте перетечёт в соседний.
+  beforeEach(() => localStorage.clear());
   it('renders Dashboard with mock data', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>

@@ -75,8 +75,8 @@ export default function FleetPanel() {
 
   const loading = sessionsQ.loading || teamsQ.loading || tasksQ.loading;
   const error = sessionsQ.error ?? tasksQ.error ?? teamsQ.error;
-  if (loading) return <div className="card fleet-card"><Spinner label="Loading fleet…" /></div>;
-  if (error) return <div className="card fleet-card"><ErrorState error={error} onRetry={() => { sessionsQ.refetch(); teamsQ.refetch(); tasksQ.refetch(); }} /></div>;
+  if (loading) return <div className="card fleet-card" data-tour="fleet"><Spinner label="Loading fleet…" /></div>;
+  if (error) return <div className="card fleet-card" data-tour="fleet"><ErrorState error={error} onRetry={() => { sessionsQ.refetch(); teamsQ.refetch(); tasksQ.refetch(); }} /></div>;
 
   const rows = composeFleetRows(sessionsQ.data?.sessions ?? [], teamsQ.data?.teams ?? [], tasksQ.data?.tasks ?? [], roleSpecs);
   const visible = rows.slice(0, FLEET_MAX_ROWS);
@@ -86,7 +86,7 @@ export default function FleetPanel() {
 
   return (
     <>
-    <div className="card fleet-card">
+    <div className="card fleet-card" data-tour="fleet">
       <h2>Fleet</h2>
       {rows.length === 0 ? (
         <div className="fleet-empty">

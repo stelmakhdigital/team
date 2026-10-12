@@ -42,12 +42,30 @@ export default function TeamBuilderPage() {
   const [specOpen, setSpecOpen] = useState(false);
   // W3.2: содержимое agent spec (read-only) — имя spec или null
   const [specName, setSpecName] = useState<string | null>(null);
-  const [view, setView] = useState<'graph' | 'table'>('graph');
-  const narrow = useMediaQuery('(max-width: 900px)');
+  // W4.1: Graph/Table — вид (localStorage-персист, default Graph); на узких (<1200px)
+  // Table по умолчанию, пока пользователь явно не выбрал Graph (явный выбор приоритетнее).
+  const [view, setView] = useState<'graph' | 'table'>(() => {
+    try {
+      return localStorage.getItem('teambuilder.view') === 'table' ? 'table' : 'graph';
+    } catch {
+      return 'graph';
+    }
+  });
+  const [viewExplicit, setViewExplicit] = useState(false);
+  const chooseView = useCallback((v: 'graph' | 'table') => {
+    setViewExplicit(true);
+    setView(v);
+    try {
+      localStorage.setItem('teambuilder.view', v);
+    } catch {
+      /* no-op */
+    }
+  }, []);
   // R6.2: на узких экранах панели-конфигурации — выдвижные drawery + FAB
   const narrowBuilder = useMediaQuery('(max-width: 1200px)');
   const [drawer, setDrawer] = useState<'none' | 'config' | 'palette'>('none');
-  const showGraph = view === 'graph' && !narrow;
+  const effectiveView: 'graph' | 'table' = viewExplicit ? view : narrowBuilder ? 'table' : view;
+  const showGraph = effectiveView === 'graph';
   const navigate = useNavigate();
 
   const commitRefetch = useCallback(() => refetch(), [refetch]);
@@ -359,7 +377,15 @@ export default function TeamBuilderPage() {
           <button className={specOpen ? 'btn btn-primary' : 'btn'} onClick={() => setSpecOpen((v) => !v)} aria-pressed={specOpen} title="YAML spec: export / create / merge">
             ≡ YAML
           </button>
-          <button className={editMode ? 'btn btn-primary' : 'btn'} onClick={() => setEditMode((v) => !v)} aria-pressed={editMode}>
+          <button
+            className={editMode ? 'btn btn-primary' : 'btn'}
+            onClick={() => {
+              // W4.1: редактирование топологии только в графе — из Table ведёт на Graph
+              if (!showGraph) chooseView('graph');
+              setEditMode((v) => !v);
+            }}
+            aria-pressed={editMode}
+          >
             {editMode ? '✓ Done' : '✎ Edit'}
           </button>
           <button className={metaEdit ? 'btn btn-primary' : 'btn'} onClick={() => setMetaEdit(metaEdit ? null : { name: data.team.name, description: data.team.description ?? '' })} aria-pressed={!!metaEdit} title="Edit team name / description">
@@ -416,13 +442,12 @@ export default function TeamBuilderPage() {
 
         <div className="builder-main">
           <div className="topo-view-tabs" role="tablist" aria-label="Topology view">
-            <button role="tab" aria-selected={showGraph && view === 'graph'} className={showGraph ? 'topo-tab active' : 'topo-tab'} onClick={() => setView('graph')} disabled={narrow}>
+            <button role="tab" aria-selected={showGraph} className={showGraph ? 'topo-tab active' : 'topo-tab'} onClick={() => chooseView('graph')}>
               Graph
             </button>
-            <button role="tab" aria-selected={!showGraph} className={!showGraph ? 'topo-tab active' : 'topo-tab'} onClick={() => setView('table')}>
+            <button role="tab" aria-selected={!showGraph} className={!showGraph ? 'topo-tab active' : 'topo-tab'} onClick={() => chooseView('table')}>
               Table
             </button>
-            {narrow && <span className="muted small">graph hidden on narrow viewport</span>}
           </div>
           <div className="topology-canvas-wrap">
             {showGraph ? (
@@ -447,7 +472,13 @@ export default function TeamBuilderPage() {
               <TopologyTableView
                 segments={segments}
                 roles={roles}
-                onSelect={(id) => setSelection({ type: 'role', id })}
+                liveSessions={liveSessions}
+                tasks={tasksQ.data?.tasks ?? []}
+                onOpenRole={(id) => {
+                  chooseView('graph');
+                  setSelection({ type: 'role', id });
+                }}
+                onSend={(sessionId) => navigate(`/sessions/${sessionId}`)}
               />
             )}
             {localHints && (localHints.errors.length > 0 || localHints.warnings.length > 0) && (

@@ -320,7 +320,7 @@ export default function CommandPalette() {
   const entitiesStart = sections.pages.length + sections.actions.length;
 
   return (
-    <div className="palette-overlay" onMouseDown={close} aria-hidden={false} data-hotkey-exclude>
+    <div className="palette-overlay" onMouseDown={close} aria-hidden={false} data-hotkey-exclude data-tour="palette">
       <div
         className="palette-modal"
         role="dialog"
