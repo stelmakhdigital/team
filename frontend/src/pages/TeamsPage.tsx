@@ -5,7 +5,7 @@ import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
 import {  EmptyState, ErrorState, errorMessage, PageSkeleton , Badge } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
-import { formatRelative } from '../lib/format';
+import { formatRelative, formatDateTime, stateTitle } from '../lib/format';
 import type { Team } from '../types/api';
 
 function TeamRow({ team }: { team: Team }) {
@@ -18,11 +18,11 @@ function TeamRow({ team }: { team: Team }) {
         <div className="muted small">{team.description}</div>
       </td>
       <td>
-        <Badge kind="entity" value={team.state} />
+        <Badge kind="entity" value={team.state} title={stateTitle(team.state)} />
       </td>
       <td>{team.segments_count}</td>
       <td>{team.roles_count}</td>
-      <td className="muted">{formatRelative(team.updated_at)}</td>
+      <td className="muted" title={formatDateTime(team.updated_at)}>{formatRelative(team.updated_at)}</td>
     </tr>
   );
 }

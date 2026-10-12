@@ -6,7 +6,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { Badge, EmptyState, ErrorState, errorMessage, PageSkeleton, Spinner } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
 import { useToast } from '../components/ui/Toast';
-import { formatDateTime, formatRelative, formatRelativeFromSecs } from '../lib/format';
+import { formatDateTime, formatRelative, formatRelativeFromSecs, stateTitle } from '../lib/format';
 import { CLOSURE_REASONS, TASK_TRANSITIONS, isTerminalTaskState } from '../lib/task';
 import type { ClosureReason, Task, TaskState, TaskWakeSpec, WakeKind } from '../types/api';
 
@@ -293,7 +293,7 @@ function TaskRow({
           {task.source_role_name && <div className="muted small">from {task.source_role_name}</div>}
         </td>
         <td>
-          <Badge kind="task" value={task.state}>
+          <Badge kind="task" value={task.state} title={stateTitle(task.state)}>
             {task.state}
             {task.is_stale ? ' · stale' : ''}
           </Badge>
@@ -315,7 +315,7 @@ function TaskRow({
           )}
         </td>
         <td className="muted">{task.priority}</td>
-        <td className="muted">{formatRelative(task.updated_at)}</td>
+        <td className="muted" title={formatDateTime(task.updated_at)}>{formatRelative(task.updated_at)}</td>
         <td>
           <div className="row-actions">
             {transitions.map((to) => (

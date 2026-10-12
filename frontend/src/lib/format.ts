@@ -67,3 +67,29 @@ export function formatCost(cost?: CostInfo | null): string {
   const usd = `$${cost.cost_usd.toFixed(2)}`;
   return cost.estimate ? `~${usd}` : usd;
 }
+
+// B-3: подсказки (title) к state-бейджам — что значит состояние.
+const STATE_TITLES: Record<string, string> = {
+  // сессии
+  starting: 'Agent is starting up (runtime launching).',
+  running: 'Agent is actively working.',
+  idle: 'Agent is waiting for work.',
+  stopping: 'Agent is being stopped.',
+  stopped: 'Agent has stopped (completed or stopped by us).',
+  failed: 'Agent exited with an error — open the session to see the transcript.',
+  // задачи
+  pending: 'Task is waiting to be picked up by an agent.',
+  in_progress: 'Task is being worked on.',
+  blocked: 'Task is blocked (waiting on a dependency or a person).',
+  done: 'Task is complete.',
+  cancelled: 'Task was cancelled.',
+  // команды / workflow
+  active: 'Active (in use).',
+  archived: 'Archived (inactive, hidden from default lists).',
+  draft: 'Draft (not yet enabled).',
+  enabled: 'Enabled (running).',
+  disabled: 'Disabled (not running).',
+};
+export function stateTitle(state?: string): string | undefined {
+  return state ? STATE_TITLES[state] : undefined;
+}

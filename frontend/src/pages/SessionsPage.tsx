@@ -5,7 +5,7 @@ import { useQuery } from '../hooks/useQuery';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { Badge, EmptyState, ErrorState, PageSkeleton, Spinner } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
-import { formatDateTime } from '../lib/format';
+import { formatDateTime, stateTitle } from '../lib/format';
 import type { SessionState } from '../types/api';
 
 const STATE_FILTERS: (SessionState | 'all')[] = ['all', 'starting', 'running', 'idle', 'stopping', 'stopped', 'failed'];
@@ -172,7 +172,7 @@ export default function SessionsPage() {
                       </EntityLink>
                     </td>
                     <td>
-                      <Badge kind="task" value={s.state}>
+                      <Badge kind="task" value={s.state} title={stateTitle(s.state)}>
                         {s.state}
                       </Badge>
                     </td>

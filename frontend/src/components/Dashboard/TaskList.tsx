@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import type { Task } from '../../types/api';
-import { formatRelative } from '../../lib/format';
+import { formatRelative, formatDateTime, stateTitle } from '../../lib/format';
 import { Badge, EmptyState } from '../ui/States';
 import EntityLink from '../ui/EntityLink';
 
@@ -35,7 +35,7 @@ function TaskListInner({ tasks }: { tasks: Task[] }) {
               <td><EntityLink to={`/teams/${t.team_id}`} title="Open team">{t.team_name}</EntityLink></td>
               <td>{t.destination_role_name}</td>
               <td>
-                <Badge kind="task" value={t.state} />
+                <Badge kind="task" value={t.state} title={stateTitle(t.state)} />
               </td>
               <td>
                 {t.progress !== undefined ? (
@@ -46,7 +46,7 @@ function TaskListInner({ tasks }: { tasks: Task[] }) {
                   <span className="muted">—</span>
                 )}
               </td>
-              <td className="muted">{formatRelative(t.updated_at)}</td>
+              <td className="muted" title={formatDateTime(t.updated_at)}>{formatRelative(t.updated_at)}</td>
             </tr>
           ))}
         </tbody>
