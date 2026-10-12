@@ -1,9 +1,11 @@
 import { memo } from 'react';
+import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import type { DashboardSummaryResponse } from '../../types/api';
 import { formatRelative } from '../../lib/format';
 
 function SummaryCardsInner({ summary }: { summary: DashboardSummaryResponse }) {
-  const cards = [
+  const cards: { label: string; value: ReactNode; sub: ReactNode }[] = [
     { label: 'Teams', value: `${summary.teams.active}/${summary.teams.total}`, sub: 'active / total' },
     {
       label: 'Tasks',
@@ -13,7 +15,19 @@ function SummaryCardsInner({ summary }: { summary: DashboardSummaryResponse }) {
     {
       label: 'Sessions',
       value: summary.sessions.running,
-      sub: `${summary.sessions.failed} failed of ${summary.sessions.total}`,
+      // B-2: «N failed» — кликабельно → /sessions?state=failed (быстрый доступ к упавшим).
+      sub: (
+        <>
+          {summary.sessions.failed > 0 ? (
+            <Link to="/sessions?state=failed" title="View failed sessions">
+              {summary.sessions.failed} failed
+            </Link>
+          ) : (
+            '0 failed'
+          )}{' '}
+          of {summary.sessions.total}
+        </>
+      ),
     },
     {
       label: 'Alerts',

@@ -64,6 +64,7 @@ export default function MessagesPage() {
 
   const activeChatroom = chatrooms.data?.chatrooms.find((c) => c.id === activeRoom);
   const [roomsVisible, setRoomsVisible] = useState(15);
+  const [roomSearch, setRoomSearch] = useState('');
   // B-1: сортировка комнат по свежести (активные сверху), без сообщений — вниз.
   const roomsSorted = useMemo(
     () =>
@@ -72,7 +73,12 @@ export default function MessagesPage() {
       ),
     [chatrooms.data],
   );
-  const roomsShown = roomsSorted.slice(0, roomsVisible);
+  // B-2: поиск комнат по имени (30+ комнат — фильтруем).
+  const roomsFiltered = useMemo(
+    () => roomsSorted.filter((c) => c.name.toLowerCase().includes(roomSearch.trim().toLowerCase())),
+    [roomsSorted, roomSearch],
+  );
+  const roomsShown = roomsFiltered.slice(0, roomsVisible);
 
   return (
     <div className="page">
@@ -113,6 +119,17 @@ export default function MessagesPage() {
 
           <div className="dialog-section">
             <h3 className="dialog-section-title">Rooms</h3>
+            <input
+              className="room-search"
+              type="search"
+              placeholder="Search rooms…"
+              aria-label="Search rooms (filter)"
+              value={roomSearch}
+              onChange={(e) => {
+                setRoomSearch(e.target.value);
+                setRoomsVisible(15);
+              }}
+            />
             {chatrooms.loading && <Spinner />}
             {chatrooms.error &&
             (isNotFoundError(chatrooms.error) ? (
@@ -146,10 +163,10 @@ export default function MessagesPage() {
                   </li>
                 ))}
               </ul>
-              {roomsSorted.length > roomsVisible && (
+              {roomsFiltered.length > roomsVisible && (
                 <div className="show-more">
                   <button className="btn" onClick={() => setRoomsVisible((v) => v + 15)}>
-                    Show more ({roomsSorted.length - roomsVisible})
+                    Show more ({roomsFiltered.length - roomsVisible})
                   </button>
                 </div>
               )}

@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -13,9 +14,18 @@ const STATE_FILTERS: (SessionState | 'all')[] = ['all', 'starting', 'running', '
 // model, started) + фильтры (team, state, role) + live-обновление по WS.
 // Клик по сессии → /sessions/{id} (существующая detail).
 export default function SessionsPage() {
+  const [searchParams] = useSearchParams();
+  const initial = searchParams.get('state');
   const [teamFilter, setTeamFilter] = useState<number | 'all'>('all');
-  const [stateFilter, setStateFilter] = useState<SessionState | 'all'>('all');
+  const [stateFilter, setStateFilter] = useState<SessionState | 'all'>(
+    initial && initial !== 'all' ? (initial as SessionState) : 'all',
+  );
   const [roleFilter, setRoleFilter] = useState<number | 'all'>('all');
+  // B-2: sync state filter from URL — Dashboard «N failed» → /sessions?state=failed.
+  useEffect(() => {
+    const s = searchParams.get('state');
+    setStateFilter(s && s !== 'all' ? (s as SessionState) : 'all');
+  }, [searchParams]);
 
   const teams = useQuery('sessions.teams', () => api.teams.getTeams());
   const roles = useQuery(
