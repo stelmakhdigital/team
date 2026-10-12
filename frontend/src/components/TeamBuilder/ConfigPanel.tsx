@@ -4,7 +4,8 @@ import { useQuery } from '../../hooks/useQuery';
 import { useMutation } from '../../hooks/useMutation';
 import { errorMessage, Spinner } from '../ui/States';
 import { useToast } from '../ui/Toast';
-import type { Role, Segment, UpdateRoleConfigRequest, StartupFile } from '../../types/api';
+import type { Role, Segment, UpdateRoleConfigRequest } from '../../types/api';
+import AgentResourcesPanel from './AgentResourcesPanel';
 
 export type ConfigSelection =
   | { type: 'role'; id: number; name: string }
@@ -40,12 +41,10 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(0);
   const [thinking, setThinking] = useState('');
-  const [plugins, setPlugins] = useState<Record<string, boolean>>({});
-  const [skills, setSkills] = useState<string[]>([]);
   const [mcpServers, setMcpServers] = useState<McpServerDraft[]>([]);
-  const [startupFiles, setStartupFiles] = useState<StartupFile[]>([]);
+  // T5: Agent resources (plugins/skills/startup_files) — отдельная модалка.
+  const [showResources, setShowResources] = useState(false);
 
-  // initial effective values (override ?? agent_spec default) — для dirty-detection.
   const [initial, setInitial] = useState<string>('');
 
   useEffect(() => {
@@ -58,21 +57,11 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
       setTemperature(ov.temperature ?? spec.pi_config.temperature);
       setMaxTokens(ov.max_tokens ?? spec.pi_config.max_tokens ?? 0);
       setThinking(ov.thinking ?? spec.pi_config.thinking ?? '');
-      const pl: Record<string, boolean> = {};
-      for (const p of spec.pi_config.plugins) pl[p.name] = p.enabled;
-      if (ov.plugins) for (const [k, v] of Object.entries(ov.plugins)) if (typeof v === 'boolean') pl[k] = v;
-      setPlugins(pl);
-      setSkills(spec.pi_config.skills.filter((s) => s.enabled).map((s) => s.path));
       const mcps = Array.isArray(ov.mcp) ? (ov.mcp as McpServerDraft[]) : spec.pi_config.mcp.servers;
       setMcpServers((mcps as McpServerDraft[]).map((m) => ({ ...m })));
-      const files = Array.isArray(ov.startup_files) ? (ov.startup_files as StartupFile[]) : spec.startup.files;
-      setStartupFiles((files as StartupFile[]).map((f) => ({ ...f })));
-      const snap = JSON.stringify({
-        agentSpec: data.role.agent_spec, profile: data.role.profile ?? '', model, temperature, maxTokens,
-        thinking, plugins: pl, skills: spec.pi_config.skills.filter((s) => s.enabled).map((s) => s.path),
-        mcpServers: mcps, startupFiles: files,
-      });
-      setInitial(snap);
+      setInitial(JSON.stringify({
+        agentSpec: data.role.agent_spec, profile: data.role.profile ?? '', model, temperature, maxTokens, thinking, mcpServers: mcps,
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.role.id]);
@@ -80,9 +69,7 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
   if (loading) return <Spinner label="Loading config…" />;
   if (error || !data) return <div className="form-error">Failed to load config. <button className="btn" onClick={refetch}>Retry</button></div>;
 
-  const cur = JSON.stringify({
-    agentSpec, profile, model, temperature, maxTokens, thinking, plugins, skills, mcpServers, startupFiles,
-  });
+  const cur = JSON.stringify({ agentSpec, profile, model, temperature, maxTokens, thinking, mcpServers });
   const dirty = cur !== initial;
 
   const submit = async (e: React.FormEvent) => {
@@ -91,16 +78,14 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
       toast('error', 'Agent spec is required');
       return;
     }
-    // T4: config override — flat-карта pi_config (backend merge'ит c layout).
+    // T4/T5: config override — flat-карта scalar pi_config + mcp (backend merge'ит c layout).
+    // plugins/skills/startup_files — в agent_resources (Agent resources panel).
     const cfg: Record<string, unknown> = {
       model,
       temperature,
       max_tokens: maxTokens || undefined,
       thinking: thinking || undefined,
-      plugins,
-      skills,
       mcp: mcpServers,
-      startup_files: startupFiles,
     };
     try {
       await save.mutate({ agent_spec: agentSpec.trim(), profile: profile || undefined, config: cfg });
@@ -172,24 +157,6 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
           <DefaultHint label="spec" def={spec.pi_config.thinking || '—'} />
         </label>
         <fieldset>
-          <legend>Plugins</legend>
-          {data.available_plugins.map((p) => (
-            <label key={p.name} className="check">
-              <input type="checkbox" checked={!!plugins[p.name]} onChange={(e) => setPlugins({ ...plugins, [p.name]: e.target.checked })} />
-              {p.name}
-            </label>
-          ))}
-        </fieldset>
-        <fieldset>
-          <legend>Skills</legend>
-          {data.available_skills.map((s) => (
-            <label key={s.path} className="check">
-              <input type="checkbox" checked={skills.includes(s.path)} onChange={(e) => setSkills(e.target.checked ? [...skills, s.path] : skills.filter((x) => x !== s.path))} />
-              {s.path}
-            </label>
-          ))}
-        </fieldset>
-        <fieldset>
           <legend>MCP servers</legend>
           {mcpServers.map((m, i) => (
             <div key={i} className="kv-row">
@@ -201,25 +168,16 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
           ))}
           <button type="button" className="btn" onClick={() => setMcpServers([...mcpServers, { name: '', url: '', enabled: true }])}>+ Add server</button>
         </fieldset>
-        <fieldset>
-          <legend>Startup files</legend>
-          {startupFiles.map((f, i) => (
-            <div key={i} className="kv-row">
-              <input className="kv-key" value={f.path} placeholder="path" onChange={(e) => setStartupFiles(startupFiles.map((x, j) => (j === i ? { ...x, path: e.target.value } : x)))} />
-              <select value={f.orientation} onChange={(e) => setStartupFiles(startupFiles.map((x, j) => (j === i ? { ...x, orientation: e.target.value as StartupFile['orientation'] } : x)))}>
-                <option value="role">role</option>
-                <option value="context">context</option>
-                <option value="culture">culture</option>
-              </select>
-              <select value={f.delivery_hint} onChange={(e) => setStartupFiles(startupFiles.map((x, j) => (j === i ? { ...x, delivery_hint: e.target.value as StartupFile['delivery_hint'] } : x)))}>
-                <option value="send_text">send_text</option>
-                <option value="project_file">project_file</option>
-              </select>
-              <button type="button" className="btn-icon" aria-label="Remove file" onClick={() => setStartupFiles(startupFiles.filter((_, j) => j !== i))}>✕</button>
-            </div>
-          ))}
-          <button type="button" className="btn" onClick={() => setStartupFiles([...startupFiles, { path: '', orientation: 'context', delivery_hint: 'send_text' }])}>+ Add file</button>
-        </fieldset>
+      </section>
+
+      {/* T5: Agent resources (plugins/skills/startup_files) — отдельная панель. */}
+      <section>
+        <h4>Agent resources</h4>
+        <div className="muted small">
+          Plugins ({spec.pi_config.plugins.length}) · Skills ({spec.pi_config.skills.length}) ·
+          Startup files ({spec.startup.files.length}) — base (spec) + override (role).
+        </div>
+        <button type="button" className="btn" onClick={() => setShowResources(true)}>⚙ Configure resources…</button>
       </section>
 
       <section>
@@ -235,6 +193,16 @@ function RoleConfig({ roleId, onSaved }: { roleId: number; onSaved: () => void }
         </button>
       </div>
       {!dirty && <div className="muted small">No changes</div>}
+
+      {showResources && (
+        <AgentResourcesPanel
+          roleId={roleId}
+          roleSpec={spec}
+          initialConfig={(data.config ?? {}) as Record<string, unknown>}
+          onClose={() => setShowResources(false)}
+          onSaved={() => { setShowResources(false); onSaved(); }}
+        />
+      )}
     </form>
   );
 }

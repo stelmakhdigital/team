@@ -34,7 +34,7 @@ describe('T4: Roles-менеджмент', () => {
     expect(db.roles.some((r) => r.name === 'qa-bot')).toBe(true);
   }, 20_000);
 
-  it('ConfigPanel shows full pi_config fields (max_tokens/thinking/mcp/startup.files)', async () => {
+  it('ConfigPanel shows pi_config fields (max_tokens/thinking/mcp) + Agent resources section', async () => {
     const db = getDb();
     const role = db.roles[0]; // Lead, id 1
     render(
@@ -46,12 +46,14 @@ describe('T4: Roles-менеджмент', () => {
       />,
     );
     await screen.findByText('Pi config', {}, { timeout: 10_000 });
+    // scalar pi_config + mcp остаются в ConfigPanel
     expect(screen.getByText('Max tokens')).toBeInTheDocument();
     expect(screen.getByText('Thinking')).toBeInTheDocument();
     expect(screen.getByText('MCP servers')).toBeInTheDocument();
-    expect(screen.getByText('Startup files')).toBeInTheDocument();
     // «исходный value из agent_spec» виден как hint
     expect(screen.getAllByText(/spec: 8192/).length).toBeGreaterThan(0);
+    // T5: plugins/skills/startup_files вынесены в отдельный Agent resources (кнопка)
+    expect(screen.getByRole('button', { name: /Configure resources/i })).toBeInTheDocument();
   }, 20_000);
 
   it('ConfigPanel save persists the pi_config override to the role', async () => {
