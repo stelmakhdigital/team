@@ -41,7 +41,7 @@ describe('B-1.1: Sessions — sort by recency (newest first)', () => {
     ];
     renderAt('/sessions');
     await screen.findByRole('heading', { name: 'Sessions' }, { timeout: 10_000 });
-    const rows = await screen.findAllByRole('row', { timeout: 10_000 });
+    const rows = await screen.findAllByRole('row', {}, { timeout: 10_000 });
     // rows[0] = header, rows[1..3] = data (sorted newest→oldest)
     const data = rows.slice(1).map((r) => r.textContent ?? '');
     expect(data[0]).toContain('NewestRole');
@@ -72,7 +72,7 @@ describe('B-1.2: Teams — sort by recency (newest first)', () => {
     ];
     renderAt('/teams');
     await screen.findByRole('heading', { name: 'Teams' }, { timeout: 10_000 });
-    const rows = await screen.findAllByRole('row', { timeout: 10_000 });
+    const rows = await screen.findAllByRole('row', {}, { timeout: 10_000 });
     const data = rows.slice(1).map((r) => r.textContent ?? '');
     expect(data[0]).toContain('NewTeam');
     expect(data[1]).toContain('MidTeam');
