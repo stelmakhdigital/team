@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
@@ -63,6 +63,16 @@ export default function MessagesPage() {
     : [];
 
   const activeChatroom = chatrooms.data?.chatrooms.find((c) => c.id === activeRoom);
+  const [roomsVisible, setRoomsVisible] = useState(15);
+  // B-1: сортировка комнат по свежести (активные сверху), без сообщений — вниз.
+  const roomsSorted = useMemo(
+    () =>
+      [...(chatrooms.data?.chatrooms ?? [])].sort((a, b) =>
+        (b.last_message?.created_at ?? '').localeCompare(a.last_message?.created_at ?? ''),
+      ),
+    [chatrooms.data],
+  );
+  const roomsShown = roomsSorted.slice(0, roomsVisible);
 
   return (
     <div className="page">
@@ -114,8 +124,9 @@ export default function MessagesPage() {
               <p className="muted small dialog-empty-section">No rooms yet</p>
             )}
             {chatrooms.data && chatrooms.data.chatrooms.length > 0 && (
+              <>
               <ul className="dialog-list-items">
-                {chatrooms.data.chatrooms.map((c) => (
+                {roomsShown.map((c) => (
                   <li key={c.id}>
                     <button
                       className={`dialog-item${dialog?.kind === 'room' && dialog.id === c.id ? ' dialog-item-active' : ''}`}
@@ -135,6 +146,14 @@ export default function MessagesPage() {
                   </li>
                 ))}
               </ul>
+              {roomsSorted.length > roomsVisible && (
+                <div className="show-more">
+                  <button className="btn" onClick={() => setRoomsVisible((v) => v + 15)}>
+                    Show more ({roomsSorted.length - roomsVisible})
+                  </button>
+                </div>
+              )}
+              </>
             )}
           </div>
         </div>

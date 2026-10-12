@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
@@ -47,7 +47,16 @@ export default function TasksPage() {
   // P0.2: bounded list of overdue tasks (dedicated GET /tasks/overdue)
   const overdue = useQuery('tasks.overdue', () => api.tasks.overdue({ limit: 200 }), []);
   const active = view === 'overdue' ? overdue : list;
-  const rows = active.data?.tasks ?? [];
+  const [visible, setVisible] = useState(25);
+  // B-1: сортировка по свежести (новые сверху) — старые тестовые задачи вниз.
+  const rows = useMemo(
+    () =>
+      [...(active.data?.tasks ?? [])].sort(
+        (a, b) => (b.updated_at ?? b.created_at ?? '').localeCompare(a.updated_at ?? a.created_at ?? ''),
+      ),
+    [active.data],
+  );
+  const shown = rows.slice(0, visible);
 
   // M1: live-refetch по WS task.-событиям (стандарт X3, как AttentionPage).
   const { onMessage } = useWebSocket([]);
@@ -178,7 +187,7 @@ export default function TasksPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((t) => (
+              {shown.map((t) => (
                 <TaskRow
                   key={t.id}
                   task={t}
@@ -196,6 +205,13 @@ export default function TasksPage() {
               ))}
             </tbody>
           </table></div>
+          {rows.length > visible && (
+            <div className="show-more">
+              <button className="btn" onClick={() => setVisible((v) => v + 25)}>
+                Show more ({rows.length - visible} remaining)
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -29,6 +29,13 @@ function TeamRow({ team }: { team: Team }) {
 
 export default function TeamsPage() {
   const { data, loading, error, refetch } = useQuery('teams.list', () => api.teams.getTeams());
+  const [visible, setVisible] = useState(25);
+  // B-1: сортировка по свежести (новые сверху) — старые тестовые команды вниз.
+  const teamsSorted = useMemo(
+    () => [...(data?.teams ?? [])].sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? '')),
+    [data],
+  );
+  const shown = teamsSorted.slice(0, visible);
   const projectsQ = useQuery('teams.create.projects', () => api.projects.list({}), []);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -92,11 +99,18 @@ export default function TeamsPage() {
               </tr>
             </thead>
             <tbody>
-              {data.teams.map((t) => (
+              {shown.map((t) => (
                 <TeamRow key={t.id} team={t} />
               ))}
             </tbody>
           </table></div>
+          {teamsSorted.length > visible && (
+            <div className="show-more">
+              <button className="btn" onClick={() => setVisible((v) => v + 25)}>
+                Show more ({teamsSorted.length - visible} remaining)
+              </button>
+            </div>
+          )}
         </div>
       )}
 

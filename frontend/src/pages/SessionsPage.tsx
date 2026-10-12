@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -51,7 +51,16 @@ export default function SessionsPage() {
   }, []);
   onMessage(onWsEvent);
 
-  const sessions = list.data?.sessions ?? [];
+  const [visible, setVisible] = useState(25);
+  // B-1: сортировка по свежести (новые сверху) — старые тестовые сессии опускаются вниз.
+  const sessions = useMemo(
+    () =>
+      [...(list.data?.sessions ?? [])].sort(
+        (a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''),
+      ),
+    [list.data],
+  );
+  const shown = sessions.slice(0, visible);
   const teamRoles = (teamFilter !== 'all' ? roles.data?.roles ?? [] : []);
 
   return (
@@ -135,7 +144,7 @@ export default function SessionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {sessions.map((s) => (
+                {shown.map((s) => (
                   <tr key={s.id}>
                     <td className="muted">
                       <EntityLink to={`/sessions/${s.id}`} title={`Open session ${s.id}`}>
@@ -165,6 +174,13 @@ export default function SessionsPage() {
               </tbody>
             </table>
           </div>
+          {sessions.length > visible && (
+            <div className="show-more">
+              <button className="btn" onClick={() => setVisible((v) => v + 25)}>
+                Show more ({sessions.length - visible} remaining)
+              </button>
+            </div>
+          )}
         </div>
       )}
       {roles.loading && teamFilter !== 'all' && <Spinner label="Loading roles…" />}
