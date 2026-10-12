@@ -184,6 +184,8 @@ func requiredPermission(method, path string) string {
 		}
 	case http.MethodPost:
 		switch {
+		case res == "teams" && id == "import": // C1/P4.3: bundle-импорт = teams.update
+			return "teams.update"
 		case res == "chatrooms" && sub == "messages":
 			return "chatrooms.create"
 		case res == "workflows" && id != "" && (sub == "blocks" || sub == "connections" || sub == "run"):

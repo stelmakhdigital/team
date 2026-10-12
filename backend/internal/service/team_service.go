@@ -70,6 +70,10 @@ type TeamService struct {
 	chatRooms chatRoomStore
 	sessions  sessionStore
 	projects  *repository.ProjectRepo // P1.0
+	// C1/P4.3: team bundle — workflow-репозитории для export/import воркфлоу.
+	workflows *repository.WorkflowRepo
+	wfBlocks  *repository.WorkflowBlockRepo
+	wfConns   *repository.WorkflowConnectionRepo
 	// SpecsDir — корень для чтения agent.yaml (GET /roles/{id}/config).
 	SpecsDir string
 }
@@ -84,6 +88,9 @@ func NewTeamService(db *sql.DB, s *repository.Stores) *TeamService {
 		chatRooms: s.Chatrooms,
 		sessions:  s.Sessions,
 		projects:  s.Projects,
+		workflows: s.Workflows,
+		wfBlocks:  s.WorkflowBlocks,
+		wfConns:   s.WorkflowConnections,
 		SpecsDir:  "agents",
 	}
 }
