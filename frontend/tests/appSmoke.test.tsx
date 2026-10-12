@@ -155,9 +155,12 @@ describe('App smoke', () => {
     await (await screen.findByRole('tab', { name: 'Table' })).click();
     const table = await screen.findByRole('table', { name: 'Topology table' });
     expect(table).toBeInTheDocument();
+    // live-сессии (sessionsQ) загружаются асинхронно — дождёмся live-данных,
+    // иначе state-лейбл 'running' ещё не рендерится (флейк под нагрузкой, I1).
+    await screen.findByText('ctx 42%', {}, { timeout: 10_000 });
     expect(screen.getAllByText('pi-go-backend').length).toBeGreaterThan(0);
     expect(screen.getAllByText('running').length).toBeGreaterThan(0);
-  }, 15_000);
+  }, 30_000);
 
   it('R6.4: workflow editor renders blocks/connections on canvas', async () => {
     render(
