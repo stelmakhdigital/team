@@ -424,6 +424,9 @@ func renderBriefing(d BriefingData) string {
 			b.WriteString(fmt.Sprintf("- %s: %s (%ds ago)\n", a.Title, a.Description, a.AgeSecs))
 		}
 	}
+	// T6: явная подсказка — агент не тратит ходы на поиск briefing-файла (контекст в system-prompt).
+	b.WriteString("\n## Note\n")
+	b.WriteString("Весь стартовый контекст (задача/команда/проект) уже в этом system-prompt. Отдельных briefing-файлов в рабочем каталоге нет.\n")
 	return strings.TrimRight(b.String(), "\n") + "\n"
 }
 
