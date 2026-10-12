@@ -62,7 +62,7 @@ func (h *handlers) ListProjectFiles(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	res, err := h.projects.ListProjectFiles(r.Context(), id, r.URL.Query().Get("path"))
+	res, err := h.projects.ListProjectFiles(r.Context(), id, r.URL.Query().Get("path"), r.URL.Query().Get("attribute") == "true")
 	if err != nil {
 		writeError(w, r, err)
 		return

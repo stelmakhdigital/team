@@ -191,27 +191,34 @@ func (s *ProjectService) GetProject(ctx context.Context, id int64) (*ProjectSumm
 }
 
 // ProjectFileView — запись файл-списка проекта (путь — относительно корня).
+// W2.2: git-attribution (только при ?attribute=true и attributed=true; иначе null).
 type ProjectFileView struct {
-	Name      string `json:"name"`
-	Path      string `json:"path"`
-	IsDir     bool   `json:"is_dir"`
-	Size      int64  `json:"size"`
-	Modified  string `json:"modified_at"`
+	Name       string  `json:"name"`
+	Path       string  `json:"path"`
+	IsDir      bool    `json:"is_dir"`
+	Size       int64   `json:"size"`
+	Modified   string  `json:"modified_at"`
+	LastAuthor *string `json:"last_author"`
+	LastCommit *string `json:"last_commit"` // subject последнего коммита
+	LastAt     *string `json:"last_at"`     // committer-date (ISO)
 }
 
-// ProjectFileList — ответ GET /projects/{id}/files[?path=...].
+// ProjectFileList — ответ GET /projects/{id}/files[?path=...[&attribute=true]].
 type ProjectFileList struct {
-	ProjectID int64             `json:"project_id"`
-	Root      string            `json:"root"`
-	Path      string            `json:"path"` // подкаталог, для которого составлен список ("" = корень)
-	Files     []ProjectFileView `json:"files"`
-	Truncated bool              `json:"truncated"`
+	ProjectID  int64             `json:"project_id"`
+	Root       string            `json:"root"`
+	Path       string            `json:"path"` // подкаталог, для которого составлен список ("" = корень)
+	Files      []ProjectFileView `json:"files"`
+	Truncated  bool              `json:"truncated"`
+	Attributed bool              `json:"attributed"` // W2.2: true = git-атрибуция реально выполнена
 }
 
 // Artifacts-лимиты (защита от огромных/засоренных деревьев).
 const (
 	maxProjectFilesList = 1000
 	maxProjectFileSize  = 10 << 20 // 10 MB
+	// W2.2: attribution — bounded (git log per file не должен тянуть запрос).
+	maxAttributedFiles = 100
 )
 
 // projectFileSkip — служебные каталоги, пропускаемые в списке артефактов.
@@ -226,7 +233,11 @@ func projectFileSkip(name string) bool {
 // ListProjectFiles — список записей (файлы + каталоги) НА ОДИН УРОВЕНЬ внутри
 // project.path (или подкаталога subPath). Read-only; дерево строит UI по
 // расширению (lazy). Сортировка: каталоги первыми, затем по имени.
-func (s *ProjectService) ListProjectFiles(ctx context.Context, id int64, subPath string) (*ProjectFileList, error) {
+//
+// W2.2: attribute=true → git-attribution файлов (last_author/last_commit/last_at)
+// через `git log -1` per file; только если проект git и файлов ≤ maxAttributedFiles,
+// иначе Attributed=false и поля null (честно, без инферирования).
+func (s *ProjectService) ListProjectFiles(ctx context.Context, id int64, subPath string, attribute bool) (*ProjectFileList, error) {
 	p, err := s.projects.GetByID(ctx, s.db, id)
 	if err != nil {
 		if err == repository.ErrNotFound {
@@ -286,7 +297,58 @@ func (s *ProjectService) ListProjectFiles(ctx context.Context, id int64, subPath
 			Modified: info.ModTime().Format("2006-01-02T15:04:05Z07:00"),
 		})
 	}
+
+	// W2.2: git-attribution (bounded, только файлы; не-git / git недоступен → null + attributed=false)
+	if attribute && p.Git && s.hasGit() {
+		nFiles := 0
+		for _, f := range list.Files {
+			if !f.IsDir {
+				nFiles++
+			}
+		}
+		if nFiles <= maxAttributedFiles {
+			list.Attributed = s.attributeFiles(ctx, root, list.Files)
+		}
+	}
 	return list, nil
+}
+
+// attributeFiles — `git log -1` per file (только файлы, не каталоги).
+// true, если git-вызовы прошли; ошибка git → false (поля остаются null —
+// честно, без инферирования). Файл без истории (untracked) → поля null, но
+// attributed=true (атрибуция была, данных нет).
+func (s *ProjectService) attributeFiles(ctx context.Context, root string, files []ProjectFileView) bool {
+	ok := true
+	for i := range files {
+		f := &files[i]
+		if f.IsDir {
+			continue
+		}
+		author, subject, at, err := gitLastCommit(ctx, root, f.Path)
+		if err != nil {
+			ok = false
+			continue
+		}
+		f.LastAuthor = &author
+		f.LastCommit = &subject
+		f.LastAt = &at
+	}
+	return ok
+}
+
+// gitLastCommit — последний коммит, тронувший relPath: author, subject, committer-date (ISO).
+// Пустой вывод (файл без истории) → три пустые строки без ошибки.
+func gitLastCommit(ctx context.Context, root, relPath string) (author, subject, at string, err error) {
+	out, err := exec.CommandContext(ctx, "git", "-C", root, "log", "-1",
+		"--format=%an\x1f%s\x1f%cI", "--", relPath).Output()
+	if err != nil {
+		return "", "", "", err
+	}
+	parts := strings.SplitN(strings.TrimRight(string(out), "\n"), "\x1f", 3)
+	if len(parts) != 3 {
+		return "", "", "", fmt.Errorf("git log: unexpected output")
+	}
+	return parts[0], parts[1], parts[2], nil
 }
 
 // GetProjectFile — содержимое файла (read-only, только внутри project.path, лимит 10 MB).

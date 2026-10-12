@@ -3,7 +3,9 @@ package service_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -347,4 +349,159 @@ func TestProjectListFilter(t *testing.T) {
 		t.Errorf("name filter total = %d, want 1", total)
 	}
 	_ = a
+}
+
+// gitCommit — git add -A + commit в dir с заданным автором (test-fixture).
+func gitCommit(t *testing.T, dir, author, message string) {
+	t.Helper()
+	env := append(os.Environ(),
+		"GIT_AUTHOR_NAME="+author, "GIT_AUTHOR_EMAIL=author@example.com",
+		"GIT_COMMITTER_NAME="+author, "GIT_COMMITTER_EMAIL=author@example.com")
+	cmd := exec.Command("git", "commit", "-q", "-m", message, "--allow-empty")
+	cmd.Dir = dir
+	cmd.Env = env
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git commit (%s): %v\n%s", message, err, out)
+	}
+}
+
+func gitAddAll(t *testing.T, dir string) {
+	t.Helper()
+	cmd := exec.Command("git", "add", "-A")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v\n%s", err, out)
+	}
+}
+
+// TestProjectFilesAttribution — W2.2: git-attribution (last_author/last_commit/last_at).
+func TestProjectFilesAttribution(t *testing.T) {
+	_, _, pvc, _, ctx := setupProjectEnv(t)
+
+	// git-репозиторий с двумя файлами и двумя авторами.
+	repo := t.TempDir()
+	cmd := exec.Command("git", "init", "-q")
+	cmd.Dir = repo
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("git not available: %v\n%s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "alpha.txt"), []byte("v1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitAddAll(t, repo)
+	gitCommit(t, repo, "Alice A", "feat: alpha v1")
+	if err := os.WriteFile(filepath.Join(repo, "alpha.txt"), []byte("v2"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "beta.md"), []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitAddAll(t, repo)
+	gitCommit(t, repo, "Bob B", "chore: alpha v2 + beta")
+
+	res, err := pvc.CreateProject(ctx, service.CreateProjectRequest{Name: "attr-git", Kind: "existing", Path: repo})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	id := res.Project.ID
+
+	// (a) attribute=true → attributed=true, поля заполнены; последний коммит alpha.txt — Bob B.
+	lst, err := pvc.ListProjectFiles(ctx, id, "", true)
+	if err != nil {
+		t.Fatalf("list files: %v", err)
+	}
+	if !lst.Attributed {
+		t.Fatal("attributed = false, want true")
+	}
+	byName := map[string]service.ProjectFileView{}
+	for _, f := range lst.Files {
+		if !f.IsDir {
+			byName[f.Name] = f
+		}
+	}
+	alpha := byName["alpha.txt"]
+	if alpha.LastAuthor == nil || *alpha.LastAuthor != "Bob B" {
+		t.Errorf("alpha last_author = %v, want Bob B", alpha.LastAuthor)
+	}
+	if alpha.LastCommit == nil || *alpha.LastCommit != "chore: alpha v2 + beta" {
+		t.Errorf("alpha last_commit = %v, want subject", alpha.LastCommit)
+	}
+	if alpha.LastAt == nil || *alpha.LastAt == "" {
+		t.Errorf("alpha last_at empty")
+	}
+	beta := byName["beta.md"]
+	if beta.LastAuthor == nil || *beta.LastAuthor != "Bob B" {
+		t.Errorf("beta last_author = %v, want Bob B", beta.LastAuthor)
+	}
+
+	// (b) attribute=false → attributed=false, поля null (даже для git-проекта).
+	lst2, err := pvc.ListProjectFiles(ctx, id, "", false)
+	if err != nil {
+		t.Fatalf("list files (no attr): %v", err)
+	}
+	if lst2.Attributed {
+		t.Error("attributed = true без ?attribute=true, want false")
+	}
+	for _, f := range lst2.Files {
+		if f.LastAuthor != nil || f.LastCommit != nil || f.LastAt != nil {
+			t.Errorf("file %s has attribution without ?attribute=true", f.Name)
+		}
+	}
+
+	// (c) non-git проект → attributed=false, поля null.
+	plain := t.TempDir()
+	if err := os.WriteFile(filepath.Join(plain, "x.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resP, err := pvc.CreateProject(ctx, service.CreateProjectRequest{Name: "attr-plain", Kind: "existing", Path: plain})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lst3, err := pvc.ListProjectFiles(ctx, resP.Project.ID, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lst3.Attributed {
+		t.Error("non-git: attributed = true, want false")
+	}
+	for _, f := range lst3.Files {
+		if f.LastAuthor != nil || f.LastCommit != nil || f.LastAt != nil {
+			t.Errorf("non-git file %s has attribution", f.Name)
+		}
+	}
+}
+
+// TestProjectFilesAttributionLimit — W2.2: > maxAttributedFiles файлов → attributed=false.
+func TestProjectFilesAttributionLimit(t *testing.T) {
+	_, _, pvc, _, ctx := setupProjectEnv(t)
+	repo := t.TempDir()
+	cmd := exec.Command("git", "init", "-q")
+	cmd.Dir = repo
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("git not available: %v\n%s", err, out)
+	}
+	for i := 0; i < 101; i++ {
+		if err := os.WriteFile(filepath.Join(repo, fmt.Sprintf("f%03d.txt", i)), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gitAddAll(t, repo)
+	gitCommit(t, repo, "Alice A", "bulk")
+
+	res, err := pvc.CreateProject(ctx, service.CreateProjectRequest{Name: "attr-limit", Kind: "existing", Path: repo})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	lst, err := pvc.ListProjectFiles(ctx, res.Project.ID, "", true)
+	if err != nil {
+		t.Fatalf("list files: %v", err)
+	}
+	if lst.Attributed {
+		t.Error("101 files: attributed = true, want false (лимит)")
+	}
+	for _, f := range lst.Files {
+		if f.LastAuthor != nil || f.LastCommit != nil || f.LastAt != nil {
+			t.Errorf("file %s has attribution despite limit", f.Name)
+		}
+	}
 }
