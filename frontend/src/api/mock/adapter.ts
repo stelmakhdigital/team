@@ -19,6 +19,7 @@ import type {
   ProjectFileEntry,
   ProjectKind,
   RenameRequest,
+  Role,
   Segment,
   Session,
   SessionDetail,
@@ -30,6 +31,7 @@ import type {
   UpdateRoleConfigRequest,
   Workflow,
   WatchdogJob,
+  TeamBundle,
 } from '../../types/api';
 import { canTransition, isTerminalTaskState } from '../../lib/task';
 import { CONFIG_REGISTRY, resolveConfig, normalizeSetValue } from './configRegistry';
@@ -442,6 +444,291 @@ export function createMockAdapter(): Api {
           segments: clone(db.segments.filter((s) => s.team_id === id)),
           roles: clone(db.roles.filter((r) => r.team_id === id)),
           relatives: clone(db.relatives.filter((r) => r.team_id === id)),
+        };
+      },
+
+      // C1/P4.3: export команды в team-bundle (та же логика, что backend GET /teams/{id}/export).
+      async exportTeam(id) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        const team = db.teams.find((t) => t.id === id);
+        if (!team) throw new ApiClientError(404, 'not_found', `Team ${id} not found`);
+        const segs = db.segments.filter((s) => s.team_id === id);
+        const segIds = new Set(segs.map((s) => s.id));
+        const segIndex = new Map<number, number>(segs.map((s, i) => [s.id, i]));
+        // flat-порядок ролей (сегменты по порядку, внутри — по db.roles)
+        const flatRoles: Role[] = [];
+        const roleIndex = new Map<number, number>();
+        for (const s of segs) {
+          for (const r of db.roles.filter((r) => r.segment_id === s.id)) {
+            roleIndex.set(r.id, flatRoles.length);
+            flatRoles.push(r);
+          }
+        }
+        const segNameById = new Map(segs.map((s) => [s.id, s.name]));
+        const relIds = new Set(db.relatives.filter((r) => r.team_id === id).map((r) => r.id));
+        const relIndex = new Map<number, number>(
+          db.relatives.filter((r) => r.team_id === id).map((r, i) => [r.id, i]),
+        );
+        const stripLayout = (cfg?: Record<string, unknown>): Record<string, unknown> | undefined => {
+          if (!cfg) return undefined;
+          const out: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(cfg)) if (k !== 'layout') out[k] = v;
+          return Object.keys(out).length ? out : undefined;
+        };
+        const bundle: TeamBundle = {
+          version: 1,
+          kind: 'team-bundle',
+          exported_at: now(),
+          team: {
+            name: team.name,
+            description: team.description || null,
+            posture: team.posture ?? null,
+            segments: segs.map((s) => ({
+              name: s.name,
+              description: s.description || null,
+              config: stripLayout(s.config),
+              roles: db.roles
+                .filter((r) => r.segment_id === s.id)
+                .map((r) => ({
+                  name: r.name,
+                  role: r.profile || null,
+                  agent_spec: r.agent_spec,
+                  config: stripLayout(r.config),
+                })),
+            })),
+            relatives: db.relatives
+              .filter((r) => r.team_id === id)
+              .map((rel) => ({
+                from: `${segNameById.get(
+                  db.roles.find((r) => r.id === rel.from_role_id)?.segment_id ?? 0,
+                ) ?? ''}.${rel.from_role_name}`,
+                to: `${segNameById.get(
+                  db.roles.find((r) => r.id === rel.to_role_id)?.segment_id ?? 0,
+                ) ?? ''}.${rel.to_role_name}`,
+                kind: rel.type,
+                label: null,
+                config: stripLayout(rel.config),
+              })),
+            layout: {
+              segments: (db.layouts?.segments ?? [])
+                .filter((l) => segIds.has(l.segment_id))
+                .map((l) => ({ segment_id: segIndex.get(l.segment_id)!, position: { ...l.position }, collapsed: l.collapsed })),
+              roles: (db.layouts?.roles ?? [])
+                .filter((l) => segIds.has(l.segment_id))
+                .map((l) => ({ role_id: roleIndex.get(l.role_id)!, segment_id: segIndex.get(l.segment_id)!, position: { ...l.position } })),
+              relatives: (db.layouts?.relatives ?? [])
+                .filter((l) => relIds.has(l.relative_id))
+                .map((l) => ({
+                  relative_id: relIndex.get(l.relative_id)!,
+                  from_role_id: roleIndex.get(l.from_role_id)!,
+                  to_role_id: roleIndex.get(l.to_role_id)!,
+                  path: l.path,
+                })),
+            },
+          },
+          workflows: db.workflows
+            .filter((w) => w.team_id === id)
+            .map((w) => {
+              const blocks = db.blocks.filter((b) => b.workflow_id === w.id);
+              const blockIndex = new Map<number, number>(blocks.map((b, i) => [b.id, i]));
+              return {
+                name: w.name,
+                description: w.description || null,
+                config: {
+                  blocks: blocks.map((b) => ({
+                    type: b.type,
+                    position: { ...b.position },
+                    config: { ...b.config },
+                    label: b.label ?? null,
+                  })),
+                  connections: db.connections
+                    .filter((c) => c.workflow_id === w.id)
+                    .map((c) => ({
+                      from: blockIndex.get(c.from_block_id) ?? 0,
+                      to: blockIndex.get(c.to_block_id) ?? 0,
+                      condition: c.condition ?? null,
+                    })),
+                },
+                engine_enabled: w.engine_enabled === true,
+              };
+            }),
+        };
+        return clone(bundle);
+      },
+
+      // C1/P4.3: импорт team-bundle (та же логика, что backend POST /teams/import).
+      async importTeam(bundle: TeamBundle) {
+        maybeFail();
+        await latency();
+        const db = getDb();
+        if (bundle?.version !== 1) {
+          throw new ApiClientError(400, 'unsupported_version', `unsupported bundle version ${bundle?.version} (only 1)`);
+        }
+        if (bundle?.kind !== 'team-bundle') {
+          throw new ApiClientError(400, 'invalid_bundle', `unsupported bundle kind ${String(bundle?.kind)} (want team-bundle)`);
+        }
+        const fieldErrs: Array<{ field: string; reason: string }> = [];
+        const teamB = bundle.team;
+        if (!teamB?.name?.trim()) fieldErrs.push({ field: 'team.name', reason: 'required' });
+        const roleAddrs = new Set<string>();
+        let totalRoles = 0;
+        (teamB?.segments ?? []).forEach((seg, i) => {
+          if (!seg.name?.trim()) fieldErrs.push({ field: `team.segments[${i}].name`, reason: 'required' });
+          (seg.roles ?? []).forEach((r, j) => {
+            if (!r.name?.trim()) fieldErrs.push({ field: `team.segments[${i}].roles[${j}].name`, reason: 'required' });
+            if (!r.agent_spec?.trim()) fieldErrs.push({ field: `team.segments[${i}].roles[${j}].agent_spec`, reason: 'required' });
+            totalRoles++;
+            roleAddrs.add(`${seg.name}.${r.name}`);
+          });
+        });
+        if ((teamB?.segments ?? []).length === 0) fieldErrs.push({ field: 'team.segments', reason: 'at least 1 segment required' });
+        if (totalRoles === 0) fieldErrs.push({ field: 'team.roles', reason: 'at least 1 role required' });
+        (teamB?.relatives ?? []).forEach((rel, i) => {
+          if (!roleAddrs.has(rel.from)) fieldErrs.push({ field: `team.relatives[${i}].from`, reason: `unknown role address ${rel.from}` });
+          if (!roleAddrs.has(rel.to)) fieldErrs.push({ field: `team.relatives[${i}].to`, reason: `unknown role address ${rel.to}` });
+        });
+        if (fieldErrs.length) {
+          throw new ApiClientError(400, 'validation_failed', 'invalid team bundle', { errors: fieldErrs });
+        }
+        // auto-suffix: имя команды (и имён воркфлоу внутри нового набора)
+        const base = teamB.name;
+        let name = base;
+        let n = 2;
+        while (db.teams.some((t) => t.name === name)) name = `${base} (${n++})`;
+        const id = nextId();
+        db.teams.push({
+          id, name,
+          description: teamB.description || undefined,
+          state: 'active',
+          segments_count: 0, roles_count: 0,
+          created_at: now(), updated_at: now(),
+        });
+        db.chatrooms.push({ id: nextId(), team_id: id, name, topic: 'Whole team', unread_count: 0, members_count: 0 });
+        const segIdByBundleIndex: number[] = [];
+        const roleIdsByAddr = new Map<string, number>();
+        const flatRoleIds: number[] = [];
+        teamB.segments.forEach((seg) => {
+          const sid = nextId();
+          segIdByBundleIndex.push(sid);
+          db.segments.push({
+            id: sid, team_id: id, name: seg.name,
+            description: seg.description || undefined,
+            config: { ...(seg.config ?? {}) },
+            roles_count: 0, created_at: now(), updated_at: now(),
+          });
+          db.chatrooms.push({ id: nextId(), team_id: id, segment_id: sid, name: `${seg.name}-general`, unread_count: 0, members_count: 0 });
+          seg.roles.forEach((r) => {
+            const rid = nextId();
+            db.roles.push({
+              id: rid, team_id: id, segment_id: sid, segment_name: seg.name, name: r.name,
+              address: `${name}:${seg.name}.${r.name}`,
+              agent_spec: r.agent_spec, profile: r.role || undefined,
+              config: { ...(r.config ?? {}) },
+              state: 'inactive', created_at: now(), updated_at: now(),
+            });
+            roleIdsByAddr.set(`${seg.name}.${r.name}`, rid);
+            flatRoleIds.push(rid);
+          });
+        });
+        // layout (индексы bundle → новые db-id)
+        db.layouts = db.layouts ?? { segments: [], roles: [], relatives: [] };
+        (teamB.layout?.segments ?? []).forEach((l) => {
+          if (l.segment_id >= 0 && l.segment_id < segIdByBundleIndex.length) {
+            db.layouts!.segments.push({
+              segment_id: segIdByBundleIndex[l.segment_id],
+              position: { ...l.position }, collapsed: l.collapsed,
+            });
+          }
+        });
+        (teamB.layout?.roles ?? []).forEach((l) => {
+          if (l.role_id >= 0 && l.role_id < flatRoleIds.length && l.segment_id < segIdByBundleIndex.length) {
+            db.layouts!.roles.push({
+              role_id: flatRoleIds[l.role_id],
+              segment_id: segIdByBundleIndex[l.segment_id],
+              position: { ...l.position },
+            });
+          }
+        });
+        // relatives
+        teamB.relatives.forEach((rel) => {
+          const fromId = roleIdsByAddr.get(rel.from);
+          const toId = roleIdsByAddr.get(rel.to);
+          if (fromId === undefined || toId === undefined) return;
+          db.relatives.push({
+            id: nextId(), team_id: id, from_role_id: fromId, from_role_name: rel.from.split('.').slice(1).join('.'),
+            to_role_id: toId, to_role_name: rel.to.split('.').slice(1).join('.'),
+            type: rel.kind, config: { ...(rel.config ?? {}) }, created_at: now(),
+          });
+        });
+        // layout relatives (после создания relatives: relative_id по текущим team-relatives)
+        (teamB.layout?.relatives ?? []).forEach((l) => {
+          const teamRels = db.relatives.filter((r) => r.team_id === id);
+          const rel = teamRels[l.relative_id];
+          if (
+            rel && l.from_role_id >= 0 && l.from_role_id < flatRoleIds.length &&
+            l.to_role_id >= 0 && l.to_role_id < flatRoleIds.length
+          ) {
+            db.layouts!.relatives.push({
+              relative_id: rel.id,
+              from_role_id: flatRoleIds[l.from_role_id],
+              to_role_id: flatRoleIds[l.to_role_id],
+              path: l.path,
+            });
+          }
+        });
+        // воркфлоу (state draft — не активируем при импорте; auto-suffix имён)
+        const createdWFs: Array<{ id: number; name: string }> = [];
+        const takenWF = new Set<string>();
+        bundle.workflows?.forEach((bw) => {
+          let wfName = bw.name;
+          if (takenWF.has(wfName)) {
+            let k = 2;
+            while (takenWF.has(`${bw.name} (${k})`)) k++;
+            wfName = `${bw.name} (${k})`;
+          }
+          takenWF.add(wfName);
+          const wfId = nextId();
+          db.workflows.push({
+            id: wfId, team_id: id, name: wfName,
+            description: bw.description || undefined,
+            state: 'draft', engine_enabled: bw.engine_enabled === true,
+            created_at: now(), updated_at: now(),
+          });
+          const blocksIn = (bw.config?.blocks ?? []) as Array<Record<string, unknown>>;
+          const createdBlockIds: number[] = [];
+          blocksIn.forEach((b) => {
+            const bid = nextId();
+            createdBlockIds.push(bid);
+            db.blocks.push({
+              id: bid, workflow_id: wfId,
+              type: (b.type as never) ?? 'task',
+              position: b.position && typeof b.position === 'object'
+                ? { x: Number((b.position as { x?: number }).x ?? 0), y: Number((b.position as { y?: number }).y ?? 0) }
+                : { x: 0, y: 0 },
+              config: { ...((b.config as Record<string, unknown>) ?? {}) },
+              label: typeof b.label === 'string' ? b.label : undefined,
+              created_at: now(),
+            });
+          });
+          ((bw.config?.connections ?? []) as Array<Record<string, unknown>>).forEach((c) => {
+            const from = Number(c.from);
+            const to = Number(c.to);
+            if (!createdBlockIds[from] || !createdBlockIds[to]) return;
+            db.connections.push({
+              id: nextId(), workflow_id: wfId,
+              from_block_id: createdBlockIds[from], to_block_id: createdBlockIds[to],
+              condition: typeof c.condition === 'string' ? c.condition : undefined,
+              created_at: now(),
+            });
+          });
+          createdWFs.push({ id: wfId, name: wfName });
+        });
+        recalcTeamCounts();
+        return {
+          team: clone(db.teams.find((t) => t.id === id)!),
+          workflows: createdWFs,
         };
       },
 

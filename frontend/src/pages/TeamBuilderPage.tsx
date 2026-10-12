@@ -13,6 +13,7 @@ import TopologyTableView from '../components/Topology/TopologyTableView';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { autoLayoutMoves } from '../components/Topology/layout/autoLayout';
 import { computeActiveRoleIds } from '../lib/fleet';
+import { downloadJson } from '../lib/download';
 import Toolbar from '../components/TeamBuilder/Toolbar';
 import SpecYamlPanel from '../components/TeamBuilder/SpecYamlPanel';
 import ConfigPanel, { type ConfigSelection } from '../components/TeamBuilder/ConfigPanel';
@@ -329,6 +330,22 @@ export default function TeamBuilderPage() {
     if (window.confirm(`Delete ${label}? This cannot be undone.`)) fn();
   };
 
+  // C1/P4.3: Export — скачать bundle текущей команды (тот же эндпоинт, что в TeamsPage).
+  const [exporting, setExporting] = useState(false);
+  const onExportBundle = async () => {
+    if (!data || exporting) return;
+    setExporting(true);
+    try {
+      const bundle = await api.teams.exportTeam(id);
+      downloadJson(`team-${data.team.name}.teambundle.json`, bundle);
+      toast('success', `Team '${data.team.name}' exported`);
+    } catch (e) {
+      toast('error', errorMessage(e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) return <div className="page"><PageSkeleton rows={5} label="Loading topology…" /></div>;
   if (error) return <div className="page"><ErrorState error={error} onRetry={refetch} /></div>;
   if (!data) return <div className="page"><PageSkeleton rows={5} /></div>;
@@ -373,6 +390,9 @@ export default function TeamBuilderPage() {
           <span className="muted small">{editMode ? 'edit mode — drag nodes / palette / connect' : 'topology: auto-layout'}</span>
           <button className="btn" onClick={applyAutoLayout} title="Recompute auto layout and save positions">
             ⌖ Auto layout
+          </button>
+          <button className="btn" onClick={onExportBundle} title="Download team bundle (JSON): topology + workflows, for import into another daemon/project">
+            ⇩ Export
           </button>
           <button className={specOpen ? 'btn btn-primary' : 'btn'} onClick={() => setSpecOpen((v) => !v)} aria-pressed={specOpen} title="YAML spec: export / create / merge">
             ≡ YAML

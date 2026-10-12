@@ -90,6 +90,9 @@ import type {
   SaveToLibraryResponse,
   SaveTopologyRequest,
   SaveTopologyResponse,
+  // C1/P4.3: Team bundle (export/import команды)
+  TeamBundle,
+  ImportTeamResponse,
   SendChatroomMessageRequest,
   SendChatroomMessageResponse,
   SendMessageRequest,
@@ -165,6 +168,9 @@ export interface Api {
   teams: {
     getTeams(params?: { state?: string }): Promise<GetTeamsResponse>;
     createTeam(req: CreateTeamRequest): Promise<CreateTeamResponse>;
+    // C1/P4.3: team bundle (export/import команды)
+    exportTeam(id: number): Promise<TeamBundle>;
+    importTeam(bundle: TeamBundle): Promise<ImportTeamResponse>;
     getTeam(id: number): Promise<GetTeamResponse>;
     setTeamState(id: number, state: string): Promise<{ id: number; status: string }>;
     deleteTeam(id: number, hard?: boolean): Promise<{ id: number; status: string }>;

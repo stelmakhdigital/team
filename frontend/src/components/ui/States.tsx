@@ -74,6 +74,8 @@ function friendlyMessage(code: string, message: string): { title: string; hint?:
     case 'conflict':
       return { title: 'Conflict', hint: 'The value already exists or changed on the server (name taken / stale data). Refresh and try again.' };
     case 'bad_request':
+    case 'unsupported_version': // C1/P4.3: team bundle v≠1
+    case 'invalid_bundle': // C1/P4.3: kind ≠ team-bundle
       return { title: 'Invalid input', hint: message || 'The request was malformed.' };
     case 'validation':
     case 'validation_failed':

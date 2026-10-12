@@ -60,6 +60,58 @@ export interface CreateTeamResponse {
   status: 'created';
 }
 
+// ---- C1 / P4.3: Team bundle (перенос команды) ----
+
+export interface BundleRole {
+  name: string;
+  role?: string | null; // profile роли
+  agent_spec: string;
+  config?: Record<string, unknown>;
+}
+
+export interface BundleSegment {
+  name: string;
+  description?: string | null;
+  config?: Record<string, unknown>;
+  roles: BundleRole[];
+}
+
+export interface BundleRelative {
+  from: string; // "Segment.Role"
+  to: string; // "Segment.Role"
+  kind: RelativeType;
+  label?: Position | null;
+  config?: Record<string, unknown>;
+}
+
+// layout — та же форма, что TopologyLayout, но *_id — 0-based индексы в массивы bundle.
+export type BundleLayout = TopologyLayout;
+
+export interface TeamBundle {
+  version: number;
+  kind: 'team-bundle';
+  exported_at?: string;
+  team: {
+    name: string;
+    description?: string | null;
+    posture?: string | null;
+    segments: BundleSegment[];
+    relatives: BundleRelative[];
+    layout?: BundleLayout;
+  };
+  workflows: Array<{
+    name: string;
+    description?: string | null;
+    config: Record<string, unknown>; // { blocks, connections }
+    engine_enabled: boolean;
+  }>;
+}
+
+export interface ImportTeamResponse {
+  team: Team;
+  workflows: Array<{ id: number; name: string }>;
+}
+
 export interface Segment {
   id: number;
   team_id: number;

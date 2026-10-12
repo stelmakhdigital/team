@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -7,18 +7,21 @@ import {  EmptyState, ErrorState, errorMessage, PageSkeleton , Badge } from '../
 import { useToast } from '../components/ui/Toast';
 import { formatRelative, formatDateTime, stateTitle } from '../lib/format';
 import { useEscapeStack } from '../hooks/useEscapeStack';
-import type { Team } from '../types/api';
+import { downloadJson } from '../lib/download';
+import type { Team, TeamBundle } from '../types/api';
 
 function TeamRow({
   team,
   busy,
   onSetState,
   onDelete,
+  onExport,
 }: {
   team: Team;
   busy: boolean;
   onSetState: (team: Team, state: string) => void;
   onDelete: (team: Team) => void;
+  onExport: (team: Team) => void;
 }) {
   const isArchived = team.state === 'archived';
   return (
@@ -52,6 +55,9 @@ function TeamRow({
           )}
           <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => onDelete(team)} title="Permanently delete team and all its data">
             Delete
+          </button>
+          <button className="btn btn-sm" disabled={busy} onClick={() => onExport(team)} title="Download team bundle (JSON): topology + workflows, for import into another daemon/project">
+            Export
           </button>
         </div>
       </td>
@@ -146,6 +152,102 @@ export default function TeamsPage() {
     }
   };
 
+  // C1/P4.3: Export (download .teambundle.json) + Import (file → preview → confirm).
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBundle, setImportBundle] = useState<TeamBundle | null>(null);
+  const [importSource, setImportSource] = useState<string | null>(null);
+  const [importParseError, setImportParseError] = useState<string | null>(null);
+  const [importFieldErrors, setImportFieldErrors] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
+  useEscapeStack(() => setImportOpen(false), importOpen);
+
+  const exportTeam = async (team: Team) => {
+    setBusyId(team.id);
+    try {
+      const bundle = await api.teams.exportTeam(team.id);
+      downloadJson(`team-${team.name}.teambundle.json`, bundle);
+      toast('success', `Team '${team.name}' exported`);
+    } catch (e) {
+      toast('error', errorMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // повторный выбор того же файла
+    if (!file) return;
+    const text = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result ?? ''));
+      fr.onerror = () => reject(new Error('Не удалось прочитать файл'));
+      fr.readAsText(file);
+    }).catch((err) => err as Error);
+    if (typeof text !== 'string') {
+      setImportBundle(null);
+      setImportSource(file.name);
+      setImportParseError(text.message);
+      setImportFieldErrors([]);
+      setImportOpen(true);
+      return;
+    }
+    let parsed: TeamBundle;
+    try {
+      parsed = JSON.parse(text) as TeamBundle;
+    } catch {
+      setImportBundle(null);
+      setImportSource(file.name);
+      setImportParseError('Некорректный JSON — файл не похож на .teambundle.json');
+      setImportFieldErrors([]);
+      setImportOpen(true);
+      return;
+    }
+    setImportBundle(parsed);
+    setImportSource(file.name);
+    setImportParseError(null);
+    setImportFieldErrors([]);
+    setImportOpen(true);
+  };
+
+  const confirmImport = async () => {
+    if (!importBundle) return;
+    setImporting(true);
+    setImportFieldErrors([]);
+    try {
+      const res = await api.teams.importTeam(importBundle);
+      toast('success', `Team '${res.team.name}' imported${res.workflows.length ? ` (+${res.workflows.length} workflow(s))` : ''}`);
+      setImportOpen(false);
+      setImportBundle(null);
+      navigate(`/teams/${res.team.id}`);
+    } catch (e) {
+      const errs: string[] = [];
+      const details = (e as { details?: { errors?: Array<{ field: string; reason: string }> } })?.details;
+      if (Array.isArray(details?.errors)) {
+        for (const fe of details.errors) errs.push(`${fe.field}: ${fe.reason}`);
+      } else if (e instanceof Error && e.message) {
+        // без field-ошибок — показываем сырое сообщение (напр. unsupported_version) в модалке
+        errs.push(e.message);
+      }
+      if (errs.length) {
+        setImportFieldErrors(errs);
+      } else {
+        toast('error', errorMessage(e));
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const importCounts = importBundle
+    ? {
+        segments: importBundle.team?.segments?.length ?? 0,
+        roles: (importBundle.team?.segments ?? []).reduce((n, s) => n + (s.roles?.length ?? 0), 0),
+        workflows: importBundle.workflows?.length ?? 0,
+      }
+    : null;
+
   return (
     <div className="page">
       <div className="page-head">
@@ -155,6 +257,17 @@ export default function TeamsPage() {
             <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
             Show archived
           </label>
+          <button className="btn" onClick={() => fileInputRef.current?.click()} title="Import team bundle (.teambundle.json) from another daemon/project">
+            ⇪ Import
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".teambundle.json,.json,application/json"
+            style={{ display: 'none' }}
+            aria-label="Team bundle file"
+            onChange={onImportFile}
+          />
           <button className="btn btn-primary" onClick={() => setCreating(true)}>
             + Новая команда
           </button>
@@ -181,7 +294,7 @@ export default function TeamsPage() {
             </thead>
             <tbody>
               {shown.map((t) => (
-                <TeamRow key={t.id} team={t} busy={busyId === t.id} onSetState={setState} onDelete={delTeam} />
+                <TeamRow key={t.id} team={t} busy={busyId === t.id} onSetState={setState} onDelete={delTeam} onExport={exportTeam} />
               ))}
             </tbody>
           </table></div>
@@ -229,6 +342,57 @@ export default function TeamsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {importOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Import team bundle" onClick={() => !importing && setImportOpen(false)}>
+          <div className="modal import-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Import team</h2>
+            {importParseError ? (
+              <div className="form-error">{importParseError}</div>
+            ) : importBundle ? (
+              <div className="import-preview" aria-live="polite">
+                <dl className="import-preview-grid">
+                  <dt>Team</dt>
+                  <dd className="import-preview-name">{importBundle.team?.name}</dd>
+                  <dt>Segments</dt>
+                  <dd>{importCounts?.segments}</dd>
+                  <dt>Roles</dt>
+                  <dd>{importCounts?.roles}</dd>
+                  <dt>Workflows</dt>
+                  <dd>{importCounts?.workflows}</dd>
+                </dl>
+                <p className="muted small import-note">
+                  Проект не переносится (будет назначен после). Сессии, задачи и история не переносятся.
+                </p>
+                {importSource && <p className="muted small mono">{importSource}</p>}
+              </div>
+            ) : null}
+            {importFieldErrors.length > 0 && (
+              <div className="form-error import-field-errors" role="alert">
+                <strong>Ошибки валидации:</strong>
+                <ul>
+                  {importFieldErrors.map((fe) => (
+                    <li key={fe}>{fe}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="btn" onClick={() => setImportOpen(false)} disabled={importing}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={confirmImport}
+                disabled={importing || !importBundle}
+              >
+                {importing ? 'Importing…' : 'Import team'}
+              </button>
+            </div>
           </div>
         </div>
       )}

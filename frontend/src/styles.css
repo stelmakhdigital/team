@@ -471,6 +471,15 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 
+/* C1/P4.3: Import team bundle — preview-модалка (имя / counts / примечание). */
+.import-modal { width: min(480px, 92vw); }
+.import-preview-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0 0 10px; }
+.import-preview-grid dt { color: var(--muted); font-size: 0.85rem; }
+.import-preview-grid dd { margin: 0; font-size: 0.95rem; }
+.import-preview-name { font-weight: 600; }
+.import-note { margin: 0 0 6px; line-height: 1.4; }
+.import-field-errors ul { margin: 4px 0 0; padding-left: 18px; }
+
 /* T5: Agent resources modal (шире стандартного) + source-бейджи (base/override). */
 .agent-resources-modal { width: min(720px, 94vw); max-height: 88vh; display: flex; flex-direction: column; }
 .agent-resources-modal .modal-body { overflow-y: auto; }

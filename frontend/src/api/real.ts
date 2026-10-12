@@ -12,6 +12,8 @@ export function createRealAdapter(): Api {
     teams: {
       getTeams: (params) => http(`${B}/teams${toQuery({ state: params?.state })}`),
       createTeam: (req) => http(`${B}/teams`, { method: 'POST', body: req }),
+      exportTeam: (id) => http(`${B}/teams/${id}/export`),
+      importTeam: (bundle) => http(`${B}/teams/import`, { method: 'POST', body: bundle }),
       getTeam: (id) => http(`${B}/teams/${id}`),
       setTeamState: (id, state) => http(`${B}/teams/${id}`, { method: 'PATCH', body: { state } }),
       deleteTeam: (id, hard) => http(`${B}/teams/${id}${hard ? '?hard=true' : ''}`, { method: 'DELETE' }),
