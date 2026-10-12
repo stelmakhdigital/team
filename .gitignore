@@ -50,3 +50,10 @@ configs/
 
 # Runtime database (persistent SQLite — see scripts/start-live-daemon.sh)
 data/
+
+# Repowise (local index + agent wiring)
+.repowise/
+.mcp.json
+.claude/
+.github/
+.vscode/

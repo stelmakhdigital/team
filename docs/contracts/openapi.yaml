@@ -339,6 +339,52 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: deleteSegment
+      summary: "Удалить сегмент (409, пока внутри есть роли) — P4 2026-10-12"
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Сегмент удалён
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  status: { type: string, example: deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/roles/{id}:
+    delete:
+      operationId: deleteRole
+      summary: "Удалить роль + каскад relatives (409, пока активные сессии) — P4 2026-10-12"
+      tags: [topology]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Роль удалена (relatives — каскадно)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  status: { type: string, example: deleted }
+                  relatives_deleted: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/v1/segments/{id}/roles:
     post:
       operationId: createRole
@@ -2245,6 +2291,78 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProjectResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/agentspecs:
+    get:
+      operationId: listAgentSpecs
+      summary: "Список доступных agent spec (верхний уровень SpecsDir) — P4 2026-10-12"
+      tags: [topology]
+      responses:
+        '200':
+          description: Имена spec (без расширения)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  specs:
+                    type: array
+                    items: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/projects/{id}/files:
+    get:
+      operationId: listProjectFiles
+      summary: "Артефакты: список на один уровень (read-only; ?path= — подкаталог) — P4 2026-10-12"
+      tags: [projects]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: path, in: query, required: false, schema: { type: string }, description: 'относительный подкаталог ("" = корень)' }
+      responses:
+        '200':
+          description: Записи (файлы + каталоги) на один уровень
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project_id: { type: integer }
+                  root: { type: string }
+                  path: { type: string, description: 'подкаталог списка ("" = корень)' }
+                  truncated: { type: boolean }
+                  files:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        path: { type: string, description: 'относительно корня' }
+                        is_dir: { type: boolean }
+                        size: { type: integer }
+                        modified_at: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/v1/projects/{id}/files/{rel}:
+    get:
+      operationId: getProjectFile
+      summary: "Содержимое файла (download; traversal-защита, лимит 10 MB) — P4 2026-10-12"
+      tags: [projects]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: rel, in: path, required: true, schema: { type: string }, description: 'относительный путь (… wildcard)' }
+      responses:
+        '200':
+          description: Содержимое файла (attachment)
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }

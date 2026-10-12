@@ -21,6 +21,9 @@
 | Library | done (slice 5b: save/get/apply team+workflow; 6+: apply role+segment) | **done (real, verified live 2026-10-08)** | ready (role/segment — уточнения в api-decisions) | **done (real)** | — |
 | History Viewer (audit + metrics + transcripts) | done (slice 5b: audit log, dashboard/metrics, transcript total; slice 6: user_id/api_key_id) | **done (real, verified live 2026-10-08)** | ready | **done (real)** | llm_tokens = 0 |
 | Frontend UI-audit (2026-10-08) | — | **done** | — | **done** | WS-бейдж честный; 404→Unavailable; canvas авто-fit + Fit-кнопка (F11) |
+| Team Builder: delete role/segment (DELETE /roles/{id}, /segments/{id}) | done (2026-10-12: каскад relatives, 409 на активных сессиях/ролях) | done (2026-10-12: кнопка Delete в BottomPanel + confirm; mock+real) | ready (§1.8/§1.9) | **done** (тесты go + vitest) | — |
+| Team Builder: agent specs (GET /agentspecs + автодополнение) | done (2026-10-12: ListAgentSpecs из SpecsDir, гейт teams.read) | done (2026-10-12: useAgentSpecs → datalist в панели роли + форме Add role) | ready (§1.10 + OAS) | **done** (тесты go + vitest) | полный YAML-редактор spec — отдельная фича (backlog) |
+| Projects: artifacts (GET /projects/{id}/files + download) | done (2026-10-12: walk + traversal-защита, лимиты 1000/10MB) | done (2026-10-12: вкладка «Artifacts» в ProjectDetail: список + preview + download) | ready (api-decisions + OAS) | **done** (тесты go + vitest) | — |
 
 ## Integration verification (lead, 2026-10-07)
 

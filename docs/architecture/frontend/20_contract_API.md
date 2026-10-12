@@ -254,6 +254,57 @@ interface UpdateRoleConfigResponse {
 ```
 
 
+#### 1.8 Удалить роль (добавлено 2026-10-12)
+
+Hard delete роли + каскадное удаление её relatives (transакция). Блокируется (409),
+пока у роли активные сессии (starting/running/idle/stopping).
+
+```typescript
+// DELETE /api/v1/roles/:id
+// 200
+interface DeleteRoleResponse {
+  id: number;
+  name: string;
+  status: 'deleted';
+  relatives_deleted: number;
+}
+// 404 — роль не найдена; 409 — есть активные сессии
+```
+
+
+#### 1.9 Удалить сегмент (добавлено 2026-10-12)
+
+Hard delete сегмента. Блокируется (409), пока внутри есть роли (их удаляют через 1.8).
+
+```typescript
+// DELETE /api/v1/segments/:id
+// 200
+interface DeleteSegmentResponse {
+  id: number;
+  name: string;
+  status: 'deleted';
+}
+// 404 — сегмент не найден; 409 — внутри есть роли
+```
+
+Оба эндпоинта гейтятся разрешением `teams.update` (как relatives/segments/roles PATCH).
+
+
+#### 1.10 Список доступных agent spec (добавлено 2026-10-12)
+
+Для UI-автодополнения в форме создания роли и в панели конфигурации роли.
+Читает верхний уровень каталога agent specs (DAEMON_AGENT_SPECS_DIR): имена .yaml/.yml
+без расширения. Каталог отсутствует → пустой список (не ошибка).
+
+```typescript
+// GET /api/v1/agentspecs
+// 200 (гейт: teams.read)
+interface ListAgentSpecsResponse {
+  specs: string[]; // например: ["pi-lead", "pi-reviewer", "pi-worker"]
+}
+```
+
+
 ______________________________________________________________________
 
 ### 2. **Workflow Editor API**

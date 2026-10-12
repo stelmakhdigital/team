@@ -767,6 +767,17 @@ wake закрыт, `TestBlockWakeValidation`) + HTTP (`TestResolveTaskEndpoint`
 ### Сводка
 - `GET /projects/{id}` — project + `counts{teams, tasks, active_sessions}`.
 - `GET /projects?archived=true|include_archived=true|name=`.
+- **P4 (2026-10-12) Artifacts**: `GET /projects/{id}/files[?path=<rel-dir>]` — список записей
+  (файлы + каталоги) **на один уровень** внутри `project.path` или подкаталога (read-only;
+  каталоги первыми, затем по имени; пропуск `.git`/`node_modules`/`__pycache__`; лимит
+  1000 записей → `truncated=true`). Ответ: `{project_id, root, path, files[], truncated}`,
+  где `path` — подкаталог списка ("" = корень). Дерево строит UI по раскрытию (lazy).
+  `GET /projects/{id}/files/{rel...}` — содержимое файла (download, `Content-Disposition:
+  attachment`; traversal-защита: путь только внутри корня, иначе 400; лимит 10 MB → 400).
+  RBAC — `projects.read` (как прочие GET проекта).
+- **P4 (2026-10-12) Agent specs**: `GET /agentspecs` — `{specs: string[]}` (верхний уровень
+  `DAEMON_AGENT_SPECS_DIR`, имена .yaml/.yml без расширения; пусто при отсутствии каталога).
+  Гейт — `teams.read` (Team Builder: автодополнение в форме роли).
 - Фильтры: `GET /tasks?project_id=`, `GET /sessions?project_id=`.
 
 ### Тесты
