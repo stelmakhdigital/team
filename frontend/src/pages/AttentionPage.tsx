@@ -5,6 +5,7 @@ import { Badge, EmptyState, ErrorState, PageSkeleton } from '../components/ui/St
 import EntityLink from '../components/ui/EntityLink';
 import HumanRequestActions from '../components/HumanRequestActions';
 import { useWebSocket } from '../hooks/useWebSocket';
+import type { AttentionItem } from '../types/api';
 
 // P0.1 — Attention view «Что требует меня»: единый список всего, что требует
 // действия оператора, с live-обновлением по WS-событиям (task./session./alert.).
@@ -69,6 +70,53 @@ export default function AttentionPage() {
   }
 
   const items = q.data?.items ?? [];
+  // W2.3: группировка — «Решения» (human_request, approve/deny CTA) и
+  // «События» (остальное, read-only CTA). Пустая группа скрывается.
+  const decisions = items.filter((i) => i.kind === 'human_request');
+  const events = items.filter((i) => i.kind !== 'human_request');
+
+  const renderRows = (list: AttentionItem[]) =>
+    list.map((it) => (
+      <tr key={it.kind + it.id} data-severity={it.severity}>
+        <td>
+          <Badge kind="sev" value={SEV_BADGE[it.severity]}>
+            {it.severity}
+          </Badge>
+        </td>
+        <td>
+          <div className="attention-title">{it.title}</div>
+          <div className="muted small attention-detail">{it.detail}</div>
+        </td>
+        <td className="muted small attention-elapsed">{humanElapsed(it.created_at)}</td>
+        <td className="attention-action">
+          {it.kind === 'human_request' ? (
+            <HumanRequestActions
+              id={parseInt(it.id.replace('hreq-', ''), 10)}
+              operation={it.title}
+              onDecided={() => q.refetch()}
+            />
+          ) : (
+            // T3: «Suggested action» — действие (ссылка на entity), без
+            // отдельной безымянной колонки «Открыть».
+            <EntityLink to={it.link.path} title={`${it.suggested_action} → ${it.link.label}`}>
+              {it.suggested_action}
+            </EntityLink>
+          )}
+        </td>
+      </tr>
+    ));
+
+  const thead = (
+    <thead>
+      <tr>
+        <th className="atd-w-sev">Severity</th>
+        <th>Item</th>
+        <th className="atd-w-elapsed">Elapsed</th>
+        <th className="atd-w-action">Suggested action</th>
+      </tr>
+    </thead>
+  );
+
   return (
     <div className="page">
       <div className="page-head">
@@ -87,49 +135,32 @@ export default function AttentionPage() {
         </div>
       ) : (
         <div className="card attention-card">
-          <div className="table-wrap">
-            <table className="table attention-table">
-              <thead>
-                <tr>
-                  <th className="atd-w-sev">Severity</th>
-                  <th>Item</th>
-                  <th className="atd-w-elapsed">Elapsed</th>
-                  <th className="atd-w-action">Suggested action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it) => (
-                  <tr key={it.kind + it.id} data-severity={it.severity}>
-                    <td>
-                      <Badge kind="sev" value={SEV_BADGE[it.severity]}>
-                        {it.severity}
-                      </Badge>
-                    </td>
-                    <td>
-                      <div className="attention-title">{it.title}</div>
-                      <div className="muted small attention-detail">{it.detail}</div>
-                    </td>
-                    <td className="muted small attention-elapsed">{humanElapsed(it.created_at)}</td>
-                    <td className="attention-action">
-                      {it.kind === 'human_request' ? (
-                        <HumanRequestActions
-                          id={parseInt(it.id.replace('hreq-', ''), 10)}
-                          operation={it.title}
-                          onDecided={() => q.refetch()}
-                        />
-                      ) : (
-                        // T3: «Suggested action» — действие (ссылка на entity), без
-                        // отдельной безымянной колонки «Открыть».
-                        <EntityLink to={it.link.path} title={`${it.suggested_action} → ${it.link.label}`}>
-                          {it.suggested_action}
-                        </EntityLink>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {decisions.length > 0 && (
+            <section className="attention-group" data-testid="attention-group-decisions">
+              <h2 className="attention-group-title">
+                Решения <span className="attention-group-count">{decisions.length}</span>
+              </h2>
+              <div className="table-wrap">
+                <table className="table attention-table">
+                  {thead}
+                  <tbody>{renderRows(decisions)}</tbody>
+                </table>
+              </div>
+            </section>
+          )}
+          {events.length > 0 && (
+            <section className="attention-group" data-testid="attention-group-events">
+              <h2 className="attention-group-title">
+                События <span className="attention-group-count">{events.length}</span>
+              </h2>
+              <div className="table-wrap">
+                <table className="table attention-table">
+                  {thead}
+                  <tbody>{renderRows(events)}</tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </div>
       )}
     </div>

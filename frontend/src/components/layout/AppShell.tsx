@@ -6,6 +6,7 @@ import { getMockError, setMockError } from '../../api/mock/adapter';
 import type { MockErrorKind } from '../../api/mock/adapter';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import CommandPalette from '../CommandPalette';
+import ContextTree from '../ContextTree';
 
 // Навигация: единый монохромный набор глифов (текстовая презентация, U+FE0E —
 // запрет emoji-рендера на Windows/macOS).
@@ -53,6 +54,12 @@ export default function AppShell() {
   const [simError, setSimError] = useState<MockErrorKind | ''>(getMockError() ?? '');
   const { status: wsStatus, onMessage } = useWebSocket([]);
 
+  // W2.1: ContextTree — sessionTick инкрементируется на session.* (WS) →
+  // дерево refetch'ит сессии (live-точки), не создавая второй WS (используем
+  // единственную связь из AppShell).
+  const [sessionTick, setSessionTick] = useState(0);
+  const sessLast = useRef(0);
+
   // P0.1: бейдж-счётчик «внимание» (total), live по task./session./alert.-событиям
   const [attentionCount, setAttentionCount] = useState(0);
   const loadAttention = useCallback(async () => {
@@ -68,11 +75,20 @@ export default function AppShell() {
   const last = useRef(0);
   const onAttentionEvent = useCallback(
     (m: { type: string }) => {
-      if (!ATTENTION_EVENTS.has(m.type)) return;
-      const now = Date.now();
-      if (now - last.current < 3000) return;
-      last.current = now;
-      void loadAttention();
+      if (ATTENTION_EVENTS.has(m.type)) {
+        const now = Date.now();
+        if (now - last.current < 3000) return;
+        last.current = now;
+        void loadAttention();
+      }
+      // W2.1: session.* → refresh live-точек в ContextTree (debounce 3s)
+      if (m.type.startsWith('session.')) {
+        const now = Date.now();
+        if (now - sessLast.current >= 3000) {
+          sessLast.current = now;
+          setSessionTick((t) => t + 1);
+        }
+      }
     },
     [loadAttention],
   );
@@ -108,6 +124,7 @@ export default function AppShell() {
             </NavLink>
           ))}
         </nav>
+        <ContextTree sessionTick={sessionTick} />
         <div className="sidebar-footer">
           <div className={`ws-badge ws-${wsStatus}`} title="WebSocket real-time status (auto-reconnects on drop)">
             {WS_LABEL[wsStatus] ?? wsStatus}

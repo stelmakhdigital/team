@@ -1748,6 +1748,10 @@ export interface ProjectFileEntry {
   is_dir: boolean;
   size: number;
   modified_at: string;
+  // W2.2: git-attribution (только при ?attribute=true + attributed=true; иначе null)
+  last_author?: string | null;
+  last_commit?: string | null; // subject последнего коммита
+  last_at?: string | null;     // committer-date (ISO)
 }
 
 export interface ListProjectFilesResponse {
@@ -1756,6 +1760,8 @@ export interface ListProjectFilesResponse {
   path: string; // подкаталог списка ("" = корень)
   files: ProjectFileEntry[];
   truncated: boolean;
+  // W2.2: true = git-атрибуция реально выполнена (иначе поля файлов null)
+  attributed?: boolean;
 }
 
 // P4: список доступных agent spec (GET /agentspecs)

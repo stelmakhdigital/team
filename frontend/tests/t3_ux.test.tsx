@@ -72,8 +72,10 @@ describe('T3.1: Attention — Suggested action как действие (без �
   it('Suggested action is a clickable link (no nameless «Открыть» column)', async () => {
     renderAt('/attention');
     expect(await screen.findByRole('heading', { name: 'Внимание' }, { timeout: 10_000 })).toBeInTheDocument();
-    // заголовок «Suggested action» есть, а безымянной колонки «Открыть» — нет
-    expect(screen.getByRole('columnheader', { name: 'Suggested action' })).toBeInTheDocument();
+    // заголовок «Suggested action» есть (W2.3: до 2 групп «Решения»/«События» → по одному на таблицу),
+    // а безымянной колонки «Открыть» — нет
+    const sugCols = screen.getAllByRole('columnheader', { name: 'Suggested action' });
+    expect(sugCols.length >= 1).toBe(true);
     const openCol = screen.queryByRole('columnheader', { name: 'Открыть' });
     expect(openCol).toBeNull();
     // suggested action рендерится как link (не plain text)

@@ -2479,7 +2479,7 @@ export function createMockAdapter(): Api {
       },
       // Mock: нет реального ФС — детерминированное фейк-дерево по project.path
       // (один уровень за запрос, как backend: UI раскрывает каталоги).
-      async listFiles(id, path) {
+      async listFiles(id, path, opts) {
         maybeFail();
         await latency();
         const db = getDb();
@@ -2489,7 +2489,15 @@ export function createMockAdapter(): Api {
         if (clean.includes('..')) throw new ApiClientError(400, 'validation_failed', 'invalid path');
         const mk = (name: string, rel: string, isDir: boolean, size: number, daysAgo: number): ProjectFileEntry => ({
           name, path: rel, is_dir: isDir, size, modified_at: new Date(Date.now() - daysAgo * 864e5).toISOString(),
+          last_author: null, last_commit: null, last_at: null,
         });
+        // W2.2: mock git-attribution (детерминированная demo-данные, только для ?attribute=true)
+        const attr: Record<string, [string, string, string]> = {
+          'README.md': ['dev@team-console', 'docs: initial README', '2026-10-05T09:12:00Z'],
+          'docs/spec.md': ['anna.dev', 'feat: spec v2 — multi-project', '2026-10-11T14:30:00Z'],
+          'artifacts/report-2026-10-12.md': ['worker-2', 'chore: daily report 2026-10-12', '2026-10-12T07:00:00Z'],
+          'artifacts/schema.sql': ['worker-2', 'feat: schema.sql baseline', '2026-10-10T16:45:00Z'],
+        };
         const tree: Record<string, ProjectFileEntry[]> = {
           '': [
             mk('docs', 'docs', true, 0, 5),
@@ -2502,9 +2510,17 @@ export function createMockAdapter(): Api {
             mk('schema.sql', 'artifacts/schema.sql', false, 870, 0),
           ],
         };
-        const files = tree[clean];
-        if (!files) throw new ApiClientError(404, 'not_found', `path ${clean || '(root)'} not found`);
-        return { project_id: id, root: p.path, path: clean, files, truncated: false };
+        const base = tree[clean];
+        if (!base) throw new ApiClientError(404, 'not_found', `path ${clean || '(root)'} not found`);
+        const attributed = !!(opts?.attribute && p.git);
+        const files = base.map((f) => {
+          if (attributed && !f.is_dir) {
+            const a = attr[f.path];
+            if (a) return { ...f, last_author: a[0], last_commit: a[1], last_at: a[2] };
+          }
+          return f;
+        });
+        return { project_id: id, root: p.path, path: clean, files, truncated: false, attributed };
       },
       async getFile(id, path) {
         maybeFail();

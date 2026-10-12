@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '../src/App';
 import { resetMockDb } from '../src/api/mock/data';
@@ -14,17 +14,25 @@ function renderAt(path: string) {
   );
 }
 
+// W2.1: ContextTree в сайдбаре дублирует имена проектов → проверки списка
+// проектов скупаются в .content (основной контент, без сайдбара).
+function content() {
+  const el = document.querySelector('.content') as HTMLElement | null;
+  if (!el) throw new Error('.content not found');
+  return el;
+}
+
 describe('P1.0: Projects page', () => {
   beforeEach(() => resetMockDb());
 
   it('lists active projects (archived hidden by default)', async () => {
     renderAt('/projects');
     expect(await screen.findByRole('heading', { name: 'Projects' }, { timeout: 10_000 })).toBeInTheDocument();
-    // активные проекты из seed
-    expect(await screen.findByText('team-console', {}, { timeout: 10_000 })).toBeInTheDocument();
-    expect(screen.getByText('data-pipeline')).toBeInTheDocument();
-    // архивный проект скрыт по умолчанию
-    expect(screen.queryByText('scratch-experiment')).not.toBeInTheDocument();
+    const c = content();
+    await waitFor(() => expect(within(c).getByText('team-console')).toBeInTheDocument(), { timeout: 10_000 });
+    expect(within(c).getByText('data-pipeline')).toBeInTheDocument();
+    // архивный проект скрыт по умолчанию (в основном контенте)
+    expect(within(c).queryByText('scratch-experiment')).not.toBeInTheDocument();
   }, 20_000);
 
   it('show-archived toggle reveals archived projects', async () => {
@@ -64,10 +72,10 @@ describe('P1.0: Projects page', () => {
   it('archives a project', async () => {
     renderAt('/projects');
     await screen.findByRole('heading', { name: 'Projects' }, { timeout: 10_000 });
-    await screen.findByText('team-console', {}, { timeout: 10_000 });
+    await waitFor(() => expect(within(content()).getByText('team-console')).toBeInTheDocument(), { timeout: 10_000 });
     fireEvent.click(screen.getAllByRole('button', { name: 'Archive' })[0]);
-    // проект скрыт из активного списка (archived)
-    await waitFor(() => expect(screen.queryByText('team-console')).not.toBeInTheDocument(), { timeout: 10_000 });
+    // проект скрыт из активного списка (архивный) — в основном контенте
+    await waitFor(() => expect(within(content()).queryByText('team-console')).not.toBeInTheDocument(), { timeout: 10_000 });
   }, 20_000);
 });
 

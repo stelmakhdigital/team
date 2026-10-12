@@ -215,7 +215,7 @@ export function createRealAdapter(): Api {
       get: (id) => http(`${B}/projects/${id}`),
       update: (id, req) => http(`${B}/projects/${id}`, { method: 'PATCH', body: req }),
       archive: (id) => http(`${B}/projects/${id}`, { method: 'DELETE' }),
-      listFiles: (id, path) => http<ListProjectFilesResponse>(`${B}/projects/${id}/files${toQuery({ path })}`),
+      listFiles: (id, path, opts) => http<ListProjectFilesResponse>(`${B}/projects/${id}/files${toQuery({ path, attribute: opts?.attribute ? 'true' : undefined })}`),
       getFile: async (id, path) => {
         const cfg = getApiConfig();
         const headers: Record<string, string> = { Accept: 'text/plain, application/json' };

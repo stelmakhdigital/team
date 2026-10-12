@@ -302,7 +302,7 @@ export interface Api {
     get(id: number): Promise<GetProjectResponse>;
     update(id: number, req: UpdateProjectRequest): Promise<ProjectResponse>;
     archive(id: number): Promise<ProjectResponse>;
-    listFiles(id: number, path?: string): Promise<ListProjectFilesResponse>;
+    listFiles(id: number, path?: string, opts?: { attribute?: boolean }): Promise<ListProjectFilesResponse>;
     getFile(id: number, path: string): Promise<{ content: string; contentType: string; filename: string }>;
   };
   watchdogJobs: {

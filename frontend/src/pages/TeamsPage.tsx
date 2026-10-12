@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
@@ -72,6 +72,12 @@ export default function TeamsPage() {
   const shown = teamsSorted.slice(0, visible);
   const projectsQ = useQuery('teams.create.projects', () => api.projects.list({}), []);
   const [creating, setCreating] = useState(false);
+  // W2.4: ?new=1 — открыть форму создания (CTA с first-run дашборда)
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('new') === '1') setCreating(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [projectId, setProjectId] = useState<number | ''>('');

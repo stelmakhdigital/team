@@ -21,7 +21,8 @@ interface PreviewState {
 /** P4: Artifacts — файлы проекта (read-only): раскрываемое дерево (lazy),
  * превью + download. Список на один уровень за запрос (GET /projects/{id}/files[?path=]). */
 export default function ProjectArtifacts({ projectId, root }: Props) {
-  const { data, loading, error, refetch } = useQuery(`project.files.${projectId}`, () => api.projects.listFiles(projectId), [projectId]);
+  const { data, loading, error, refetch } = useQuery(`project.files.${projectId}`, () => api.projects.listFiles(projectId, undefined, { attribute: true }), [projectId]);
+  const attributed = data?.attributed === true;
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -67,7 +68,7 @@ export default function ProjectArtifacts({ projectId, root }: Props) {
     if (!children.has(path)) {
       setChildren((prev) => new Map(prev).set(path, null));
       try {
-        const res = await api.projects.listFiles(projectId, path);
+        const res = await api.projects.listFiles(projectId, path, { attribute: true });
         setChildren((prev) => new Map(prev).set(path, res.files));
       } catch {
         setChildren((prev) => new Map(prev).set(path, []));
@@ -101,7 +102,17 @@ export default function ProjectArtifacts({ projectId, root }: Props) {
                 ·
               </span>
             )}
-            <span className={f.is_dir ? 'artifacts-dirname' : ''}>{f.name}</span>
+            <span
+              className={f.is_dir ? 'artifacts-dirname' : ''}
+              title={!f.is_dir && f.last_author
+                ? `${f.path}\nauthor: ${f.last_author}${f.last_commit ? `\n${f.last_commit}` : ''}${f.last_at ? `\n${formatRelative(f.last_at)}` : ''}`
+                : undefined}
+            >{f.name}</span>
+            {!f.is_dir && attributed && f.last_author && (
+              <span className="artifacts-attr">
+                {f.last_author}{f.last_commit ? ` · ${f.last_commit}` : ''}{f.last_at ? ` · ${formatRelative(f.last_at)}` : ''}
+              </span>
+            )}
           </td>
           <td className="col-size">{f.is_dir ? '—' : formatBytes(f.size)}</td>
           <td className="col-modified muted small">{formatRelative(f.modified_at)}</td>
@@ -151,6 +162,11 @@ export default function ProjectArtifacts({ projectId, root }: Props) {
           {data.root}
         </span>
         {data.truncated && <span className="hint hint-warn">… список обрезан (лимит записей)</span>}
+        {data && (
+          attributed
+            ? <span className="artifacts-attr-badge" title="Git-атрибуция файлов (last_author/last_commit)">attribution: git</span>
+            : <span className="artifacts-attr-badge artifacts-attr-badge--off" title="Git-данные недоступны: проект не-git или превышен лимит атрибуции">attribution: нет git-данных</span>
+        )}
         <button type="button" className="btn" onClick={() => refetch()}>
           ↻ Refresh
         </button>

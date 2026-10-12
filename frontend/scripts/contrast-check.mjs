@@ -85,6 +85,11 @@ const pairs = [
   ['Fleet dot running (green on panel)', P.green, P.panel, 3.0, '.fleet-dot-running', true],
   ['Fleet dot idle (yellow on panel)', P.yellow, P.panel, 3.0, '.fleet-dot-idle', true],
   ['Fleet dot failed (red on panel)', P.red, P.panel, 3.0, '.fleet-dot-failed', true],
+  // UX Wave 2: ContextTree live-dots (non-text, 3:1)
+  ['Context dot running (green on panel)', P.green, P.panel, 3.0, '.ctx-dot--running', true],
+  ['Context dot failed (red-strong on panel)', P.redStrong, P.panel, 3.0, '.ctx-dot--failed', true],
+  ['Context dot idle (yellow on panel)', P.yellow, P.panel, 3.0, '.ctx-dot--active', true],
+  ['Context dot none (dim on panel)', '#2d333b', P.panel, 3.0, '.ctx-dot--none — low-emphasis empty indicator', false],
   ['Panel/card border on page', '#2d333b', P.page, 3.0, 'decorative grouping (WCAG 1.4.11 n/a — visual enhancement, card bg already delineates)', false],
 ];
 

@@ -67,7 +67,7 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 .brand { display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 1rem; padding: 4px 10px 16px; }
 .brand-icon { color: var(--accent); font-size: 1.3rem; }
 
-.sidebar nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.sidebar nav { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
 .nav-item {
   display: flex;
@@ -222,6 +222,11 @@ code { background: var(--bg-panel-2); padding: 1px 5px; border-radius: 4px; font
 .atd-w-sev { width: 92px; }
 .atd-w-elapsed { width: 96px; }
 .atd-w-action { min-width: 150px; }
+/* W2.3: группировка Attention — «Решения» / «События» */
+.attention-card { display: flex; flex-direction: column; gap: 14px; }
+.attention-group { display: flex; flex-direction: column; gap: 6px; }
+.attention-group-title { margin: 0; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.attention-group-count { font-size: 0.72rem; font-weight: 700; padding: 1px 8px; border-radius: 10px; background: var(--bg-panel-2); color: var(--muted); }
 .table th {
   text-align: left;
   color: var(--muted);
@@ -935,6 +940,7 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   .sidebar-footer { align-items: center; }
   .mode-badge { font-size: 0.55rem; padding: 2px 4px; text-align: center; }
   .dev-error { display: none; }
+  .ctx-tree { display: none; }
 }
 @media (max-width: 640px) {
   .page { padding: 14px 10px; }
@@ -1498,6 +1504,10 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .artifacts-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
 .artifacts-toolbar .btn { margin-left: auto; }
 .artifacts-toolbar .mono { max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* W2.2: git-attribution */
+.artifacts-attr-badge { font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); }
+.artifacts-attr-badge--off { color: var(--muted); font-weight: 500; }
+.artifacts-attr { display: block; font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .artifacts-scroll { overflow-x: auto; }
 .artifacts-table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 0.85rem; table-layout: fixed; }
 .artifacts-table th, .artifacts-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
@@ -1521,3 +1531,41 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   padding: 12px; overflow: auto; max-height: 60vh; white-space: pre-wrap; word-break: break-word;
 }
 .artifacts-preview-modal .modal-body { overflow-y: auto; }
+
+/* ---------- W2.1: ContextTree — «где я и над чем работаю» (Projects → Teams, live-точки) ---------- */
+.ctx-tree { flex-shrink: 0; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; max-height: 45vh; overflow-y: auto; }
+.ctx-tree--collapsed { max-height: none; overflow: visible; }
+.ctx-tree-header { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; color: var(--text); padding: 6px 10px; cursor: pointer; border-radius: 6px; font-size: 0.85rem; }
+.ctx-tree-header:hover { background: var(--bg-panel-2); }
+.ctx-tree-title { font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; color: var(--muted); }
+.ctx-tree-pad { padding: 4px 10px 4px 18px; }
+.ctx-tree-list { list-style: none; margin: 2px 0 0; padding: 0; }
+.ctx-tree-proj { margin: 1px 0; }
+.ctx-tree-row { display: flex; align-items: center; gap: 4px; }
+.ctx-tree-toggle { background: none; border: none; color: var(--muted); cursor: pointer; width: 18px; height: 20px; padding: 0; font-size: 0.7rem; flex-shrink: 0; }
+.ctx-tree-toggle:hover { color: var(--text); }
+.ctx-tree-link { flex: 1; min-width: 0; color: var(--text); font-size: 0.88rem; padding: 5px 8px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.ctx-tree-link:hover { background: var(--bg-panel-2); text-decoration: none; }
+.ctx-tree-link.active { background: var(--bg-panel-2); color: var(--accent); font-weight: 600; }
+.ctx-tree-link--team { margin-left: 22px; font-size: 0.85rem; color: var(--muted); }
+.ctx-tree-link--team.active { color: var(--accent); }
+.ctx-tree-teamname { overflow: hidden; text-overflow: ellipsis; }
+.ctx-tree-teams { list-style: none; margin: 0; padding: 0 0 2px; }
+.ctx-tree-empty { padding: 3px 8px 3px 52px; font-size: 0.82rem; }
+.ctx-tree-more { padding: 2px 0 2px 22px; }
+.ctx-tree-more-link { font-size: 0.82rem; color: var(--muted); text-decoration: underline; }
+.ctx-tree-more-link:hover { color: var(--text); }
+.ctx-tree-empty-state { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+/* live-точки: running/failed/active/none (фон с контрастом ≥3:1 к панели) */
+.ctx-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-right: 6px; vertical-align: middle; }
+.ctx-dot--running { background: var(--green); }
+.ctx-dot--failed { background: var(--red-strong); }
+.ctx-dot--active { background: var(--yellow); }
+.ctx-dot--none { background: var(--border); }
+
+/* ---------- W2.4: Dashboard first-run ---------- */
+.firstrun-card { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; max-width: 720px; }
+.firstrun-title { margin: 0; font-size: 1.4rem; }
+.firstrun-sub { margin: 0; max-width: 560px; line-height: 1.5; }
+.firstrun-cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.firstrun-steps { margin: 0; padding-left: 20px; line-height: 1.7; }
