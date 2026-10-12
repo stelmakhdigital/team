@@ -228,11 +228,17 @@ describe('W3.2: Specs surface (read-only)', () => {
 
   it('FleetPanel (Dashboard): иконка spec у роли с agent_spec', async () => {
     renderAt('/');
-    // строки fleet появляются после загрузки; иконка — у ролей с agent_spec (Lead: pi-go-backend)
-    const btns = await screen.findAllByTestId('fleet-spec-btn', {}, { timeout: 15_000 });
-    expect(btns.length).toBeGreaterThanOrEqual(1);
-    const titles = btns.map((b) => b.getAttribute('title') ?? '');
-    expect(titles.some((t) => /pi-go-backend/.test(t))).toBe(true);
+    // Иконки появляются по мере lazy-резолва getTeam (по командам);
+    // ждём конкретную spec (Lead: pi-go-backend), а не «любую иконку» —
+    // иначе гонка, если чужая команда резолвится первой.
+    await waitFor(
+      () => {
+        const btns = screen.getAllByTestId('fleet-spec-btn');
+        const titles = btns.map((b) => b.getAttribute('title') ?? '');
+        expect(titles.some((t) => /pi-go-backend/.test(t))).toBe(true);
+      },
+      { timeout: 15_000 },
+    );
   }, 30_000);
 });
 
