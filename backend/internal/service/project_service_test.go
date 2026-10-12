@@ -434,6 +434,26 @@ func TestProjectFilesAttribution(t *testing.T) {
 		t.Errorf("beta last_author = %v, want Bob B", beta.LastAuthor)
 	}
 
+	// (a2) untracked-файл: атрибуция прошла (attributed=true), поля null.
+	if err := os.WriteFile(filepath.Join(repo, "untracked.txt"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lstU, err := pvc.ListProjectFiles(ctx, id, "", true)
+	if err != nil {
+		t.Fatalf("list files (untracked): %v", err)
+	}
+	if !lstU.Attributed {
+		t.Error("attributed = false при наличии untracked-файла, want true (атрибуция прошла, данных нет)")
+	}
+	for _, f := range lstU.Files {
+		if f.IsDir || f.Name != "untracked.txt" {
+			continue
+		}
+		if f.LastAuthor != nil || f.LastCommit != nil || f.LastAt != nil {
+			t.Errorf("untracked.txt должен иметь null-поля, got author=%v", f.LastAuthor)
+		}
+	}
+
 	// (b) attribute=false → attributed=false, поля null (даже для git-проекта).
 	lst2, err := pvc.ListProjectFiles(ctx, id, "", false)
 	if err != nil {

@@ -329,11 +329,20 @@ func (s *ProjectService) attributeFiles(ctx context.Context, root string, files 
 			ok = false
 			continue
 		}
-		f.LastAuthor = &author
-		f.LastCommit = &subject
-		f.LastAt = &at
+		// Пустое значение (untracked-файл) → null в JSON, а не "".
+		f.LastAuthor = strPtrOrNil(author)
+		f.LastCommit = strPtrOrNil(subject)
+		f.LastAt = strPtrOrNil(at)
 	}
 	return ok
+}
+
+// strPtrOrNil — nil для пустой строки (JSON null), иначе указатель.
+func strPtrOrNil(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // gitLastCommit — последний коммит, тронувший relPath: author, subject, committer-date (ISO).
@@ -344,7 +353,12 @@ func gitLastCommit(ctx context.Context, root, relPath string) (author, subject, 
 	if err != nil {
 		return "", "", "", err
 	}
-	parts := strings.SplitN(strings.TrimRight(string(out), "\n"), "\x1f", 3)
+	outStr := strings.TrimRight(string(out), "\n")
+	if outStr == "" {
+		// Файл без git-истории (untracked): атрибуция прошла, данных нет.
+		return "", "", "", nil
+	}
+	parts := strings.SplitN(outStr, "\x1f", 3)
 	if len(parts) != 3 {
 		return "", "", "", fmt.Errorf("git log: unexpected output")
 	}
