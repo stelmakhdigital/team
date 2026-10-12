@@ -47,3 +47,6 @@ task-posture.md
 
 # Runtime session configs/prompts (generated at session launch)
 configs/
+
+# Runtime database (persistent SQLite — see scripts/start-live-daemon.sh)
+data/
