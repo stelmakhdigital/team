@@ -3,6 +3,7 @@ package service
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -174,6 +175,42 @@ func (s *TeamService) LoadAgentSpec(specPath string) (*AgentSpec, []SpecProfile)
 		profiles = []SpecProfile{}
 	}
 	return spec, profiles
+}
+
+// ListAgentSpecs — доступные agent spec-имена (base-имена .yaml/.yml из SpecsDir,
+// без расширения; по алфавиту). Каталог отсутствует → пустой список (не ошибка).
+func (s *TeamService) ListAgentSpecs() []string {
+	dir := s.SpecsDir
+	if dir == "" {
+		dir = "."
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return []string{}
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		n := e.Name()
+		ext := filepath.Ext(n)
+		if ext != ".yaml" && ext != ".yml" {
+			continue
+		}
+		base := strings.TrimSuffix(n, ext)
+		if seen[base] {
+			continue
+		}
+		seen[base] = true
+		out = append(out, base)
+	}
+	sort.Strings(out)
+	if out == nil {
+		out = []string{}
+	}
+	return out
 }
 
 func (s *TeamService) pathAllowed(abs string) bool {

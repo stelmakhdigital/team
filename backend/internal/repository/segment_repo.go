@@ -97,6 +97,22 @@ func (r *SegmentRepo) UpdateConfig(ctx context.Context, tx DBTX, id int64, cfg m
 	return nil
 }
 
+// Delete — hard delete сегмента (вызывающий проверяет, что ролей внутри нет).
+func (r *SegmentRepo) Delete(ctx context.Context, tx DBTX, id int64) error {
+	res, err := tx.ExecContext(ctx, `DELETE FROM segments WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // UpdateMeta — меняет name/description сегмента (PATCH /segments/{id}, U3-rename).
 // ErrNotFound, если id не существует; unique-violation (team_id,name) — через IsUniqueViolation вызывающим.
 func (r *SegmentRepo) UpdateMeta(ctx context.Context, tx DBTX, id int64, name, description string) error {

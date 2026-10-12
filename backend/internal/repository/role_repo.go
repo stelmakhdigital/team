@@ -101,6 +101,22 @@ func (r *RoleRepo) CountByTeam(ctx context.Context, tx DBTX, teamID int64) (int,
 	return n, err
 }
 
+// Delete — hard delete роли (вызывающий сам транзакция/каскад relatives).
+func (r *RoleRepo) Delete(ctx context.Context, tx DBTX, id int64) error {
+	res, err := tx.ExecContext(ctx, `DELETE FROM roles WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // UpdateMutable — обновляет agent_spec/profile/config (остальные поля неизменяемы в slice 1).
 func (r *RoleRepo) UpdateMutable(ctx context.Context, tx DBTX, role *models.Role) error {
 	return r.updateMutableFields(ctx, tx, role, role.Config)

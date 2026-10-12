@@ -41,6 +41,20 @@ func (r *RelativeRepo) GetByID(ctx context.Context, tx DBTX, id int64) (*models.
 		FROM relatives WHERE id = ?`, id))
 }
 
+// DeleteByRole — каскад: удаляет все связи, где роль — отправитель или получатель.
+// Возвращает число удалённых записей.
+func (r *RelativeRepo) DeleteByRole(ctx context.Context, tx DBTX, roleID int64) (int, error) {
+	res, err := tx.ExecContext(ctx, `DELETE FROM relatives WHERE from_role_id = ? OR to_role_id = ?`, roleID, roleID)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return int(n), nil
+}
+
 func (r *RelativeRepo) ListByTeam(ctx context.Context, tx DBTX, teamID int64) ([]*models.Relative, error) {
 	rows, err := tx.QueryContext(ctx, `
 		SELECT id, team_id, from_role_id, to_role_id, type, config, created_at

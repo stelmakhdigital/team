@@ -434,6 +434,45 @@ func (h *handlers) DeleteRelative(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ListAgentSpecs — GET /api/v1/agentspecs: список доступных agent spec (для UI-автодополнения).
+func (h *handlers) ListAgentSpecs(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"specs": h.svc.ListAgentSpecs()})
+}
+
+// DeleteRole — DELETE /api/v1/roles/{id}: hard delete роли + каскад relatives.
+// 409, если у роли активные сессии.
+func (h *handlers) DeleteRole(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	role, relCount, err := h.svc.DeleteRole(r.Context(), id)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id": id, "name": role.Name, "status": "deleted", "relatives_deleted": relCount,
+	})
+}
+
+// DeleteSegment — DELETE /api/v1/segments/{id}: hard delete сегмента.
+// 409, если внутри есть роли.
+func (h *handlers) DeleteSegment(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	seg, err := h.svc.DeleteSegment(r.Context(), id)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "name": seg.Name, "status": "deleted"})
+}
+
 // ---------- Обновление конфигурации и layout ----------
 
 type updateRoleConfigBody struct {

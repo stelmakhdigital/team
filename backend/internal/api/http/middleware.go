@@ -175,6 +175,8 @@ func requiredPermission(method, path string) string {
 				return "dashboard.read"
 			}
 			return "teams.read" // Team Builder: сегменты/роли/связи
+		case "agentspecs": // Team Builder: список agent spec = teams.read
+			return "teams.read"
 		case "workflow-instances": // P1.4: instance/trace — read = workflows.read
 			return "workflows.read"
 		default:
@@ -265,7 +267,7 @@ func requiredPermission(method, path string) string {
 			return "library.create"
 		case "config": // U4: DELETE /api/v1/config/{key} — reset override
 			return "config.update"
-		case "relatives":
+		case "relatives", "roles", "segments":
 			return "teams.update"
 		default:
 			return res + ".update"

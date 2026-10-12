@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -163,6 +164,33 @@ func do(t *testing.T, method, url string, body any, hdr map[string]string) (int,
 	dec := json.NewDecoder(resp.Body)
 	_ = dec.Decode(&out)
 	return resp.StatusCode, out, resp.Header
+}
+
+// doRaw — как do, но возвращает raw body (для download-эндпоинтов).
+func doRaw(t *testing.T, method, url string, body any, hdr map[string]string) (int, string, http.Header) {
+	t.Helper()
+	var rdr *bytes.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		rdr = bytes.NewReader(b)
+	} else {
+		rdr = bytes.NewReader(nil)
+	}
+	req, err := http.NewRequest(method, url, rdr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range hdr {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(data), resp.Header
 }
 
 func specBody() map[string]any {
@@ -409,6 +437,87 @@ func TestCreateSegmentRoleRelative(t *testing.T) {
 
 	_ = teamID
 	_ = segID
+}
+
+// TestDeleteRoleAndSegment — DELETE /roles/{id} (каascade relatives, 404 второй раз),
+// DELETE /segments/{id} (409 с ролями, 200 после удаления ролей).
+func TestDeleteRoleAndSegment(t *testing.T) {
+	srv := newTestServer(t, nil)
+	st, out, _ := do(t, "POST", srv.URL+"/api/v1/teams", map[string]any{"name": "t"}, nil)
+	if st != http.StatusCreated {
+		t.Fatal(st, out)
+	}
+
+	st, out, _ = do(t, "POST", srv.URL+"/api/v1/teams/1/segments",
+		map[string]any{"name": "backend"}, nil)
+	if st != http.StatusCreated {
+		t.Fatalf("create segment: %d %v", st, out)
+	}
+	segID := int64(out["id"].(float64))
+
+	st, out, _ = do(t, "POST", srv.URL+"/api/v1/segments/1/roles",
+		map[string]any{"name": "lead", "agent_spec": "a.yaml"}, nil)
+	if st != http.StatusCreated {
+		t.Fatalf("create role: %d %v", st, out)
+	}
+	leadID := int64(out["id"].(float64))
+
+	st, out, _ = do(t, "POST", srv.URL+"/api/v1/segments/1/roles",
+		map[string]any{"name": "worker", "agent_spec": "b.yaml"}, nil)
+	if st != http.StatusCreated {
+		t.Fatalf("create role 2: %d %v", st, out)
+	}
+	workerID := int64(out["id"].(float64))
+
+	st, _, _ = do(t, "POST", srv.URL+"/api/v1/teams/1/relatives",
+		map[string]any{"from_role_id": leadID, "to_role_id": workerID, "type": "delegates_to"}, nil)
+	if st != http.StatusCreated {
+		t.Fatalf("create relative: %d %v", st, out)
+	}
+
+	// DELETE segment с ролями → 409
+	st, _, _ = do(t, "DELETE", srv.URL+"/api/v1/segments/1", nil, nil)
+	if st != http.StatusConflict {
+		t.Fatalf("delete segment with roles: expected 409, got %d", st)
+	}
+
+	// DELETE role → relatives удаляются каскадно
+	st, out, _ = do(t, "DELETE", srv.URL+"/api/v1/roles/1", nil, nil)
+	if st != http.StatusOK || out["status"] != "deleted" {
+		t.Fatalf("delete role: %d %v", st, out)
+	}
+	if rd := out["relatives_deleted"].(float64); rd != 1 {
+		t.Fatalf("relatives_deleted = %v, want 1: %v", out["relatives_deleted"], out)
+	}
+
+	// DELETE role again → 404
+	st, _, _ = do(t, "DELETE", srv.URL+"/api/v1/roles/1", nil, nil)
+	if st != http.StatusNotFound {
+		t.Fatalf("delete role again: expected 404, got %d", st)
+	}
+
+	// topology: relative больше нет
+	st, out, _ = do(t, "GET", srv.URL+"/api/v1/teams/1/topology", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("topology: %d %v", st, out)
+	}
+	if rels := out["relatives"].([]any); len(rels) != 0 {
+		t.Fatalf("relatives after role delete = %d, want 0", len(rels))
+	}
+
+	// DELETE второй роли → DELETE segment теперь 200
+	st, _, _ = do(t, "DELETE", srv.URL+"/api/v1/roles/2", nil, nil)
+	if st != http.StatusOK {
+		t.Fatalf("delete role 2: %d", st)
+	}
+	st, out, _ = do(t, "DELETE", srv.URL+fmt.Sprintf("/api/v1/segments/%d", segID), nil, nil)
+	if st != http.StatusOK || out["status"] != "deleted" {
+		t.Fatalf("delete empty segment: %d %v", st, out)
+	}
+	st, _, _ = do(t, "DELETE", srv.URL+fmt.Sprintf("/api/v1/segments/%d", segID), nil, nil)
+	if st != http.StatusNotFound {
+		t.Fatalf("delete segment again: expected 404, got %d", st)
+	}
 }
 
 func TestErrorFormat(t *testing.T) {

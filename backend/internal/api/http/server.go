@@ -97,11 +97,14 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("POST /api/v1/teams/{id}/briefing/preview", h.PreviewBriefing) // P1.7 (dry-run)
 
 	// Team Builder — segments / roles / relatives
+	mux.HandleFunc("GET /api/v1/agentspecs", h.ListAgentSpecs)
 	mux.HandleFunc("POST /api/v1/segments/{id}/roles", h.CreateRole)
+	mux.HandleFunc("DELETE /api/v1/segments/{id}", h.DeleteSegment)
 	mux.HandleFunc("PATCH /api/v1/segments/{id}/layout", h.UpdateSegmentLayout)
 	mux.HandleFunc("PATCH /api/v1/segments/{id}", h.UpdateSegmentMeta) // U3-rename
 	mux.HandleFunc("GET /api/v1/roles/{id}/config", h.GetRoleConfig)
 	mux.HandleFunc("PATCH /api/v1/roles/{id}/config", h.UpdateRoleConfig)
+	mux.HandleFunc("DELETE /api/v1/roles/{id}", h.DeleteRole)
 	mux.HandleFunc("PATCH /api/v1/roles/{id}/layout", h.UpdateRoleLayout)
 	// P3.15 — Mailbox: inbox/outbox роли (dashboard.read, viewer-ok)
 	mux.HandleFunc("GET /api/v1/roles/{id}/inbox", h.GetRoleInbox)
@@ -227,6 +230,8 @@ func NewServer(svc *service.TeamService, tsvc *service.TaskService, opts Options
 	mux.HandleFunc("GET /api/v1/projects/{id}", h.GetProject)
 	mux.HandleFunc("PATCH /api/v1/projects/{id}", h.UpdateProject)
 	mux.HandleFunc("DELETE /api/v1/projects/{id}", h.ArchiveProject)
+	mux.HandleFunc("GET /api/v1/projects/{id}/files", h.ListProjectFiles)
+	mux.HandleFunc("GET /api/v1/projects/{id}/files/{rel...}", h.GetProjectFile)
 
 	// U4 — Config (Settings)
 	mux.HandleFunc("GET /api/v1/config", h.ListConfig)

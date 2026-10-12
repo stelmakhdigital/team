@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	httpapi "daemon/internal/api/http"
@@ -218,5 +219,130 @@ func TestTaskFilterByProject(t *testing.T) {
 	st, out, _ = do(t, "GET", srv.URL+"/api/v1/tasks", nil, admin)
 	if st != http.StatusOK || out["total"].(float64) != 1 {
 		t.Errorf("all tasks total = %v, want 1", out["total"])
+	}
+}
+
+// TestProjectArtifactsAndAgentSpecs — GET /projects/{id}/files (+ file download, traversal-защита)
+// и GET /agentspecs (список spec из SpecsDir).
+func TestProjectArtifactsAndAgentSpecs(t *testing.T) {
+	srv, _, _, _ := newProjectTestServer(t)
+	admin := map[string]string{"X-API-Key": "env-admin"}
+	workDir := t.TempDir()
+
+	// содержимое проекта
+	if err := os.MkdirAll(filepath.Join(workDir, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "README.md"), []byte("# hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "docs", "spec.md"), []byte("# spec"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(workDir, "node_modules", "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "node_modules", "x", "i.js"), []byte("1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	st, out, _ := do(t, "POST", srv.URL+"/api/v1/projects",
+		map[string]any{"name": "proj-art", "kind": "existing", "path": workDir}, admin)
+	if st != http.StatusCreated {
+		t.Fatalf("create: %d %v", st, out)
+	}
+	id := int64(out["project"].(map[string]any)["id"].(float64))
+
+	// список на корневом уровне: только README.md + docs (dir); node_modules пропущен,
+	// вложенные файлы НЕ включаются (дерево строит UI по раскрытию)
+	st, out, _ = do(t, "GET", srv.URL+"/api/v1/projects/"+itoaID(id)+"/files", nil, admin)
+	if st != http.StatusOK {
+		t.Fatalf("list files: %d %v", st, out)
+	}
+	files := out["files"].([]any)
+	if len(files) != 2 {
+		t.Fatalf("root list len = %d, want 2 (README.md, docs): %v", len(files), files)
+	}
+	first := files[0].(map[string]any)
+	if first["name"].(string) != "docs" || !first["is_dir"].(bool) {
+		t.Fatalf("dirs first / wrong entry: %v", first)
+	}
+	second := files[1].(map[string]any)
+	if second["name"].(string) != "README.md" || second["is_dir"].(bool) {
+		t.Fatalf("second entry wrong: %v", second)
+	}
+	if out["path"].(string) != "" {
+		t.Fatalf("root path = %v, want empty", out["path"])
+	}
+	if out["truncated"].(bool) {
+		t.Fatalf("unexpected truncated: %v", out)
+	}
+
+	// раскрытие подкаталога: ?path=docs → spec.md
+	st, out, _ = do(t, "GET", srv.URL+"/api/v1/projects/"+itoaID(id)+"/files?path=docs", nil, admin)
+	if st != http.StatusOK {
+		t.Fatalf("list docs: %d %v", st, out)
+	}
+	docs := out["files"].([]any)
+	if len(docs) != 1 || docs[0].(map[string]any)["name"].(string) != "spec.md" {
+		t.Fatalf("docs listing = %v, want [spec.md]", docs)
+	}
+	if out["path"].(string) != "docs" {
+		t.Fatalf("docs path = %v, want docs", out["path"])
+	}
+
+	// traversal (../) в ?path → 400/404, не 200
+	st, _, _ = do(t, "GET", srv.URL+"/api/v1/projects/"+itoaID(id)+"/files?path=..%2F..%2Fetc", nil, admin)
+	if st == http.StatusOK {
+		t.Fatalf("traversal in path: want non-200, got 200")
+	}
+	// ?path на файл → 404
+	st, _, _ = do(t, "GET", srv.URL+"/api/v1/projects/"+itoaID(id)+"/files?path=README.md", nil, admin)
+	if st != http.StatusNotFound {
+		t.Fatalf("path on file: want 404, got %d", st)
+	}
+
+	// download: README.md
+	st, body, hdr := doRaw(t, "GET", srv.URL+"/api/v1/projects/"+itoaID(id)+"/files/README.md", nil, admin)
+	if st != http.StatusOK {
+		t.Fatalf("download: %d %s", st, body)
+	}
+	if body != "# hello" {
+		t.Fatalf("file body = %q, want %q", body, "# hello")
+	}
+	ct := hdr.Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/") {
+		t.Fatalf("content-type = %q, want text/*", ct)
+	}
+
+	// traversal (../) → 400/404, не 200
+	st, _, _ = do(t, "GET", srv.URL+"/api/v1/projects/"+itoaID(id)+"/files/..%2F..%2Fetc%2Fpasswd", nil, admin)
+	if st == http.StatusOK {
+		t.Fatalf("traversal: want non-200, got 200")
+	}
+
+	// 404: нет файла / нет проекта
+	st, _, _ = do(t, "GET", srv.URL+"/api/v1/projects/"+itoaID(id)+"/files/nope.txt", nil, admin)
+	if st != http.StatusNotFound {
+		t.Fatalf("missing file: want 404, got %d", st)
+	}
+	st, _, _ = do(t, "GET", srv.URL+"/api/v1/projects/999999/files", nil, admin)
+	if st != http.StatusNotFound {
+		t.Fatalf("missing project files: want 404, got %d", st)
+	}
+
+	// GET /agentspecs — только верхний уровень SpecsDir (.yaml/.yml, без подкаталогов).
+	// В newProjectTestServer a.yaml лежит в подкаталоге agents/ → верхний уровень пуст.
+	specsURL := srv.URL + "/api/v1/agentspecs"
+	st, out, _ = do(t, "GET", specsURL, nil, admin)
+	if st != http.StatusOK {
+		t.Fatalf("agentspecs: %d %v", st, out)
+	}
+	specs, ok := out["specs"].([]any)
+	if !ok {
+		t.Fatalf("agentspecs response shape: %v", out)
+	}
+	if len(specs) != 0 {
+		t.Fatalf("agentspecs = %v, want empty (a.yaml в подкаталоге)", specs)
 	}
 }

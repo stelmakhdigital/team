@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"mime"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"daemon/internal/models"
 	"daemon/internal/repository"
@@ -185,6 +188,144 @@ func (s *ProjectService) GetProject(ctx context.Context, id int64) (*ProjectSumm
 		Project: *p,
 		Counts:  ProjectCounts{Teams: teams, Tasks: tasks, ActiveSessions: active},
 	}, nil
+}
+
+// ProjectFileView — запись файл-списка проекта (путь — относительно корня).
+type ProjectFileView struct {
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	IsDir     bool   `json:"is_dir"`
+	Size      int64  `json:"size"`
+	Modified  string `json:"modified_at"`
+}
+
+// ProjectFileList — ответ GET /projects/{id}/files[?path=...].
+type ProjectFileList struct {
+	ProjectID int64             `json:"project_id"`
+	Root      string            `json:"root"`
+	Path      string            `json:"path"` // подкаталог, для которого составлен список ("" = корень)
+	Files     []ProjectFileView `json:"files"`
+	Truncated bool              `json:"truncated"`
+}
+
+// Artifacts-лимиты (защита от огромных/засоренных деревьев).
+const (
+	maxProjectFilesList = 1000
+	maxProjectFileSize  = 10 << 20 // 10 MB
+)
+
+// projectFileSkip — служебные каталоги, пропускаемые в списке артефактов.
+func projectFileSkip(name string) bool {
+	switch name {
+	case ".git", "node_modules", ".hg", ".svn", "__pycache__":
+		return true
+	}
+	return false
+}
+
+// ListProjectFiles — список записей (файлы + каталоги) НА ОДИН УРОВЕНЬ внутри
+// project.path (или подкаталога subPath). Read-only; дерево строит UI по
+// расширению (lazy). Сортировка: каталоги первыми, затем по имени.
+func (s *ProjectService) ListProjectFiles(ctx context.Context, id int64, subPath string) (*ProjectFileList, error) {
+	p, err := s.projects.GetByID(ctx, s.db, id)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			return nil, notFound("project")
+		}
+		return nil, err
+	}
+	root, err := filepath.Abs(p.Path)
+	if err != nil {
+		return nil, NewValidation("invalid project path", []FieldError{{Field: "path", Reason: err.Error()}})
+	}
+	dir := root
+	if subPath != "" {
+		clean := filepath.Clean("/" + subPath)
+		dir = filepath.Join(root, clean)
+		if dir != root && !strings.HasPrefix(dir, root+string(filepath.Separator)) {
+			return nil, NewValidation("invalid path", []FieldError{{Field: "path", Reason: "outside project root"}})
+		}
+	}
+	st, err := os.Stat(dir)
+	if err != nil || !st.IsDir() {
+		return nil, notFound("path")
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	list := &ProjectFileList{ProjectID: p.ID, Root: root, Files: []ProjectFileView{}}
+	if rel, err := filepath.Rel(root, dir); err == nil && rel != "." {
+		list.Path = filepath.ToSlash(rel)
+	}
+	// каталоги первыми, затем по имени
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].IsDir() != entries[j].IsDir() {
+			return entries[i].IsDir()
+		}
+		return entries[i].Name() < entries[j].Name()
+	})
+	for _, e := range entries {
+		if projectFileSkip(e.Name()) {
+			continue
+		}
+		if len(list.Files) >= maxProjectFilesList {
+			list.Truncated = true
+			break
+		}
+		rel := filepath.ToSlash(filepath.Join(list.Path, e.Name()))
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		list.Files = append(list.Files, ProjectFileView{
+			Name:     e.Name(),
+			Path:     rel,
+			IsDir:    e.IsDir(),
+			Size:     info.Size(),
+			Modified: info.ModTime().Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+	return list, nil
+}
+
+// GetProjectFile — содержимое файла (read-only, только внутри project.path, лимит 10 MB).
+func (s *ProjectService) GetProjectFile(ctx context.Context, id int64, relPath string) (data []byte, contentType string, filename string, err error) {
+	p, err := s.projects.GetByID(ctx, s.db, id)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			return nil, "", "", notFound("project")
+		}
+		return nil, "", "", err
+	}
+	root, err := filepath.Abs(p.Path)
+	if err != nil {
+		return nil, "", "", NewValidation("invalid project path", []FieldError{{Field: "path", Reason: err.Error()}})
+	}
+	clean := filepath.Clean("/" + relPath)
+	target := filepath.Join(root, clean)
+	if target != root && !strings.HasPrefix(target, root+string(filepath.Separator)) {
+		return nil, "", "", NewValidation("invalid path", []FieldError{{Field: "path", Reason: "outside project root"}})
+	}
+	st, err := os.Stat(target)
+	if err != nil {
+		return nil, "", "", notFound("file")
+	}
+	if st.IsDir() {
+		return nil, "", "", NewValidation("invalid path", []FieldError{{Field: "path", Reason: "is a directory"}})
+	}
+	if st.Size() > maxProjectFileSize {
+		return nil, "", "", NewValidation("file too large", []FieldError{{Field: "path", Reason: "> 10 MB"}})
+	}
+	data, err = os.ReadFile(target)
+	if err != nil {
+		return nil, "", "", err
+	}
+	contentType = mime.TypeByExtension(filepath.Ext(target))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	return data, contentType, filepath.Base(target), nil
 }
 
 // UpdateProject — name/description (path immutable → 409).

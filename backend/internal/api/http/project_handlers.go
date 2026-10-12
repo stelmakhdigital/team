@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strconv"
 
 	"daemon/internal/models"
 	"daemon/internal/repository"
@@ -51,6 +52,40 @@ func (h *handlers) ListProjects(w http.ResponseWriter, r *http.Request) {
 		views = append(views, projectView(p))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"projects": views, "total": total})
+}
+
+// ListProjectFiles — GET /api/v1/projects/{id}/files[?path=...]: список записей
+// на один уровень (read-only); подкаталоги UI раскрывает по запросу.
+func (h *handlers) ListProjectFiles(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	res, err := h.projects.ListProjectFiles(r.Context(), id, r.URL.Query().Get("path"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// GetProjectFile — GET /api/v1/projects/{id}/files/{rel...}: содержимое файла (download).
+func (h *handlers) GetProjectFile(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r.PathValue("id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	data, contentType, name, err := h.projects.GetProjectFile(r.Context(), id, r.PathValue("rel"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Write(data)
 }
 
 // CreateProject — POST /api/v1/projects

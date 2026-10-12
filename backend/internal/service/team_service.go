@@ -32,6 +32,7 @@ type segmentStore interface {
 	CountRoles(ctx context.Context, tx repository.DBTX, segmentID int64) (int, error)
 	UpdateConfig(ctx context.Context, tx repository.DBTX, id int64, cfg map[string]any) error
 	UpdateMeta(ctx context.Context, tx repository.DBTX, id int64, name, description string) error
+	Delete(ctx context.Context, tx repository.DBTX, id int64) error
 }
 
 type roleStore interface {
@@ -42,6 +43,7 @@ type roleStore interface {
 	CountByTeam(ctx context.Context, tx repository.DBTX, teamID int64) (int, error)
 	UpdateMutable(ctx context.Context, tx repository.DBTX, r *models.Role) error
 	UpdateMutableLayout(ctx context.Context, tx repository.DBTX, r *models.Role, cfg map[string]any) error
+	Delete(ctx context.Context, tx repository.DBTX, id int64) error
 }
 
 type relativeStore interface {
@@ -49,8 +51,10 @@ type relativeStore interface {
 	GetByID(ctx context.Context, tx repository.DBTX, id int64) (*models.Relative, error)
 	ListByTeam(ctx context.Context, tx repository.DBTX, teamID int64) ([]*models.Relative, error)
 	Delete(ctx context.Context, tx repository.DBTX, id int64) error
+	DeleteByRole(ctx context.Context, tx repository.DBTX, roleID int64) (int, error)
 	UpdateConfig(ctx context.Context, tx repository.DBTX, id int64, cfg map[string]any) error
 }
+
 
 // chatRoomStore — создание chatroom'ов при создании команды/сегмента (slice 4).
 type chatRoomStore interface {
@@ -64,6 +68,7 @@ type TeamService struct {
 	roles     roleStore
 	relatives relativeStore
 	chatRooms chatRoomStore
+	sessions  sessionStore
 	projects  *repository.ProjectRepo // P1.0
 	// SpecsDir — корень для чтения agent.yaml (GET /roles/{id}/config).
 	SpecsDir string
@@ -77,6 +82,7 @@ func NewTeamService(db *sql.DB, s *repository.Stores) *TeamService {
 		roles:     s.Roles,
 		relatives: s.Relatives,
 		chatRooms: s.Chatrooms,
+		sessions:  s.Sessions,
 		projects:  s.Projects,
 		SpecsDir:  "agents",
 	}
@@ -761,6 +767,72 @@ func (s *TeamService) createRelativeOnTx(ctx context.Context, tx repository.DBTX
 		return err
 	}
 	return nil
+}
+
+// DeleteRole — hard delete роли + каскад relatives (transакция).
+// Активные сессии блокируют удаление (409) — их нужно сначала остановить.
+// Возвращает удалённую роль и число каскадно удалённых связей.
+func (s *TeamService) DeleteRole(ctx context.Context, id int64) (*models.Role, int, error) {
+	role, err := s.roles.GetByID(ctx, s.db, id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, 0, notFound("role")
+		}
+		return nil, 0, err
+	}
+	sess, _, err := s.sessions.List(ctx, s.db, repository.SessionFilter{RoleID: &id, Active: true})
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(sess) > 0 {
+		return nil, 0, NewConflict(fmt.Sprintf("role %q has %d active session(s) — stop them first", role.Name, len(sess)))
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer tx.Rollback()
+	relCount, err := s.relatives.DeleteByRole(ctx, tx, id)
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := s.roles.Delete(ctx, tx, id); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, 0, notFound("role")
+		}
+		return nil, 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, 0, err
+	}
+	return role, relCount, nil
+}
+
+// DeleteSegment — hard delete сегмента. Роли внутри блокируют удаление (409) —
+// их нужно сначала удалить (каскад relatives происходит при удалении роли).
+// Возвращает удалённый сегмент.
+func (s *TeamService) DeleteSegment(ctx context.Context, id int64) (*models.Segment, error) {
+	seg, err := s.segments.GetByID(ctx, s.db, id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, notFound("segment")
+		}
+		return nil, err
+	}
+	roleCount, err := s.segments.CountRoles(ctx, s.db, id)
+	if err != nil {
+		return nil, err
+	}
+	if roleCount > 0 {
+		return nil, NewConflict(fmt.Sprintf("segment %q contains %d role(s) — delete them first", seg.Name, roleCount))
+	}
+	if err := s.segments.Delete(ctx, s.db, id); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, notFound("segment")
+		}
+		return nil, err
+	}
+	return seg, nil
 }
 
 // DeleteRelative — hard delete; возвращает удалённую связь (для имён ролей в ответе).

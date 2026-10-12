@@ -68,6 +68,10 @@ func auditAction(method, path string) (string, string) {
 	if len(parts) > 3 {
 		id = parts[3]
 	}
+	sub := ""
+	if len(parts) > 4 {
+		sub = parts[4]
+	}
 	resID := ""
 	if id != "" {
 		resID = res + ":" + id
@@ -81,9 +85,9 @@ func auditAction(method, path string) (string, string) {
 		return "session.update", resID
 	case res == "sessions" && method == http.MethodPost:
 		return "session.start", "session"
-	case res == "tasks" && id != "" && parts[4] == "state":
+	case res == "tasks" && id != "" && sub == "state":
 		return "task.state_update", resID
-	case res == "tasks" && id != "" && parts[4] == "handoff":
+	case res == "tasks" && id != "" && sub == "handoff":
 		return "task.handoff", resID
 	case res == "tasks" && method == http.MethodPost:
 		return "task.create", "task"
@@ -108,12 +112,16 @@ func auditAction(method, path string) (string, string) {
 		return "team.update", resID
 	case res == "teams":
 		return "team.update", resID
-	case res == "segments" && id != "" && parts[4] == "roles":
+	case res == "segments" && id != "" && sub == "roles":
 		return "role.create", "segment:" + id
-	case res == "segments" && id != "" && parts[4] == "layout":
+	case res == "segments" && id != "" && sub == "layout":
 		return "segment.layout_update", "segment:" + id
+	case res == "segments" && method == http.MethodDelete:
+		return "segment.delete", resID
 	case res == "segments":
 		return "segment.update", resID
+	case res == "roles" && method == http.MethodDelete:
+		return "role.delete", resID
 	case res == "roles":
 		return "role.update", resID
 	case res == "relatives" && method == http.MethodDelete:
@@ -122,7 +130,7 @@ func auditAction(method, path string) (string, string) {
 		return "relative.update", resID
 	case res == "messages" && method == http.MethodPost:
 		return "message.send", "message"
-	case res == "chatrooms" && id != "" && parts[4] == "messages" && method == http.MethodPost:
+	case res == "chatrooms" && id != "" && sub == "messages" && method == http.MethodPost:
 		return "chatroom.message_send", "chatroom:" + id
 	case res == "workflows" && method == http.MethodPost:
 		return "workflow.create", "workflow"
@@ -138,7 +146,7 @@ func auditAction(method, path string) (string, string) {
 		return "workflow.update", resID
 	case res == "library" && method == http.MethodPost:
 		return "library.save", "library"
-	case res == "library" && id != "" && parts[4] == "apply":
+	case res == "library" && id != "" && sub == "apply":
 		return "library.apply", "library:" + id
 	case res == "watchdog" && id != "" && len(parts) > 4:
 		return "watchdog.alert_read", "watchdog:" + id
