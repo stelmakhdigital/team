@@ -86,6 +86,14 @@ func NewSessionService(db *sql.DB, s *repository.Stores, rt *runtime.Registry) *
 	}
 }
 
+// SetTestRuntimeOverride — test hook: замена адаптера рантайма (детерминированные
+// тесты merge/launch). Не используется в проде.
+func (s *SessionService) SetTestRuntimeOverride(runtimeType string, a runtime.Adapter) {
+	if s.runt != nil {
+		s.runt.SetOverride(runtimeType, a)
+	}
+}
+
 // SetCostService — P2.14: подключить расчёт стоимости (оценка по токенам).
 func (s *SessionService) SetCostService(c *CostService) { s.cost = c }
 
@@ -149,8 +157,11 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 	// QA-fix: runtime_type не задан в запросе → резолвим из agent-spec роли
 	// (pi_config.model → pi; иначе spec.runtime.type). model из spec подставляем в config
 	// (нужен для pi-конфига). Без этого briefing-launch падал 400 (дефолт process без command).
+	// T5: roleSpec — base (spec pi_config) для merge c role.Config["agent_resources"].
+	var roleSpec *AgentSpec
 	if s.RoleSpecFunc != nil && role.AgentSpec != "" {
 		if spec := s.RoleSpecFunc(role.AgentSpec); spec != nil {
+			roleSpec = spec
 			if rtType == "" {
 				if spec.PiConfig.Model != "" {
 					rtType = "pi"
@@ -328,6 +339,40 @@ func (s *SessionService) CreateSession(ctx context.Context, teamID int64, req Cr
 		}
 		if sf := startupFilesFromAny(sess.Config["startup_files"]); len(sf) > 0 {
 			fields.StartupFiles = sf
+		}
+		// T5: Agent resources — merge base (spec) + override (role.Config["agent_resources"]).
+		// skills (enabled) → --skill; startup files (orientation=system) → system_prompt;
+		// plugins → конфиг сессии (persist). Override перекрывает base по key (name/path).
+		if roleSpec != nil {
+			ovPlugins, ovSkills, ovFiles := agentResourcesOverride(sess.Config)
+			// skills: merged (base + override), если явно не задан (P3.12 flat)
+			if len(fields.Skills) == 0 {
+				fields.Skills = mergeEnabledSkills(roleSpec.PiConfig.Skills, ovSkills)
+			}
+			// startup files: merged (base + override) — перекрывает flat T4
+			mergedFiles := mergeStartupFiles(roleSpec.Startup.Files, ovFiles)
+			if len(mergedFiles) > 0 {
+				fields.StartupFiles = mergedFiles
+			}
+			// startup files (orientation=system) → system_prompt (prepend)
+			var systemPaths []string
+			for _, f := range mergedFiles {
+				if f.Orientation == "system" {
+					systemPaths = append(systemPaths, f.Path)
+				}
+			}
+			if len(systemPaths) > 0 {
+				header := "## Startup files (system)\n" + strings.Join(systemPaths, "\n") + "\n\n"
+				if fields.SystemPrompt != "" {
+					fields.SystemPrompt = header + fields.SystemPrompt
+				} else {
+					fields.SystemPrompt = header
+				}
+			}
+			// plugins: merged (base + override) → конфиг сессии (persist)
+			if mp := mergePlugins(roleSpec.PiConfig.Plugins, ovPlugins); len(mp) > 0 {
+				sess.Config["plugins"] = mp
+			}
 		}
 		if err := runtime.WriteSessionConfig(configFile, fields); err != nil {
 			return nil, err

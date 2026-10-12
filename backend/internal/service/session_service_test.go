@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -785,4 +786,132 @@ func asFloat64(v any) (float64, bool) {
 		return float64(n), true
 	}
 	return 0, false
+}
+
+// capturePiAdapter — детерминированный pi-адаптер: захватывает Spec (Pi-флаги) при Start.
+type capturePiAdapter struct {
+	mu   sync.Mutex
+	spec *runtime.Spec
+}
+
+func (a *capturePiAdapter) Name() string { return "pi" }
+func (a *capturePiAdapter) Start(ctx context.Context, spec runtime.Spec) (string, error) {
+	a.mu.Lock()
+	a.spec = &spec
+	a.mu.Unlock()
+	return "pi-ref", nil
+}
+func (a *capturePiAdapter) Stop(ctx context.Context, ref string) error { return nil }
+func (a *capturePiAdapter) Status(ctx context.Context, ref string) (*runtime.Status, error) {
+	return &runtime.Status{Alive: true}, nil
+}
+func (a *capturePiAdapter) Capture(ctx context.Context, ref string, lines int) ([]string, error) {
+	return nil, runtime.ErrNoScreen
+}
+func (a *capturePiAdapter) Send(ctx context.Context, ref, text string, submit bool) (runtime.SendResult, error) {
+	return runtime.SendResult{}, runtime.ErrNoScreen
+}
+func (a *capturePiAdapter) pi() *runtime.AgentSpecFields {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.spec == nil {
+		return nil
+	}
+	return a.spec.Pi
+}
+
+// TestSessionLaunchMergesAgentResources — T5: base (spec) + override (role.Config[
+// "agent_resources"]) → pi-флаги/конфиг. Новый скилл/плагин/startup-файл из override
+// попадает в piFields (skills → --skill, startup orientation=system → system_prompt,
+// plugins → конфиг сессии). Override перекрывает base по key.
+func TestSessionLaunchMergesAgentResources(t *testing.T) {
+	e := setupSessionEnv(t)
+	teamID, roleA, _ := makeTeamWithRoles(t, e.svc, "t5-agres")
+
+	// base (spec) — через RoleSpecFunc (детерминированный)
+	e.ssvc.RoleSpecFunc = func(specPath string) *service.AgentSpec {
+		return &service.AgentSpec{
+			Available: true,
+			PiConfig: service.SpecPiConfig{
+				Model:   "base-model",
+				Skills:  []service.SpecSkill{{Path: "skills/base.md", Enabled: true}},
+				Plugins: []service.SpecPlugin{{Name: "base-plugin", Enabled: true}},
+			},
+			Startup: service.SpecStartup{
+				Files: []service.SpecStartupFile{{Path: "startup/base.md", Orientation: "context"}},
+			},
+		}
+	}
+	// детерминированный pi-адаптер (захват Spec)
+	piMock := &capturePiAdapter{}
+	e.ssvc.SetTestRuntimeOverride("pi", piMock)
+
+	// override (agent_resources): новый скилл + disable base-скилл + новый плагин +
+	// новый startup-файл (orientation=system)
+	_, err := e.svc.UpdateRoleConfig(e.ctx, service.UpdateRoleConfigRequest{
+		ID: roleA,
+		Config: &map[string]any{
+			"agent_resources": map[string]any{
+				"skills": []any{
+					map[string]any{"path": "skills/base.md", "enabled": false},
+					map[string]any{"path": "skills/override.md", "enabled": true},
+				},
+				"plugins": []any{
+					map[string]any{"name": "override-plugin", "enabled": true},
+				},
+				"startup_files": []any{
+					map[string]any{"path": "startup/sys.md", "orientation": "system"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateRoleConfig: %v", err)
+	}
+
+	sess, err := e.ssvc.CreateSession(e.ctx, teamID, service.CreateSessionRequest{
+		RoleID: roleA, RuntimeType: "pi",
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	if _, err2 := e.ssvc.StopSession(e.ctx, sess.ID); err2 != nil {
+		t.Fatalf("StopSession: %v", err2)
+	}
+
+	pi := piMock.pi()
+	if pi == nil {
+		t.Fatal("pi adapter was not invoked (spec not captured)")
+	}
+	// skills: merged (base.md disabled by override) → enabled = [override.md]
+	if len(pi.Skills) != 1 || pi.Skills[0] != "skills/override.md" {
+		t.Errorf("merged skills = %v, want [skills/override.md]", pi.Skills)
+	}
+	// startup files: merged (base.md context + sys.md system); system → system_prompt
+	if !strings.HasPrefix(pi.SystemPrompt, "## Startup files (system)") {
+		t.Errorf("system_prompt must start with startup header, got %q", pi.SystemPrompt)
+	}
+	if !strings.Contains(pi.SystemPrompt, "startup/sys.md") {
+		t.Errorf("system_prompt must contain startup/sys.md, got %q", pi.SystemPrompt)
+	}
+	if len(pi.StartupFiles) != 2 {
+		t.Errorf("merged startup files = %d, want 2", len(pi.StartupFiles))
+	}
+	// plugins: merged (base-plugin + override-plugin) → в конфиг сессии
+	ps, ok := sess.Config["plugins"].([]map[string]any)
+	if !ok || len(ps) != 2 {
+		// roundtrip: JSON → []any; проверяем длину через any
+		psAny, _ := sess.Config["plugins"].([]any)
+		if len(psAny) != 2 {
+			t.Errorf("merged plugins = %v, want 2", sess.Config["plugins"])
+		}
+	} else {
+		names := map[string]bool{}
+		for _, p := range ps {
+			names[p["name"].(string)] = true
+		}
+		if !names["base-plugin"] || !names["override-plugin"] {
+			t.Errorf("merged plugins must include base + override, got %v", ps)
+		}
+	}
 }
