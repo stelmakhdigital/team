@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { useMutation } from '../hooks/useMutation';
@@ -41,9 +42,15 @@ function groupBySession(items: TranscriptMatch[]): Map<number, TranscriptMatch[]
 // сгруппированные по сессии (role/team/state + EntityLink), под каждой — совпадения
 // с контекст-окном (подсветка).
 export default function TranscriptSearchPage() {
+  // W5.5: prefill фильтров из URL (ссылка «Искать в транскриптах» на SessionsPage)
+  const [searchParams] = useSearchParams();
   const [q, setQ] = useState('');
-  const [teamId, setTeamId] = useState<number | ''>('');
-  const [roleId, setRoleId] = useState<number | ''>('');
+  const [teamId, setTeamId] = useState<number | ''>(
+    searchParams.get('team_id') ? Number(searchParams.get('team_id')) : '',
+  );
+  const [roleId, setRoleId] = useState<number | ''>(
+    searchParams.get('role_id') ? Number(searchParams.get('role_id')) : '',
+  );
   const [state, setState] = useState<SessionState | ''>('');
   const [result, setResult] = useState<TranscriptSearchResult | null>(null);
   const [searched, setSearched] = useState(false);

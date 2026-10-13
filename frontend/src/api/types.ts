@@ -296,7 +296,7 @@ export interface Api {
     getTaskHistory(taskId: number): Promise<GetTaskHistoryResponse>;
     getSessionHistory(sessionId: number): Promise<GetSessionHistoryResponse>;
     getAuditLog(params?: GetAuditLogParams): Promise<GetAuditLogResponse>;
-    getTranscript(sessionId: number): Promise<GetTranscriptResponse>;
+    getTranscript(sessionId: number, params?: { limit?: number }): Promise<GetTranscriptResponse>; // W5.5: tail-пагинация
   };
   config: {
     getConfig(): Promise<ListConfigResponse>;

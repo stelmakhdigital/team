@@ -201,7 +201,7 @@ export function createRealAdapter(): Api {
           limit: params?.limit,
           offset: params?.offset,
         })}`),
-      getTranscript: (id) => http(`${B}/sessions/${id}/transcript`),
+      getTranscript: (id, params) => http(`${B}/sessions/${id}/transcript${toQuery({ limit: params?.limit })}`),
     },
     config: {
       getConfig: () => http(`${B}/config`),

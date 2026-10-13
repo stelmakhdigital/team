@@ -1709,3 +1709,18 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   .tour-spot,
   .tour-tip { transition: none; }
 }
+
+/* ---------- W5.5: live-output панели на detail сессии ---------- */
+.live-output {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 220px;
+  overflow: auto;
+  background: rgba(2, 6, 23, 0.96);
+  color: var(--text, #e6e6e6);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  border-radius: 6px;
+  border-left: 2px solid var(--emerald, #10b981);
+}

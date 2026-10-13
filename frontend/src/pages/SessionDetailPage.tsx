@@ -1,7 +1,8 @@
 import { Link, useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
+import { useWebSocket } from '../hooks/useWebSocket';
 import { ErrorState, PageSkeleton, Spinner, isNotFoundError } from '../components/ui/States';
 import HandoverModal from '../components/HandoverModal';
 import CaptureModal from '../components/CaptureModal';
@@ -23,7 +24,9 @@ export default function SessionDetailPage() {
   const id = Number(sessionId);
   const sess = useQuery(`session.${id}`, () => api.sessions.get(id));
   const hist = useQuery(`session.history.${id}`, () => api.history.getSessionHistory(id));
-  const trans = useQuery(`session.transcript.${id}`, () => api.history.getTranscript(id));
+  // W5.5: транскрипт — последние N (default 50), «подгрузить ещё» увеличивает limit
+  const [transLimit, setTransLimit] = useState(50);
+  const trans = useQuery(`session.transcript.${id}.${transLimit}`, () => api.history.getTranscript(id, { limit: transLimit }), [transLimit]);
   // W5.3: контекст задачи для CaptureModal «→ Evidence» — активная задача этой роли
   // (сессии в модели не знают task_id; берём активную задачу destination_role = роль сессии)
   const sessData = sess.data;
@@ -40,6 +43,23 @@ export default function SessionDetailPage() {
   const [handover, setHandover] = useState(false);
   const [capture, setCapture] = useState(false);
   const [snapshotOpen, setSnapshotOpen] = useState(false); // P3.12
+
+  // W5.5: панель «Live output» — WS session:{id}, последние 20 строк, prepend
+  // (паттерн RoleNode live-терминала; mock-пул шлёт session.output для сессии 1)
+  const [liveLines, setLiveLines] = useState<string[]>([]);
+  const { onMessage: onWs } = useWebSocket([`session:${id}`]);
+  useEffect(() => {
+    onWs((m) => {
+      if (m.type !== 'session.output') return;
+      const d = (m.data ?? {}) as { session_id?: number; lines?: Array<{ text?: string }> };
+      if (d.session_id !== id) return;
+      const texts = (d.lines ?? []).map((l) => l.text ?? '').filter(Boolean);
+      if (texts.length === 0) return;
+      setLiveLines((prev) => [...texts.reverse(), ...prev].slice(0, 20));
+    });
+    return () => onWs(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   if (sess.loading) return <div className="page"><PageSkeleton label="Loading session…" /></div>;
   if (sess.error) return <div className="page"><ErrorState error={sess.error} onRetry={sess.refetch} /></div>;
@@ -115,6 +135,16 @@ export default function SessionDetailPage() {
             <SendToSession sessionId={s.id} />
           )}
 
+          {/* W5.5: live-вывод сессии (WS session:{id}, prepend, последние 20 строк) */}
+          <div className="card live-output-card" data-testid="live-output">
+            <h2>Live output</h2>
+            {liveLines.length === 0 ? (
+              <p className="muted">Пока нет вывода — строки появятся по мере работы агента.</p>
+            ) : (
+              <pre className="live-output">{liveLines.join('\n')}</pre>
+            )}
+          </div>
+
           <WalkPanel sessionId={s.id} />
 
           <PosturePanel kind="session" id={s.id} current={s.posture ?? null} teamPosture={s.team_posture} />
@@ -153,6 +183,13 @@ export default function SessionDetailPage() {
                 ))}
               </ul>
             )}
+            {trans.data?.has_more ? (
+              <div className="show-more">
+                <button className="btn" onClick={() => setTransLimit((l) => l + 50)}>
+                  Подгрузить ещё
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
 

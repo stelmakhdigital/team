@@ -15,18 +15,35 @@ const STATE_FILTERS: (SessionState | 'all')[] = ['all', 'starting', 'running', '
 // model, started) + фильтры (team, state, role) + live-обновление по WS.
 // Клик по сессии → /sessions/{id} (существующая detail).
 export default function SessionsPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initial = searchParams.get('state');
-  const [teamFilter, setTeamFilter] = useState<number | 'all'>('all');
+  const [teamFilter, setTeamFilter] = useState<number | 'all'>(
+    searchParams.get('team') && searchParams.get('team') !== 'all' ? Number(searchParams.get('team')) : 'all',
+  );
   const [stateFilter, setStateFilter] = useState<SessionState | 'all'>(
     initial && initial !== 'all' ? (initial as SessionState) : 'all',
   );
-  const [roleFilter, setRoleFilter] = useState<number | 'all'>('all');
-  // B-2: sync state filter from URL — Dashboard «N failed» → /sessions?state=failed.
+  const [roleFilter, setRoleFilter] = useState<number | 'all'>(
+    searchParams.get('role') && searchParams.get('role') !== 'all' ? Number(searchParams.get('role')) : 'all',
+  );
+  // B-2 + W5.5: URL — одна точка правды (state/team/role), ссылки дашборда работают
   useEffect(() => {
     const s = searchParams.get('state');
+    const t = searchParams.get('team');
+    const r = searchParams.get('role');
     setStateFilter(s && s !== 'all' ? (s as SessionState) : 'all');
+    setTeamFilter(t && t !== 'all' ? Number(t) : 'all');
+    setRoleFilter(r && r !== 'all' ? Number(r) : 'all');
   }, [searchParams]);
+
+  // W5.5: фильтры → URL (replace, чтобы не растить историю)
+  const syncUrl = (team: number | 'all', state: SessionState | 'all', role: number | 'all') => {
+    const p = new URLSearchParams();
+    if (team !== 'all') p.set('team', String(team));
+    if (state !== 'all') p.set('state', state);
+    if (role !== 'all') p.set('role', String(role));
+    setSearchParams(p, { replace: true });
+  };
 
   const teams = useQuery('sessions.teams', () => api.teams.getTeams());
   const roles = useQuery(
@@ -90,8 +107,10 @@ export default function SessionsPage() {
             aria-label="Team (filter)"
             value={String(teamFilter)}
             onChange={(e) => {
-              setTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value));
+              const t = e.target.value === 'all' ? 'all' : Number(e.target.value);
+              setTeamFilter(t);
               setRoleFilter('all');
+              syncUrl(t, stateFilter, 'all');
             }}
           >
             <option value="all">All teams</option>
@@ -104,7 +123,15 @@ export default function SessionsPage() {
         </label>
         <label>
           State
-          <select aria-label="State (filter)" value={stateFilter} onChange={(e) => setStateFilter(e.target.value as SessionState | 'all')}>
+          <select
+            aria-label="State (filter)"
+            value={stateFilter}
+            onChange={(e) => {
+              const s = e.target.value as SessionState | 'all';
+              setStateFilter(s);
+              syncUrl(teamFilter, s, roleFilter);
+            }}
+          >
             {STATE_FILTERS.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -117,7 +144,11 @@ export default function SessionsPage() {
           <select
             aria-label="Role (filter)"
             value={String(roleFilter)}
-            onChange={(e) => setRoleFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            onChange={(e) => {
+              const r = e.target.value === 'all' ? 'all' : Number(e.target.value);
+              setRoleFilter(r);
+              syncUrl(teamFilter, stateFilter, r);
+            }}
             disabled={teamFilter === 'all'}
             title={teamFilter === 'all' ? 'Select a team to filter by role' : undefined}
           >
@@ -131,7 +162,19 @@ export default function SessionsPage() {
         </label>
       </div>
 
-      {list.loading && <PageSkeleton label="Loading sessions…" />}
+      {/* W5.5: ссылка на поиск по транскриптам с предзаполненным role_id */}
+      {roleFilter !== 'all' && (
+        <div className="muted small" style={{ marginTop: -8, marginBottom: 12 }}>
+          <EntityLink
+            to={`/transcript-search?team_id=${teamFilter}&role_id=${roleFilter}`}
+            title="Открыть поиск по транскриптам этой роли"
+            className=""
+          >
+            Искать в транскриптах →
+          </EntityLink>
+        </div>
+      )}
+      {list.loading && <PageSkeleton label="Загружаю сессии…" />}
       {list.error && <ErrorState error={list.error} onRetry={list.refetch} />}
       {list.data && sessions.length === 0 && (
         <div className="card">

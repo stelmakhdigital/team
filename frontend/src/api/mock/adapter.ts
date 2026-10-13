@@ -27,6 +27,7 @@ import type {
   Task,
   TaskEvidence,
   TaskWake,
+  TranscriptEntry,
   TranscriptMatch,
   UpdateRoleConfigRequest,
   Workflow,
@@ -2639,12 +2640,30 @@ export function createMockAdapter(): Api {
         return { entries: clone(list.slice(offset, offset + limit)), total: list.length };
       },
 
-      async getTranscript(sessionId) {
+      async getTranscript(sessionId, params) {
         maybeFail();
         await latency();
         const db = getDb();
         const s = db.sessions.find((x) => x.id === sessionId);
         if (!s) throw new ApiClientError(404, 'not_found', `Session ${sessionId} not found`);
+        // W5.5: tail-пагинация по limit (как backend: последние N строк + has_more);
+        // db.transcripts[session_id] — сеeded-строки (P2.7), fallback — 4 контрактные записи
+        const seeded = db.transcripts[sessionId];
+        if (seeded) {
+          const limit = Math.max(1, Math.min(params?.limit ?? 50, 200));
+          const total = seeded.length;
+          const hasMore = total > limit;
+          const start = hasMore ? total - limit : 0;
+          const transcript: TranscriptEntry[] = seeded.slice(start).map((text, i) => ({
+            id: start + i + 1,
+            session_id: sessionId,
+            message_type: 'system',
+            content: text,
+            role: 'system',
+            created_at: s.started_at ?? now(),
+          }));
+          return { transcript, total, has_more: hasMore };
+        }
         return {
           transcript: [
             {
