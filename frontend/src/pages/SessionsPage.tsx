@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { useWebSocket } from '../hooks/useWebSocket';
+import CaptureModal from '../components/CaptureModal';
 import { Badge, EmptyState, ErrorState, PageSkeleton, Spinner } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
 import { formatDateTime, stateTitle } from '../lib/format';
@@ -62,6 +63,8 @@ export default function SessionsPage() {
   onMessage(onWsEvent);
 
   const [visible, setVisible] = useState(25);
+  // W5.3: capture из строки списка — кнопка ⎙ открывает CaptureModal
+  const [captureId, setCaptureId] = useState<number | null>(null);
   // B-1: сортировка по свежести (новые сверху) — старые тестовые сессии опускаются вниз.
   const sessions = useMemo(
     () =>
@@ -151,6 +154,7 @@ export default function SessionsPage() {
                   <th>Runtime</th>
                   <th>Model</th>
                   <th>Started</th>
+                  <th aria-label="Capture">⎙</th>
                 </tr>
               </thead>
               <tbody>
@@ -179,6 +183,17 @@ export default function SessionsPage() {
                     <td className="muted">{s.runtime_type}</td>
                     <td className="muted">{s.model ?? '—'}</td>
                     <td className="muted">{s.created_at ? formatDateTime(s.created_at) : '—'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        aria-label={`Capture session ${s.id}`}
+                        title="Стл-кадр экрана сессии"
+                        onClick={() => setCaptureId(s.id)}
+                      >
+                        ⎙
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -194,6 +209,7 @@ export default function SessionsPage() {
         </div>
       )}
       {roles.loading && teamFilter !== 'all' && <Spinner label="Loading roles…" />}
+      {captureId != null && <CaptureModal sessionId={captureId} onClose={() => setCaptureId(null)} />}
     </div>
   );
 }

@@ -1,21 +1,28 @@
 
 import { useEscapeStack } from '../hooks/useEscapeStack';
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import type { CaptureResult } from '../types/api';
 import { useMutation } from '../hooks/useMutation';
 import { ErrorState, Spinner } from './ui/States';
+import { useToast } from './ui/Toast';
 import { formatRelative } from '../lib/format';
 
 /**
  * P2.8 — CaptureModal: стл-кадр экрана сессии (последние N строк) + сохранение.
  * tmux/pi → tmux-pane (мёртвый tmux → 409 с причиной); process → log-tail.
+ * W5.3: опциональный taskId (когда контекст задачи известен, напр. с detail
+ * сессии по роли) → кнопка «→ Evidence»: navigate в EvidencePanel задачи с
+ * предзаполнением content текстом capture (navigate state).
  */
-export default function CaptureModal({ sessionId, onClose }: { sessionId: number; onClose: () => void }) {
+export default function CaptureModal({ sessionId, taskId, onClose }: { sessionId: number; taskId?: number; onClose: () => void }) {
   const [lines, setLines] = useState(20);
   const [res, setRes] = useState<CaptureResult | null>(null);
   const [copied, setCopied] = useState(false);
   const captureMut = useMutation((n: number) => api.sessions.capture(sessionId, n));
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   const doCapture = useCallback(
     (n: number) => {
@@ -40,8 +47,18 @@ export default function CaptureModal({ sessionId, onClose }: { sessionId: number
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      /* clipboard может быть заблокирован — молча */
+      // W5.3: clipboard может быть заблокирован — сообщаем тостом, не молча
+      toast('error', 'Clipboard недоступен — скопируйте текст вручную из снапшота');
     }
+  };
+
+  // W5.3: «→ Evidence» — navigate в EvidencePanel задачи + предзаполнение content
+  const toEvidence = () => {
+    if (taskId == null || !res) return;
+    navigate(`/tasks/${taskId}`, {
+      state: { evidencePrefill: { content: res.lines.join('\n') } },
+    });
+    onClose();
   };
 
   const err = captureMut.error;
@@ -103,6 +120,16 @@ return (
                 <button type="button" className="btn btn-sm" onClick={copy}>
                   {copied ? '✓ Copied' : '⧉ Copy'}
                 </button>
+                {taskId != null && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary"
+                    onClick={toEvidence}
+                    title="Открыть Evidence задачи и вставить capture как артефакт"
+                  >
+                    → Evidence
+                  </button>
+                )}
               </div>
             </div>
           ) : null}

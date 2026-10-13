@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { useMutation } from '../hooks/useMutation';
@@ -27,6 +28,19 @@ export default function EvidencePanel({ task, onChanged }: { task: Task; onChang
   const [submitting, setSubmitting] = useState(false);
   const ev = useQuery(`evidence.list.${task.id}`, () => api.tasks.listEvidence(task.id, { limit: 50 }), [task.id]);
 
+  // W5.3: navigate state из CaptureModal («→ Evidence») — предзаполнение content
+  // текстом capture + авто-открытие submit-формы
+  const location = useLocation();
+  useEffect(() => {
+    const prefill = (location.state as { evidencePrefill?: { content?: string } } | null)?.evidencePrefill;
+    if (prefill?.content) {
+      setForm((f) => ({ ...f, content: prefill.content }));
+      setSubmitting(true);
+      toast('info', 'Capture вставлен в content — добавьте name и submit');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
   const submit = useMutation((req: Parameters<typeof api.tasks.submitEvidence>[1]) => api.tasks.submitEvidence(task.id, req));
   const verdict = useMutation((evidId: number, req: Parameters<typeof api.tasks.verdictEvidence>[2]) => api.tasks.verdictEvidence(task.id, evidId, req));
 
@@ -34,6 +48,31 @@ export default function EvidencePanel({ task, onChanged }: { task: Task; onChang
   const [form, setForm] = useState<{ type: EvidenceType; name: string; content: string; content_ref: string; content_sha: string; description: string }>({
     type: 'test', name: '', content: '', content_ref: '', content_sha: '', description: '',
   });
+
+  // W5.3: «Вставить последний capture сессии» — select сессии команды задачи →
+  // api.sessions.capture → content = строки capture
+  const sessionsQ = useQuery(
+    `evidence.sessions.${task.team_id}`,
+    () => api.sessions.list({ team_id: task.team_id }),
+    [task.team_id],
+  );
+  const [capSession, setCapSession] = useState('');
+  const [capPending, setCapPending] = useState(false);
+  const insertCapture = async () => {
+    if (!capSession) return;
+    setCapPending(true);
+    try {
+      const cap = await api.sessions.capture(Number(capSession));
+      const text = cap.lines.join('\n');
+      setForm((f) => ({ ...f, content: text }));
+      setSubmitting(true);
+      toast('success', `Capture сессии #${capSession} вставлен в content`);
+    } catch (e) {
+      toast('error', e instanceof Error ? e.message : 'Capture failed');
+    } finally {
+      setCapPending(false);
+    }
+  };
   const doSubmit = async () => {
     const payload = {
       type: form.type,
@@ -122,6 +161,27 @@ export default function EvidencePanel({ task, onChanged }: { task: Task; onChang
 
       {submitting ? (
         <form className="ev-submit" onSubmit={(e) => { e.preventDefault(); void doSubmit(); }}>
+          {/* W5.3: вставка последнего capture сессии в content */}
+          <div className="ev-capture-insert">
+            <select
+              value={capSession}
+              onChange={(e) => setCapSession(e.target.value)}
+              aria-label="Вставить capture сессии"
+            >
+              <option value="">— выбрать сессию —</option>
+              {(sessionsQ.data?.sessions ?? []).map((s) => (
+                <option key={s.id} value={s.id}>#{s.id} {s.role_name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-small"
+              disabled={!capSession || capPending}
+              onClick={() => void insertCapture()}
+            >
+              {capPending ? 'Снимаю…' : 'Вставить последний capture сессии'}
+            </button>
+          </div>
           <div className="ev-submit-row">
             <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as EvidenceType })} aria-label="Evidence type" className="input">
               {EVIDENCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}

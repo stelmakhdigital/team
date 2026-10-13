@@ -24,6 +24,19 @@ export default function SessionDetailPage() {
   const sess = useQuery(`session.${id}`, () => api.sessions.get(id));
   const hist = useQuery(`session.history.${id}`, () => api.history.getSessionHistory(id));
   const trans = useQuery(`session.transcript.${id}`, () => api.history.getTranscript(id));
+  // W5.3: контекст задачи для CaptureModal «→ Evidence» — активная задача этой роли
+  // (сессии в модели не знают task_id; берём активную задачу destination_role = роль сессии)
+  const sessData = sess.data;
+  const teamTasks = useQuery(
+    sessData ? `session.tasks.${sessData.team_id}` : 'session.tasks.none',
+    () => (sessData ? api.tasks.list({ team_id: sessData.team_id }) : Promise.resolve({ tasks: [], total: 0 })),
+    [sessData?.team_id],
+  );
+  const candidateTask = sessData
+    ? (teamTasks.data?.tasks ?? []).find(
+        (t) => t.destination_role_id === sessData.role_id && ['pending', 'in_progress', 'blocked'].includes(t.state),
+      )
+    : undefined;
   const [handover, setHandover] = useState(false);
   const [capture, setCapture] = useState(false);
   const [snapshotOpen, setSnapshotOpen] = useState(false); // P3.12
@@ -166,7 +179,7 @@ export default function SessionDetailPage() {
       </div>
 
       {handover && <HandoverModal sessionId={s.id} onClose={() => { setHandover(false); sess.refetch(); }} />}
-      {capture && <CaptureModal sessionId={s.id} onClose={() => setCapture(false)} />}
+      {capture && <CaptureModal sessionId={s.id} taskId={candidateTask?.id} onClose={() => setCapture(false)} />}
       {snapshotOpen && (
         <SnapshotModal
           sessionId={s.id}
