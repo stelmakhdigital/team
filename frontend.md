@@ -827,6 +827,33 @@ bundle-структурой), export TeamBuilder, import file → preview-пол
 → навигация + auto-suffix + layout-перенос (mock db), field-ошибки в модалке,
 parse-ошибка, version≠1. Скриншот @2560: import-preview-модалка.
 
+### W5. UX Wave 5 (2026-10-13, T-20261013124103)
+
+- **W5.1 Pulse live-буфер** — WS-события копятся в ref-буфере, flush одним
+  setState по debounce 300мс: всплеск событий больше не теряет записи
+  (раньше был discard-throttle 3с).
+- **W5.2 Поиск по событиям** — `GET /api/v1/events?q=` (substring
+  case-insensitive по summary, backend + OpenAPI); в `pulse-filters` инпут
+  с debounce 300мс и URL-sync `?q=`; фильтры выровнены на стиль
+  TranscriptSearchPage («— все —»). Тестовая дырка mock-WS: глобальный
+  broadcast-эмит `__wsMockEmit` для burst-тестов live-панелей.
+- **W5.3 Capture attach** — SessionsPage: кнопка `⎙` в строке → CaptureModal;
+  CaptureModal: кнопка «→ Evidence» (когда контекст задачи известен —
+  SessionDetail подбирает активную задачу роли сессии): navigate в
+  EvidencePanel задачи с предзаполнением content текстом capture (navigate
+  state `evidencePrefill`); провал clipboard Copy → тост (не молча);
+  EvidencePanel: «Вставить последний capture сессии» (select сессии команды
+  → `api.sessions.capture` → content).
+- **W5.4 Copy-sweep empty-states** — русские «Нет X» + hint вместо EN-текстов
+  (SessionDetail/TaskDetail/Mailbox/Messages/Teams/Tasks/TopologyTable/
+  Alerts), «Direct messages: coming soon» → честный текст (диалоги работают),
+  русские счётчики SessionsPage.
+- **W5.5 Sessions live-output + URL-фильтры + tail** — SessionDetailPage:
+  панель «Live output» (WS `session:{id}`, последние строки, prepend);
+  SessionsPage: URL-sync фильтров; транскрипт: последние 50 + «подгрузить ещё».
+- **W5.6 HistoryPage селектор** — select team/role → select задачи/сессии,
+  URL-sync `?task=`/`?session=`.
+
 ## 5. Команды
 ```bash
 cd frontend
