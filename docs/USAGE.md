@@ -597,7 +597,9 @@ lines default 20, max 200). Механика: **tmux/pi → `tmux capture-pane`*
 На **Pulse** (nav, `/pulse`) — единая лента всего, что происходит в системе
 (задачи, сессии, сообщения, алерты, воркфлоу): история из БД + live-обновление по
 WS. Каждая запись: **type-бейдж** (цвет по категории), **summary**, **ссылка на
-сущность** (EntityLink), команда, relative time. Фильтры: **тип / команда / роль**.
+сущность** (EntityLink), команда, relative time. Фильтры: **тип / команда / роль**
+и **поиск по событиям** (substring по summary, case-insensitive; URL-sync `?q=`).
+Live-события буферизуются (debounce 300мс) — всплеск не теряет записи (W5.1).
 Лента bounded (≤5000 строк ИЛИ ≤7дн.), `session.output` (live-транскрипт) в неё не
 попадает. Отдельно от **Attention** («что требует меня») и от **History**
 (per-entity/аудит). **API**: `GET /api/v1/events` (RBAC dashboard.read, viewer-ok).

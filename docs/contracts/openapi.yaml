@@ -2237,7 +2237,8 @@ paths:
       summary: Pulse feed — единая лента событий (task./session./message./alert./workflow.), bounded (≤5000 строк ИЛИ ≤7дн.)
       description: >-
         События из EventBus (sink) с обогащением entity_title. session.output в ленту НЕ попадает
-        (live-поток, не событие). Фильтры: type, team_id, role_id, entity_kind, entity_id.
+        (live-поток, не событие). Фильтры: type, team_id, role_id, entity_kind, entity_id, q (substring
+        case-insensitive по summary, W5.2).
       tags: [events]
       parameters:
         - { name: type, in: query, schema: { type: string } }
@@ -2245,6 +2246,7 @@ paths:
         - { name: role_id, in: query, schema: { type: integer } }
         - { name: entity_kind, in: query, schema: { type: string } }
         - { name: entity_id, in: query, schema: { type: integer } }
+        - { name: q, in: query, schema: { type: string }, description: 'Substring case-insensitive по summary (W5.2)' }
         - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
