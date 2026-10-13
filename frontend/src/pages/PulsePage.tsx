@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '../hooks/useQuery';
 import { api } from '../api';
 import type { EventItem, WSServerMessage } from '../types/api';
@@ -118,12 +119,28 @@ export default function PulsePage() {
   const [typeF, setTypeF] = useState('');
   const [teamF, setTeamF] = useState('');
   const [roleF, setRoleF] = useState('');
-  const key = `pulse.${typeF}.${teamF}.${roleF}`;
+  // W5.2: поиск по событиям — инпут с debounce 300мс + URL-sync ?q=
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [qInput, setQInput] = useState(searchParams.get('q') ?? '');
+  const [qDeb, setQDeb] = useState(searchParams.get('q') ?? '');
+  useEffect(() => {
+    const t = setTimeout(() => setQDeb(qInput), 300);
+    return () => clearTimeout(t);
+  }, [qInput]);
+  // URL-sync: навигация только при реальном расхождении с ?q= (иначе — цикл replace)
+  useEffect(() => {
+    const cur = searchParams.get('q') ?? '';
+    const next = qDeb.trim();
+    if (cur === next) return;
+    setSearchParams(next ? { q: next } : {}, { replace: true });
+  }, [qDeb, searchParams, setSearchParams]);
+  const key = `pulse.${typeF}.${teamF}.${roleF}.${qDeb}`;
   const q = useQuery(key, () =>
     api.events.list({
       type: typeF || undefined,
       team_id: teamF ? Number(teamF) : undefined,
       role_id: roleF ? Number(roleF) : undefined,
+      q: qDeb.trim() || undefined,
     }),
   );
   const teamsQ = useQuery('pulse.teams', () => api.teams.getTeams());
@@ -190,23 +207,32 @@ export default function PulsePage() {
 
       <div className="card pulse-filters">
         <label className="pulse-filter">
+          Поиск
+          <input
+            value={qInput}
+            onChange={(e) => setQInput(e.target.value)}
+            placeholder="substring по событиям…"
+            aria-label="Поиск по событиям"
+          />
+        </label>
+        <label className="pulse-filter">
           Тип
           <select value={typeF} onChange={(e) => setTypeF(e.target.value)}>
-            <option value="">Все типы</option>
+            <option value="">— все —</option>
             {EVENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </label>
         <label className="pulse-filter">
           Команда
           <select value={teamF} onChange={(e) => setTeamF(e.target.value)}>
-            <option value="">Все команды</option>
+            <option value="">— все —</option>
             {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </label>
         <label className="pulse-filter">
           Роль
           <select value={roleF} onChange={(e) => setRoleF(e.target.value)}>
-            <option value="">Все роли</option>
+            <option value="">— все —</option>
             {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </label>

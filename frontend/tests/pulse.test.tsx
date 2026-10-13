@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, BrowserRouter } from 'react-router-dom';
 import App from '../src/App';
 import { getDb, resetMockDb } from '../src/api/mock/data';
 
@@ -115,5 +115,41 @@ describe('P2.9: Pulse feed (единая лента событий)', () => {
     expect(await screen.findByRole('heading', { name: 'Pulse' }, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.queryByText('Task #77 created: Burst task')).not.toBeInTheDocument();
     expect(document.querySelector('.pulse-list')).not.toBeNull();
+  }, 20_000);
+
+  // W5.2: поиск по событиям — ввод → запрос с q (substring, case-insensitive)
+  it('W5.2: ввод в поиск фильтрует ленту по q (case-insensitive)', async () => {
+    renderPulse();
+    await screen.findByRole('heading', { name: 'Pulse' }, { timeout: 10_000 });
+    const input = screen.getByLabelText('Поиск по событиям');
+    fireEvent.change(input, { target: { value: 'AUTH' } });
+    // debounce 300мс + mock-latency: ждём одновременно матч (substring по summary,
+    // case-insensitive) и исчезновение не-матча (до фильтра матч был в полной ленте)
+    await waitFor(() => {
+      expect(screen.queryByText('Task #2 created: Implement auth middleware')).toBeInTheDocument();
+      expect(screen.queryByText('Session #2 started (Worker, pi)')).not.toBeInTheDocument();
+    }, { timeout: 10_000 });
+  }, 20_000);
+
+  // W5.2: URL-sync ?q= + сброс очистки
+  it('W5.2: URL-sync ?q= и сброс очистки', async () => {
+    window.history.pushState({}, '', '/pulse');
+    render(
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>,
+    );
+    await screen.findByRole('heading', { name: 'Pulse' }, { timeout: 10_000 });
+    const input = screen.getByLabelText('Поиск по событиям');
+    fireEvent.change(input, { target: { value: 'auth' } });
+    expect(await screen.findByText('Task #2 created: Implement auth middleware', {}, { timeout: 10_000 })).toBeInTheDocument();
+    // URL-sync: ?q=auth
+    await waitFor(() => expect(window.location.search).toBe('?q=auth'), { timeout: 10_000 });
+    // во время loading ленты фильтры заменяются скелетоном — пере-находим инпут
+    const input2 = await screen.findByLabelText('Поиск по событиям', {}, { timeout: 10_000 });
+    // сброс → q снят, лента полная
+    fireEvent.change(input2, { target: { value: '' } });
+    await waitFor(() => expect(window.location.search).toBe(''), { timeout: 10_000 });
+    expect(await screen.findByText('Session #2 started (Worker, pi)', {}, { timeout: 10_000 })).toBeInTheDocument();
   }, 20_000);
 });

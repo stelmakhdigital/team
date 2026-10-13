@@ -74,6 +74,7 @@ export function createRealAdapter(): Api {
             role_id: params?.role_id,
             entity_kind: params?.entity_kind,
             entity_id: params?.entity_id,
+            q: params?.q, // W5.2
             limit: params?.limit,
             offset: params?.offset,
           })}`,

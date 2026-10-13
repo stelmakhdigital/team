@@ -1461,6 +1461,11 @@ export function createMockAdapter(): Api {
         if (params?.role_id != null) items = items.filter((e) => e.role_id === params.role_id);
         if (params?.entity_kind) items = items.filter((e) => e.entity_kind === params.entity_kind);
         if (params?.entity_id != null) items = items.filter((e) => e.entity_id === params.entity_id);
+        if (params?.q) {
+          // W5.2: substring case-insensitive по summary (как backend LOWER+LIKE)
+          const needle = params.q.toLowerCase();
+          items = items.filter((e) => (e.summary ?? '').toLowerCase().includes(needle));
+        }
         items = [...items].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         const limit = Math.max(1, Math.min(params?.limit ?? 50, 200));
         const offset = Math.max(0, params?.offset ?? 0);

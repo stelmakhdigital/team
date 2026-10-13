@@ -1246,6 +1246,7 @@ export interface GetEventsParams {
   role_id?: number;
   entity_kind?: string;
   entity_id?: number;
+  q?: string; // W5.2: substring case-insensitive по summary
   limit?: number; // default 50, max 200
   offset?: number;
 }
