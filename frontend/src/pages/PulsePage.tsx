@@ -130,19 +130,24 @@ export default function PulsePage() {
   const [live, setLive] = useState<EventItem[]>([]);
   const { onMessage } = useWebSocket(['dashboard']);
 
-  // live-prepend по WS (X3: throttle 3с + debounce 300мс)
+  // live-prepend по WS (W5.1): события копятся в ref-буфере и сбрасываются одним
+  // setState по debounce 300мс — всплеск событий в окне дебаунса не теряется
+  // (раньше был discard-throttle: всё после первого события молча выбрасывалось).
+  // Нет событий → буфер не растёт и flush не запускается.
+  const buffer = useRef<EventItem[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const last = useRef(0);
   const onEvent = useCallback((m: WSServerMessage) => {
     if (!PULSE_EVENTS.has(m.type)) return;
-    const now = Date.now();
-    if (now - last.current < 3000) return;
-    last.current = now;
+    const ev = wsToEvent(m);
+    if (!ev) return;
+    buffer.current.push(ev);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      const ev = wsToEvent(m);
-      if (!ev) return;
-      setLive((prev) => [ev, ...prev].slice(0, 50));
+      const buf = buffer.current;
+      buffer.current = [];
+      if (buf.length === 0) return;
+      // prepend всего буфера одним setState; новейший сверху (буфер в порядке прихода)
+      setLive((prev) => [...buf.reverse(), ...prev].slice(0, 50));
     }, 300);
   }, []);
   onMessage(onEvent);

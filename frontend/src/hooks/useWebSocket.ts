@@ -19,6 +19,10 @@ function parseMessage(raw: string): WSServerMessage | null {
   }
 }
 
+// W5.1: mock-подписчики (для broadcast-эмиттера __wsMockEmit в тестах — несколько
+// экземпляров useWebSocket в дереве, глобальный emit должен доходить до всех).
+const mockListeners = new Set<(m: WSServerMessage) => void>();
+
 /** WebSocket client with reconnect/backoff. In mock mode emits synthetic
  * contract-shaped events so UI live-panels can be exercised. */
 export function useWebSocket(channels: string[]): WSHook {
@@ -68,7 +72,19 @@ export function useWebSocket(channels: string[]): WSHook {
         handlerRef.current(pool[tick % pool.length]);
         tick += 1;
       }, 8000);
-      return () => clearInterval(t);
+      // W5.1: тестовая дырка — глобальный broadcast-эмит, чтобы burst-тесты могли
+      // отправить несколько WS-событий мгновенно (внутри debounce-окна буфера).
+      const handler = (m: WSServerMessage) => handlerRef.current(m);
+      mockListeners.add(handler);
+      const g = globalThis as { __wsMockEmit?: (m: WSServerMessage) => void };
+      g.__wsMockEmit = (m: WSServerMessage) => {
+        mockListeners.forEach((h) => h(m));
+      };
+      return () => {
+        clearInterval(t);
+        mockListeners.delete(handler);
+        if (mockListeners.size === 0) delete g.__wsMockEmit;
+      };
     }
 
     let ws: WebSocket | null = null;

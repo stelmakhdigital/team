@@ -73,4 +73,47 @@ describe('P2.9: Pulse feed (единая лента событий)', () => {
       vi.useRealTimers();
     }
   }, 20_000);
+
+  // W5.1: burst 3 событий в debounce-окне буфера → все 3 в ленте, новейший сверху
+  // (раньше discard-throttle молча выбрасывал всё после первого события).
+  it('W5.1: burst 3 WS-событий → все 3 в ленте, новейший сверху', async () => {
+    vi.useFakeTimers();
+    try {
+      renderPulse();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(screen.getByRole('heading', { name: 'Pulse' })).toBeInTheDocument();
+      const emit = (globalThis as unknown as { __wsMockEmit?: (m: unknown) => void }).__wsMockEmit;
+      expect(emit).toBeDefined();
+      act(() => {
+        // burst: 3 события мгновенно (внутри debounce-окна 300мс)
+        emit!({ type: 'task.created', data: { task_id: 77, title: 'Burst task' }, timestamp: new Date().toISOString() });
+        emit!({ type: 'message.sent', data: { message_id: 55, from_role_name: 'Scout' }, timestamp: new Date().toISOString() });
+        emit!({ type: 'alert.created', data: { alert_id: 9, severity: 'low', event_type: 'idle' }, timestamp: new Date().toISOString() });
+      });
+      // debounce 300мс → flush всего буфера одним prepend
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      const list = document.querySelector('.pulse-list') as HTMLElement;
+      const idx = (needle: string) =>
+        Array.from(list.querySelectorAll('.pulse-summary')).findIndex((el) =>
+          (el.textContent ?? '').includes(needle));
+      // порядок прихода: task → message → alert; новейший (alert) сверху
+      expect(idx('Task #77 created')).toBeGreaterThan(idx('Message from Scout'));
+      expect(idx('Message from Scout')).toBeGreaterThan(idx('Alert [low] idle'));
+      expect(idx('Alert [low] idle')).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  }, 20_000);
+
+  // W5.1: нет событий → буфер не растёт, лента рендерится без live-записей
+  it('W5.1: без событий буфер пуст — лента не получает live-записей', async () => {
+    renderPulse();
+    expect(await screen.findByRole('heading', { name: 'Pulse' }, { timeout: 10_000 })).toBeInTheDocument();
+    expect(screen.queryByText('Task #77 created: Burst task')).not.toBeInTheDocument();
+    expect(document.querySelector('.pulse-list')).not.toBeNull();
+  }, 20_000);
 });
