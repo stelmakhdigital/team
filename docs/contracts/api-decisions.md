@@ -1981,8 +1981,9 @@ RoleNode (иконка), FleetPanel (иконка), ConfigPanel (кнопка «
 ### API + RBAC
 - `GET /api/v1/teams/{id}/export` → 200 `TeamBundle`; 404 — нет команды.
   RBAC: `teams.read` (default-маппинг GET /teams/*).
-- `POST /api/v1/teams/import`, body — bundle JSON → 201
-  `{ team: <TeamView>, workflows: [{id, name}] }`. RBAC: `teams.update`
+- `POST /api/v1/teams/import`, body — bundle JSON → 201 **полный TeamView**
+  (team + segments + roles + relatives, тот же shape, что `GET /teams/{id}`)
+  + `workflows: [{id, name}]`. RBAC: `teams.update`
   (явный case в middleware: `res == "teams" && id == "import"`).
 
 ### Валидация импорта (400, field-ошибки по каждому)

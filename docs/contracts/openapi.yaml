@@ -366,7 +366,7 @@ paths:
             schema: { $ref: '#/components/schemas/TeamBundle' }
       responses:
         '201':
-          description: Команда (+воркфлоу) создана
+          description: Команда (+воркфлоу) создана — полный TeamView (как GET /teams/{id}) + workflows
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ImportTeamResponse' }
@@ -3089,10 +3089,22 @@ components:
                     items: { type: object, additionalProperties: true }
               engine_enabled: { type: boolean, description: Сохраняется при импорте; state при импорте — draft }
     ImportTeamResponse:
+      description: >-
+        Полный TeamView (как GET /teams/{id}: team + segments + roles + relatives)
+        + workflows — созданные при импорте воркфлоу.
       type: object
-      required: [team, workflows]
+      required: [team, segments, roles, relatives, workflows]
       properties:
         team: { $ref: '#/components/schemas/Team' }
+        segments:
+          type: array
+          items: { $ref: '#/components/schemas/Segment' }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/Role' }
+        relatives:
+          type: array
+          items: { $ref: '#/components/schemas/Relative' }
         workflows:
           type: array
           items:

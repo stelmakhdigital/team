@@ -818,6 +818,9 @@ daemons/проектами как один JSON-файл (`.teambundle.json`) �
   `unsupported_version`/`invalid_bundle` подхватились в `States.tsx`
   friendly-сообщения (hint = сырой текст).
 - Auto-suffix UX: имя новой команды/воркфлоу — из ответа (без 409).
+- **Ответ 201 — полный TeamView** (team + segments + roles + relatives, как
+  `GET /teams/{id}`) + `workflows` — фикс судьи C1 (ответ больше не
+  подмножество схемы).
 
 **Тесты** (`tests/c1_bundle.test.tsx`, 6): export TeamsPage (Blob с
 bundle-структурой), export TeamBuilder, import file → preview-поля → confirm
