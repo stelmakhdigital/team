@@ -9,7 +9,8 @@ import (
 
 // ---------- P2.9: Pulse feed — GET /api/v1/events (RBAC dashboard.read, viewer-ok) ----------
 
-// ListEvents — единая лента событий (фильтры type/team/role/entity + limit/offset).
+// ListEvents — единая лента событий (фильтры type/team/role/entity + q + limit/offset).
+// q (W5.2) — substring, case-insensitive по summary.
 func (h *handlers) ListEvents(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	var teamID, roleID, entityID int64
@@ -41,7 +42,7 @@ func (h *handlers) ListEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page, err := h.evs.ListEvents(r.Context(), service.EventFilter{
-		Type: q.Get("type"), EntityKind: q.Get("entity_kind"),
+		Type: q.Get("type"), EntityKind: q.Get("entity_kind"), Q: q.Get("q"),
 		TeamID: teamID, RoleID: roleID, EntityID: entityID,
 		Limit: limit, Offset: offset,
 	})

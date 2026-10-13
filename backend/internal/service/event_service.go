@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	"daemon/internal/models"
 	"daemon/internal/repository"
@@ -46,6 +47,7 @@ type EventFilter struct {
 	TeamID     int64
 	RoleID     int64
 	EntityID   int64
+	Q          string // W5.2: substring, case-insensitive по summary
 	Limit      int
 	Offset     int
 }
@@ -79,6 +81,10 @@ func (s *EventService) ListEvents(ctx context.Context, f EventFilter) (*EventPag
 	if f.EntityID != 0 {
 		v := f.EntityID
 		rf.EntityID = &v
+	}
+	if f.Q != "" {
+		v := strings.ToLower(f.Q)
+		rf.Q = &v
 	}
 	events, total, err := s.repo.List(ctx, s.db, rf)
 	if err != nil {

@@ -28,6 +28,7 @@ type EventListFilter struct {
 	RoleID     *int64
 	EntityKind *string
 	EntityID   *int64
+	Q          *string // W5.2: substring, case-insensitive по summary
 	Limit      int
 	Offset     int
 }
@@ -99,6 +100,11 @@ func (r *EventRepo) List(ctx context.Context, tx DBTX, f EventListFilter) ([]*Ev
 	if f.EntityID != nil {
 		conds = append(conds, "entity_id = ?")
 		args = append(args, *f.EntityID)
+	}
+	if f.Q != nil && *f.Q != "" {
+		// W5.2: substring case-insensitive по summary (LOWER + LIKE, как project_repo)
+		conds = append(conds, "LOWER(summary) LIKE ?")
+		args = append(args, "%"+strings.ToLower(*f.Q)+"%")
 	}
 	where := ""
 	if len(conds) > 0 {

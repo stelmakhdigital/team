@@ -167,6 +167,32 @@ func TestEventsHTTP(t *testing.T) {
 		t.Fatalf("limit=1: events = %d, want 1", len(limEvents))
 	}
 
+	// W5.2: фильтр q — substring, case-insensitive по summary
+	// (summary task.created = "Task #N created: http task one/two")
+	_, outQ, _ := do(t, "GET", s.srv.URL+"/api/v1/events?q=task+one", nil, admin)
+	if outQ["total"].(float64) != 1 {
+		t.Fatalf("q=task one: total = %v, want 1", outQ["total"])
+	}
+	// case-insensitive: верхний регистр находит тот же матч
+	_, outQU, _ := do(t, "GET", s.srv.URL+"/api/v1/events?q=HTTP+TASK", nil, admin)
+	if outQU["total"].(float64) != 2 {
+		t.Fatalf("q=HTTP TASK: total = %v, want 2", outQU["total"])
+	}
+	// no-match
+	_, outQN, _ := do(t, "GET", s.srv.URL+"/api/v1/events?q=nonexistent-xyz", nil, admin)
+	if outQN["total"].(float64) != 0 {
+		t.Fatalf("q=no-match: total = %v, want 0", outQN["total"])
+	}
+	// комбо с type-фильтром: пересечение → 0 / совпадение → 1
+	_, outQC, _ := do(t, "GET", s.srv.URL+"/api/v1/events?q=one&type=task.created", nil, admin)
+	if outQC["total"].(float64) != 1 {
+		t.Fatalf("q+type(task.created): total = %v, want 1", outQC["total"])
+	}
+	_, outQC0, _ := do(t, "GET", s.srv.URL+"/api/v1/events?q=one&type=session.started", nil, admin)
+	if outQC0["total"].(float64) != 0 {
+		t.Fatalf("q+type(session.started): total = %v, want 0", outQC0["total"])
+	}
+
 	// 401: без ключа
 	st, _, _ = do(t, "GET", s.srv.URL+"/api/v1/events", nil, nil)
 	if st != http.StatusUnauthorized {
