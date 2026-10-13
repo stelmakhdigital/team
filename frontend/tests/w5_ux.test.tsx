@@ -20,6 +20,39 @@ function renderAt(path: string, router: 'memory' | 'browser' = 'memory') {
       );
 }
 
+describe('W5.6: HistoryPage селектор задачи/сессии', () => {
+  beforeEach(() => resetMockDb());
+
+  it('W5.6: выбор другой задачи → загружается её история + URL-sync ?task=', async () => {
+    window.history.pushState({}, '', '/history');
+    renderAt('/history', 'browser');
+    await screen.findByRole('tab', { name: /Audit log/ }, { timeout: 10_000 });
+    // default: первая задача (#1) → её timeline (ждём загрузки списка задач)
+    await screen.findByRole('tab', { name: 'Task #1 history' }, { timeout: 10_000 });
+    fireEvent.click(screen.getByRole('tab', { name: 'Task #1 history' }));
+    await screen.findByText('Task #1 timeline', {}, { timeout: 10_000 });
+    // выбираем задачу #4 → загружается её история (ждём загрузки списка задач)
+    await screen.findByRole('option', { name: '#4 Fix flaky CI job' }, { timeout: 10_000 });
+    fireEvent.change(screen.getByLabelText('История: задача'), { target: { value: '4' } });
+    await waitFor(() => expect(window.location.search).toBe('?task=4&session=1'), { timeout: 10_000 });
+    await screen.findByText('Task #4 timeline', {}, { timeout: 10_000 });
+    fireEvent.click(await screen.findByRole('tab', { name: 'Task #4 history' }, { timeout: 10_000 }));
+    await screen.findByText('Task #4 timeline', {}, { timeout: 10_000 });
+    await waitFor(() => expect(screen.getByText(/No progress for 2h/)).toBeInTheDocument(), { timeout: 10_000 }); // история #4, не #1
+  }, 25_000);
+
+  it('W5.6: ?task= из URL → история выбранной задачи', async () => {
+    window.history.pushState({}, '', '/history?task=4');
+    renderAt('/history', 'browser');
+    await screen.findByRole('tab', { name: /Audit log/ }, { timeout: 10_000 });
+    await screen.findByRole('option', { name: '#4 Fix flaky CI job' }, { timeout: 10_000 }); // список задач загрузился
+    await screen.findByRole('tab', { name: 'Task #4 history' }, { timeout: 10_000 });
+    expect((screen.getByLabelText('История: задача') as HTMLSelectElement).value).toBe('4');
+    fireEvent.click(screen.getByRole('tab', { name: 'Task #4 history' }));
+    await screen.findByText('Task #4 timeline', {}, { timeout: 10_000 });
+  }, 25_000);
+});
+
 describe('W5.5: Sessions live-output + URL-фильтры + tail-транскрипт', () => {
   beforeEach(() => resetMockDb());
 

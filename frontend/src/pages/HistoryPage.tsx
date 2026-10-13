@@ -1,15 +1,63 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import {  EmptyState, ErrorState, PageSkeleton, Unavailable, isNotFoundError , Badge } from '../components/ui/States';
+import EntityLink from '../components/ui/EntityLink';
 import { formatDateTime, formatRelative } from '../lib/format';
 
+// W5.6 — History: селектор команды/роли → задачи/сессии (раньше — только первая
+// из списка), URL-sync (?team=/?role=/?task=/?session=). Audit log — без изменений.
 export default function HistoryPage() {
   const audit = useQuery('history.audit', () => api.history.getAuditLog({ limit: 50 }));
-  const tasks = useQuery('history.tasks', () => api.dashboard.getTasks());
-  const sessions = useQuery('history.sessions', () => api.sessions.list());
-  const taskId = tasks.data?.tasks[0]?.id;
-  const sessionId = sessions.data?.sessions[0]?.id;
+  const teams = useQuery('history.teams', () => api.teams.getTeams());
+  const allTasks = useQuery('history.tasks', () => api.dashboard.getTasks());
+  const allSessions = useQuery('history.sessions', () => api.sessions.list());
+
+  // селекторы: team/role → фильтруют списки; task/session — из URL или первая отфильтрованная
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [teamId, setTeamId] = useState<number | ''>(
+    searchParams.get('team') ? Number(searchParams.get('team')) : '',
+  );
+  const [roleId, setRoleId] = useState<number | ''>(
+    searchParams.get('role') ? Number(searchParams.get('role')) : '',
+  );
+
+  const tasks = (allTasks.data?.tasks ?? []).filter(
+    (t) => (teamId === '' || t.team_id === teamId) && (roleId === '' || t.destination_role_id === roleId),
+  );
+  const sessions = (allSessions.data?.sessions ?? []).filter(
+    (s) => (teamId === '' || s.team_id === teamId) && (roleId === '' || s.role_id === roleId),
+  );
+
+  const urlTask = searchParams.get('task') ? Number(searchParams.get('task')) : null;
+  const urlSession = searchParams.get('session') ? Number(searchParams.get('session')) : null;
+  const taskId = urlTask ?? tasks[0]?.id ?? null;
+  const sessionId = urlSession ?? sessions[0]?.id ?? null;
+
+  // URL-sync: селекты пишут ?team=/?role=/?task=/?session= (replace)
+  const syncUrl = (patch: { team?: number | ''; role?: number | ''; task?: number | null; session?: number | null }) => {
+    const p = new URLSearchParams();
+    const team = patch.team !== undefined ? patch.team : teamId;
+    const role = patch.role !== undefined ? patch.role : roleId;
+    const task = patch.task !== undefined ? patch.task : taskId;
+    const session = patch.session !== undefined ? patch.session : sessionId;
+    if (team !== '') p.set('team', String(team));
+    if (role !== '') p.set('role', String(role));
+    if (task != null) p.set('task', String(task));
+    if (session != null) p.set('session', String(session));
+    setSearchParams(p, { replace: true });
+  };
+
+  // выбранный id вне отфильтрованного списка (URL руками правили) → фильтры не блокируют
+  const taskOptions = taskId != null && !tasks.some((t) => t.id === taskId)
+    ? [...tasks, ...(allTasks.data?.tasks ?? []).filter((t) => t.id === taskId)]
+    : tasks;
+  const sessionOptions = sessionId != null && !sessions.some((s) => s.id === sessionId)
+    ? [...sessions, ...(allSessions.data?.sessions ?? []).filter((s) => s.id === sessionId)]
+    : sessions;
+
+  // роль-имена для лейблов селектов (из сессий/задач не всегда понятно) — из команд
   const taskHistory = useQuery(
     taskId != null ? `history.task.${taskId}` : 'history.task.none',
     taskId != null ? () => api.history.getTaskHistory(taskId) : async () => ({ history: [], total: 0 }),
@@ -21,14 +69,98 @@ export default function HistoryPage() {
     [sessionId],
   );
 
+  // если выбранная сущность исчезла из отфильтрованных (сменили фильтр) — сброс URL-параметров
+  useEffect(() => {
+    if (urlTask != null && tasks.length > 0 && !tasks.some((t) => t.id === urlTask)) {
+      syncUrl({ task: null });
+    }
+    if (urlSession != null && sessions.length > 0 && !sessions.some((s) => s.id === urlSession)) {
+      syncUrl({ session: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlTask, urlSession, tasks.length, sessions.length]);
+
   const [tab, setTab] = useState<'audit' | 'task' | 'transcript'>('audit');
   const [expandedAudit, setExpandedAudit] = useState<number | null>(null);
+
+  const selectedSession = sessionOptions.find((s) => s.id === sessionId);
 
   return (
     <div className="page">
       <div className="page-head">
         <h1>History</h1>
       </div>
+
+      {/* W5.6: селектор команды/роли → задачи/сессии */}
+      <div className="filters history-selectors">
+        <label>
+          Команда
+          <select
+            aria-label="История: команда"
+            value={teamId === '' ? '' : String(teamId)}
+            onChange={(e) => {
+              const t = e.target.value === '' ? '' : Number(e.target.value);
+              setTeamId(t);
+              syncUrl({ team: t, task: null, session: null });
+            }}
+          >
+            <option value="">— все —</option>
+            {(teams.data?.teams ?? []).map((tm) => (
+              <option key={tm.id} value={tm.id}>{tm.name}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Роль
+          <select
+            aria-label="История: роль"
+            value={roleId === '' ? '' : String(roleId)}
+            onChange={(e) => {
+              const r = e.target.value === '' ? '' : Number(e.target.value);
+              setRoleId(r);
+              syncUrl({ role: r, task: null, session: null });
+            }}
+          >
+            <option value="">— все —</option>
+            {[...new Map(sessionOptions.map((s) => [s.role_id, s.role_name])).entries()].map(([rid, rname]) => (
+              <option key={rid} value={rid}>{rname}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Задача
+          <select
+            aria-label="История: задача"
+            value={taskId == null ? '' : String(taskId)}
+            onChange={(e) => {
+              const t = e.target.value === '' ? null : Number(e.target.value);
+              syncUrl({ task: t });
+            }}
+          >
+            {taskOptions.length === 0 && <option value="">Задач нет</option>}
+            {taskOptions.map((t) => (
+              <option key={t.id} value={t.id}>#{t.id} {t.title}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Сессия
+          <select
+            aria-label="История: сессия"
+            value={sessionId == null ? '' : String(sessionId)}
+            onChange={(e) => {
+              const s = e.target.value === '' ? null : Number(e.target.value);
+              syncUrl({ session: s });
+            }}
+          >
+            {sessionOptions.length === 0 && <option value="">Сессий нет</option>}
+            {sessionOptions.map((s) => (
+              <option key={s.id} value={s.id}>#{s.id} {s.role_name}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       <div className="tabs" role="tablist">
         {(
           [
@@ -41,6 +173,16 @@ export default function HistoryPage() {
             {label}
           </button>
         ))}
+        {/* W5.6: транскрипт-поиск с предзаполненной ролью */}
+        {selectedSession && (
+          <EntityLink
+            to={`/transcript-search?team_id=${selectedSession.team_id}&role_id=${selectedSession.role_id}`}
+            title="Открыть поиск по транскриптам"
+            className=""
+          >
+            Искать в транскриптах →
+          </EntityLink>
+        )}
       </div>
 
       {tab === 'audit' && (
