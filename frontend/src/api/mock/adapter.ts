@@ -726,8 +726,12 @@ export function createMockAdapter(): Api {
           createdWFs.push({ id: wfId, name: wfName });
         });
         recalcTeamCounts();
+        // C1/P4.3: полный TeamView (как GET /teams/{id}) + workflows.
         return {
           team: clone(db.teams.find((t) => t.id === id)!),
+          segments: clone(db.segments.filter((s) => s.team_id === id)),
+          roles: clone(db.roles.filter((r) => r.team_id === id)),
+          relatives: clone(db.relatives.filter((r) => r.team_id === id)),
           workflows: createdWFs,
         };
       },

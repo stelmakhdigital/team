@@ -107,8 +107,8 @@ export interface TeamBundle {
   }>;
 }
 
-export interface ImportTeamResponse {
-  team: Team;
+// C1/P4.3: 201 import — полный TeamView (как GET /teams/{id}) + workflows.
+export interface ImportTeamResponse extends GetTeamResponse {
   workflows: Array<{ id: number; name: string }>;
 }
 
