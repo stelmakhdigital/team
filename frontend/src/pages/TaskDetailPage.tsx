@@ -123,7 +123,7 @@ export default function TaskDetailPage() {
           {hist.loading ? (
             <Spinner />
           ) : history.length === 0 ? (
-            <p className="muted">No history events.</p>
+            <p className="muted">Истории пока нет — переходы состояния появятся по мере работы.</p>
           ) : (
             <ul className="hist-list">
               {history.map((h) => (
@@ -174,7 +174,7 @@ function WakePanel({ task, wake, onRefetch }: { task: Task; wake?: TaskWake; onR
         {armed ? <span className="wake-status wake-armed">armed</span> : wake?.fired ? <span className="wake-status wake-fired">fired</span> : null}
       </h2>
       {!wake ? (
-        <p className="muted">No wake set — the task will wait until it is resolved manually.</p>
+        <p className="muted">Wake не задан — задача будет ждать, пока её решат вручную.</p>
       ) : (
         <>
           <div className="wake-kind">

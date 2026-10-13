@@ -80,7 +80,7 @@ export default function SessionsPage() {
     <div className="page">
       <div className="page-head">
         <h1>Sessions</h1>
-        <span className="muted small">{list.data?.total ?? 0} total</span>
+        <span className="muted small">{list.data?.total ?? 0} всего</span>
       </div>
 
       <div className="filters">
@@ -202,7 +202,7 @@ export default function SessionsPage() {
           {sessions.length > visible && (
             <div className="show-more">
               <button className="btn" onClick={() => setVisible((v) => v + 25)}>
-                Show more ({sessions.length - visible} remaining)
+                Показать ещё ({sessions.length - visible} осталось)
               </button>
             </div>
           )}

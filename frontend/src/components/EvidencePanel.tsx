@@ -32,9 +32,9 @@ export default function EvidencePanel({ task, onChanged }: { task: Task; onChang
   // текстом capture + авто-открытие submit-формы
   const location = useLocation();
   useEffect(() => {
-    const prefill = (location.state as { evidencePrefill?: { content?: string } } | null)?.evidencePrefill;
-    if (prefill?.content) {
-      setForm((f) => ({ ...f, content: prefill.content }));
+    const c = (location.state as { evidencePrefill?: { content?: string } } | null)?.evidencePrefill?.content;
+    if (c) {
+      setForm((f) => ({ ...f, content: c }));
       setSubmitting(true);
       toast('info', 'Capture вставлен в content — добавьте name и submit');
     }

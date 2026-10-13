@@ -52,7 +52,7 @@ export default function MailboxPanel({ roleId, roleName }: { roleId: number; rol
       ) : inbox.error ? (
         <p className="field-error" role="alert" style={{ color: 'var(--red)' }}>{errorMessage(inbox.error)}</p>
       ) : items.length === 0 ? (
-        <p className="muted">No incoming direct messages.</p>
+        <p className="muted">Входящих direct-сообщений нет — они появятся, когда другой агент напишет этой роли.</p>
       ) : (
         <ul className="mb-list" data-testid="inbox-list">
           {items.map((m) => (
@@ -89,7 +89,7 @@ export default function MailboxPanel({ roleId, roleName }: { roleId: number; rol
       {outbox.loading ? (
         <Spinner />
       ) : (outbox.data?.messages.length ?? 0) === 0 ? (
-        <p className="muted">No outgoing messages.</p>
+        <p className="muted">Исходящих сообщений нет — они появятся после отправки direct-сообщения.</p>
       ) : (
         <ul className="mb-list mb-list--outbox" data-testid="outbox-list">
           {outbox.data!.messages.map((m) => (

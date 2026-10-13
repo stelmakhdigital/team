@@ -359,7 +359,7 @@ function TaskDetail({ taskId }: { taskId: number }) {
     <div className="detail-grid">
       <div>
         <h4>History</h4>
-        {history.data!.history.length === 0 && <div className="muted">No history yet</div>}
+        {history.data!.history.length === 0 && <div className="muted">Истории пока нет.</div>}
         <ol className="timeline">
           {history.data!.history.map((h) => (
             <li key={h.id} className={`timeline-item tl-${h.color ?? 'blue'}`}>
@@ -382,7 +382,7 @@ function TaskDetail({ taskId }: { taskId: number }) {
       </div>
       <div>
         <h4>Subtasks ({detail.data!.subtasks.length})</h4>
-        {detail.data!.subtasks.length === 0 && <div className="muted">No subtasks</div>}
+        {detail.data!.subtasks.length === 0 && <div className="muted">Подзадач нет.</div>}
         <ul className="subtask-list">
           {detail.data!.subtasks.map((s) => (
             <li key={s.id}>

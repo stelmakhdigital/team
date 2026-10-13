@@ -29,7 +29,7 @@ describe('X1: empty states (mock with empty data)', () => {
     expect(await screen.findByRole('heading', { name: 'Dashboard' }, { timeout: 10_000 })).toBeInTheDocument();
     expect(await screen.findByText('No active tasks', {}, { timeout: 10_000 })).toBeInTheDocument();
     expect(await screen.findByText('Сессий пока нет', {}, { timeout: 10_000 })).toBeInTheDocument();
-    expect(await screen.findByText('No alerts', {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByText('Алертов нет', {}, { timeout: 10_000 })).toBeInTheDocument();
   }, 20_000);
 
   it('Tasks: empty list shows a CTA to create', async () => {

@@ -277,7 +277,7 @@ export default function TeamsPage() {
       {loading && <PageSkeleton label="Loading teams…" />}
       {error && <ErrorState error={error} onRetry={refetch} />}
       {data && data.teams.length === 0 && (
-        <EmptyState title="No teams yet" hint="Create your first team to build an agent topology." action={<button className="btn btn-primary" onClick={() => setCreating(true)}>Create team</button>} />
+        <EmptyState title="Команд пока нет" hint="Создайте первую команду, чтобы собрать топологию агентов." action={<button className="btn btn-primary" onClick={() => setCreating(true)}>Create team</button>} />
       )}
       {data && data.teams.length > 0 && (
         <div className="card">

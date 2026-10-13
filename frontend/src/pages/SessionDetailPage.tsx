@@ -134,9 +134,9 @@ export default function SessionDetailPage() {
             {trans.loading ? (
               <Spinner />
             ) : isNotFoundError(trans.error) ? (
-              <p className="muted">No transcript available.</p>
+              <p className="muted">Транскрипта пока нет — появится, когда агент начнёт работу.</p>
             ) : transcript.length === 0 ? (
-              <p className="muted">No messages.</p>
+              <p className="muted">В транскрипте пока нет сообщений.</p>
             ) : (
               <ul className="transcript-list">
                 {transcript.map((m) => (
@@ -161,7 +161,7 @@ export default function SessionDetailPage() {
           {hist.loading ? (
             <Spinner />
           ) : history.length === 0 ? (
-            <p className="muted">No history events.</p>
+            <p className="muted">Истории пока нет — переходы состояния появятся по мере работы.</p>
           ) : (
             <ul className="hist-list">
               {history.map((h) => (

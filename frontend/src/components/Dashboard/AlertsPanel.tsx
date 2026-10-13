@@ -9,7 +9,7 @@ function AlertsPanelInner({ alerts }: { alerts: WatchdogAlert[] }) {
     <div className="card">
       <h2>Watchdog alerts</h2>
       {alerts.length === 0 ? (
-        <EmptyState title="No alerts" hint="All agents are on track." />
+        <EmptyState title="Алертов нет" hint="Все агенты в норме — watchdog предупреждений не поднимал." />
       ) : (
         <ul className="alert-list">
           {alerts.map((a) => (

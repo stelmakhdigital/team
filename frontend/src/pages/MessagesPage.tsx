@@ -98,7 +98,7 @@ export default function MessagesPage() {
             ) : messages.error ? (
               <ErrorState error={messages.error} onRetry={messages.refetch} />
             ) : directConversations.length === 0 ? (
-              <p className="muted small dialog-empty-section">Direct messages: coming soon</p>
+              <p className="muted small dialog-empty-section">Direct-диалогов пока нет — они работают: напишите роли в mailbox, диалог появится здесь.</p>
             ) : (
               <ul className="dialog-list-items">
                 {directConversations.map((c) => (
@@ -253,7 +253,7 @@ function MailboxSection() {
     return <div className="card mailbox-panel"><Spinner label="Loading mailbox…" /></div>;
   }
   if (!role) {
-    return <div className="card mailbox-panel"><p className="muted">No roles available for the mailbox.</p></div>;
+    return <div className="card mailbox-panel"><p className="muted">Нет ролей для mailbox — создайте команду с ролями.</p></div>;
   }
 
   return (

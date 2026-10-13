@@ -55,7 +55,7 @@ export default function TopologyTableView({ segments, roles, liveSessions, tasks
   if (roles.length === 0) {
     return (
       <div className="topo-table-wrap">
-        <div className="muted">No roles yet</div>
+        <div className="muted">Ролей пока нет — добавьте роли в топологию команды.</div>
       </div>
     );
   }

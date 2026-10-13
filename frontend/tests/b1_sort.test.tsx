@@ -54,9 +54,9 @@ describe('B-1.1: Sessions — sort by recency (newest first)', () => {
     db.sessions = Array.from({ length: 30 }, (_, i) => mkSession(i + 1, iso(i), `Role${i}`));
     renderAt('/sessions');
     await screen.findByRole('heading', { name: 'Sessions' }, { timeout: 10_000 });
-    const btn = await screen.findByRole('button', { name: /Show more/ }, { timeout: 10_000 });
+    const btn = await screen.findByRole('button', { name: /Показать ещё/ }, { timeout: 10_000 });
     expect(btn).toBeInTheDocument();
-    expect(btn.textContent).toMatch(/5 remaining/); // 30 - 25
+    expect(btn.textContent).toMatch(/5 осталось/); // 30 - 25
   }, 20_000);
 });
 
