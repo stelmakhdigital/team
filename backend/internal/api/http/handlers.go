@@ -207,6 +207,12 @@ func (h *handlers) GetTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	writeJSON(w, http.StatusOK, teamDetailResponse(detail))
+}
+
+// teamDetailResponse — полное TeamView: team + segments + roles + relatives.
+// Общий контракт GET /teams/{id} и 201 POST /teams/import (C1/P4.3).
+func teamDetailResponse(detail *service.TeamDetail) map[string]any {
 	segViews := make([]map[string]any, 0, len(detail.Segments))
 	for _, s := range detail.Segments {
 		segViews = append(segViews, map[string]any{
@@ -238,7 +244,7 @@ func (h *handlers) GetTeam(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	return map[string]any{
 		"team": map[string]any{
 			"id": detail.Team.ID, "name": detail.Team.Name,
 			"description": detail.Team.Description, "state": string(detail.Team.State),
@@ -248,7 +254,7 @@ func (h *handlers) GetTeam(w http.ResponseWriter, r *http.Request) {
 			"updated_at": detail.Team.UpdatedAt.Format(rfc3339),
 		},
 		"segments": segViews, "roles": roleViews, "relatives": relViews,
-	})
+	}
 }
 
 // ArchiveTeam — DELETE /api/v1/teams/{id}: archive (soft, по умолчанию) или

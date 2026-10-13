@@ -191,6 +191,16 @@ func TestTeamBundleRoundtrip(t *testing.T) {
 	if newTeam["segments_count"].(float64) != 2 || newTeam["roles_count"].(float64) != 3 {
 		t.Fatalf("import counts: %v", newTeam)
 	}
+	// 201 — полный TeamView (team + segments + roles + relatives), как GET /teams/{id}
+	impSegs := out["segments"].([]any)
+	impRoles := out["roles"].([]any)
+	impRels := out["relatives"].([]any)
+	if len(impSegs) != 2 || len(impRoles) != 3 || len(impRels) != 1 {
+		t.Fatalf("import full TeamView: %d segs / %d roles / %d rels", len(impSegs), len(impRoles), len(impRels))
+	}
+	if impSegs[0].(map[string]any)["team_id"].(float64) != float64(newTeamID) || impRoles[0].(map[string]any)["team_id"].(float64) != float64(newTeamID) {
+		t.Fatalf("import TeamView ids: %v", out)
+	}
 	importedWFs := out["workflows"].([]any)
 	if len(importedWFs) != 1 {
 		t.Fatalf("import workflows: %v", importedWFs)
