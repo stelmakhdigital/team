@@ -886,6 +886,20 @@ parse-ошибка, version≠1. Скриншот @2560: import-preview-мода
   → test-daemon :8081 на свежей `data/test.db` (раньше тесты засоряли
   daemon.db — 51 IT-команда из 56; вычищено 2026-10-14).
 
+### W8. Доборы аудита (2026-10-14, продолжение)
+
+- **Детерминная crash-детektion** — `remain-on-exit` задаётся ВНУТРИ панельной
+  команды (до старта child): гонка «child умер раньше, чем внешний set-option»
+  давала stopped/exit 0 вместо failed/exit 3 (флейк интеграционного слайса 3).
+  6 прогонов интеграции подряд зелёные.
+- **focus-trap на всех модалках** (+7: ProjectsPage, WorkflowsPage,
+  SnapshotModal, HandoverModal, BriefingPreviewModal, ProjectArtifacts
+  (preview, open-флагом), AgentResourcesPanel) — тот же `useFocusTrap`.
+- **Mobile-добор** — 3 таблицы получили `.table-wrap` (ProjectDetail,
+  WorkflowInstance, WatchdogJobs); `.detail-table`/`.data-table` в min-width
+  560 на ≤640; WS-чип в рельсе эллипсится. Проверено @390x844:
+  pageOverflow=0 на dashboard/tasks/sessions/pulse (скриншоты w8-mobile-*).
+
 ### U-XB. Бэкенд-аудит (2026-10-14) — fix(runtime) `1d9e673`
 
 - Reap не признавал мёртвыми tmux/pi-сессии (tmux 3.x «can't find session»
