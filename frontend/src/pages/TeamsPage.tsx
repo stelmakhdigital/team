@@ -7,6 +7,7 @@ import {  EmptyState, ErrorState, errorMessage, PageSkeleton , Badge } from '../
 import { useToast } from '../components/ui/Toast';
 import { formatRelative, formatDateTime, stateTitle } from '../lib/format';
 import { useEscapeStack } from '../hooks/useEscapeStack';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { downloadJson } from '../lib/download';
 import type { Team, TeamBundle } from '../types/api';
 
@@ -81,6 +82,10 @@ export default function TeamsPage() {
   const [creating, setCreating] = useState(false);
   // A2: Esc закрывает модалку создания (через useEscapeStack)
   useEscapeStack(() => setCreating(false), creating);
+  // U-X4: focus-trap модалок + возврат фокуса на триггер
+  const createRef = useRef<HTMLDivElement>(null);
+  const importRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(createRef, creating);
   // W2.4: ?new=1 — открыть форму создания (CTA с first-run дашборда)
   const [searchParams] = useSearchParams();
   useEffect(() => {
@@ -155,6 +160,7 @@ export default function TeamsPage() {
   // C1/P4.3: Export (download .teambundle.json) + Import (file → preview → confirm).
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importOpen, setImportOpen] = useState(false);
+  useFocusTrap(importRef, importOpen); // U-X4
   const [importBundle, setImportBundle] = useState<TeamBundle | null>(null);
   const [importSource, setImportSource] = useState<string | null>(null);
   const [importParseError, setImportParseError] = useState<string | null>(null);
@@ -309,7 +315,7 @@ export default function TeamsPage() {
       )}
 
       {creating && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create team" onClick={() => setCreating(false)}>
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create team" onClick={() => setCreating(false)} ref={createRef}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>New team</h2>
             <form onSubmit={submit}>
@@ -347,7 +353,7 @@ export default function TeamsPage() {
       )}
 
       {importOpen && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Import team bundle" onClick={() => !importing && setImportOpen(false)}>
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Import team bundle" onClick={() => !importing && setImportOpen(false)} ref={importRef}>
           <div className="modal import-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Import team</h2>
             {importParseError ? (

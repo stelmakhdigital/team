@@ -1,6 +1,7 @@
 
 import { useEscapeStack } from '../hooks/useEscapeStack';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import type { CaptureResult } from '../types/api';
@@ -64,9 +65,12 @@ export default function CaptureModal({ sessionId, taskId, onClose }: { sessionId
   const err = captureMut.error;
     // W3.1: Esc закрывает модалку (если она верхний оверлей)
   useEscapeStack(onClose, true);
+  // U-X4: focus-trap + возврат фокуса на триггер
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(backdropRef, true);
 
 return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={onClose} ref={backdropRef}>
       <div className="modal capture-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>⎙ Capture — Session #{sessionId}</h2>

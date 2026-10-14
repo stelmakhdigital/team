@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
@@ -458,8 +459,10 @@ function CreateTaskModal({
     }
   };
 
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(backdropRef, true);
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose} ref={backdropRef}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>New task</h2>
         <form onSubmit={submit}>
@@ -524,8 +527,10 @@ function CloseTaskModal({
   const [reason, setReason] = useState<ClosureReason>('no_follow_on');
   const [comment, setComment] = useState('');
   useEscapeStack(onClose, true);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(backdropRef, true);
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose} ref={backdropRef}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Close task #{taskId}</h2>
         <form
@@ -607,8 +612,10 @@ function BlockTaskModal({
     }
   };
 
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(backdropRef, true);
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose} ref={backdropRef}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Block task #{taskId}</h2>
         <form onSubmit={submit}>
@@ -711,8 +718,10 @@ function HandoffTaskModal({
   const currentRole = detail.data?.task.destination_role_id;
   const roles = (topology.data?.roles ?? []).filter((r) => r.id !== currentRole);
 
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(backdropRef, true);
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose} ref={backdropRef}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Hand off task #{taskId}</h2>
         <form onSubmit={submit}>
