@@ -81,8 +81,7 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
   }, 20_000);
 
   it('role config endpoint', async () => {
-    const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const team = await ensureTeam();
     const topo = await api.teams.getTopology(team.id);
     const role = topo.roles[0];
     const cfg = await api.teams.getRoleConfig(role.id);
@@ -94,8 +93,7 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
 
   it('error envelope: not_found + conflict → ApiClientError с кодом', async () => {
     await expect(api.teams.getTopology(999_999)).rejects.toMatchObject({ status: 404, code: 'not_found' });
-    const teams = await api.teams.getTeams();
-    const team = teams.teams[0];
+    const team = await ensureTeam();
     const topo = await api.teams.getTopology(team.id);
     if (topo.relatives.length === 0) return;
     const r = topo.relatives[0];
@@ -167,9 +165,29 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
     }
   }
 
-  it('slice 3: session lifecycle (create → history/transcript/dashboard → stop)', async () => {
+  // самодостаточность на свежей test.db (scripts/test-integration.sh — БД пуста):
+  // слайсы не зависят от порядка прогонов — если команд нет, создаём свою
+  // (2 роли Lead + Worker, pi-worker — как в остальных IT-командах).
+  async function ensureTeam(): Promise<{ id: number; name: string }> {
     const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const found = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    if (found) return found;
+    const created = await api.teams.createTeam({
+      name: `IT-standalone-${Date.now()}`,
+      spec: {
+        segments: [{ name: 'Core' }],
+        roles: [
+          { name: 'Lead', agent_spec: 'pi-worker', segment: 'Core' },
+          { name: 'Worker', agent_spec: 'pi-worker', segment: 'Core' },
+        ],
+      } as never,
+    });
+    expect(created.status).toBe('created');
+    return created;
+  }
+
+  it('slice 3: session lifecycle (create → history/transcript/dashboard → stop)', async () => {
+    const team = await ensureTeam();
     const topo = await api.teams.getTopology(team.id);
     const role = topo.roles[0];
 
@@ -211,8 +229,7 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
   }, 30_000);
 
   it('slice 3: crashed process → failed (exit_code) + watchdog alert', async () => {
-    const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const team = await ensureTeam();
     const topo = await api.teams.getTopology(team.id);
     const role = topo.roles[0];
 
@@ -236,12 +253,11 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
     await waitUntil(async () => {
       const a = await api.dashboard.getAlerts();
       return a.alerts.some((x) => x.session_id === sid && x.requires_action);
-    }, 25_000);
-  }, 45_000);
+    }, 40_000); // watchdog-цикл ~10с + нагрузка CI — 25с флитично
+  }, 60_000);
 
   it('tasks lifecycle: create → in_progress → done (closure) → handoff → terminal 409', async () => {
-    const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const team = await ensureTeam();
     const topo = await api.teams.getTopology(team.id);
     const roleA = topo.roles[0];
     const roleB = topo.roles[1] ?? roleA;
@@ -292,8 +308,7 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
   // ---- slice 4: Message Center ----
 
   it('slice 4: messages — direct + broadcast + list filters', async () => {
-    const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const team = await ensureTeam();
     const topo = await api.teams.getTopology(team.id);
     const [roleA] = [topo.roles[0]];
 
@@ -371,8 +386,7 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
   // ---- slice 5a: Workflows ----
 
   it('slice 5a: workflows CRUD (blocks: индексы в POST, реальные id в connections) + drag', async () => {
-    const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const team = await ensureTeam();
 
     // create ± blocks/connections: from/to в POST /workflows — 0-based индексы массива blocks
     const created = await api.workflows.createWorkflow({
@@ -425,8 +439,7 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
   }, 30_000);
 
   it('slice 5c (R6.4): workflows DELETE — block cascade, connection, workflow (контракт 20 §2.6–2.8)', async () => {
-    const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const team = await ensureTeam();
 
     const created = await api.workflows.createWorkflow({
       team_id: team.id,
@@ -481,8 +494,7 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
 
   it('slice 5b: library — save → list → get → apply (new team + merge) + save_to_library', async () => {
     const stamp = Date.now();
-    const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const team = await ensureTeam();
 
     // save (snapshot команды)
     const saved = await api.library.saveToLibrary({
@@ -543,8 +555,7 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
   }, 30_000);
 
   it('slice 5b: library apply — workflow требует target_team_id; role/segment → 400', async () => {
-    const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const team = await ensureTeam();
     const stamp = Date.now();
 
     // workflow: save → apply c target → applied; без target → 400
@@ -558,8 +569,7 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
   // ---- slice 5b: audit + metrics ----
 
   it('slice 5b: audit log — запись после действия + фильтр action', async () => {
-    const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const team = await ensureTeam();
     const before = await api.history.getAuditLog({ action: 'library.save', limit: 1 });
     // любое успешное POST → запись в audit
     await api.library.saveToLibrary({
@@ -601,8 +611,7 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
   // ---- slice 5a: WS dashboard channel ----
 
   it('slice 5a: WS /ws — subscribe dashboard → task.created при создании задачи', async () => {
-    const teams = await api.teams.getTeams();
-    const team = teams.teams.find((t) => t.name.startsWith('IT-')) ?? teams.teams[0];
+    const team = await ensureTeam();
     const topo = await api.teams.getTopology(team.id);
     const stamp = Date.now();
 
