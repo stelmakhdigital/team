@@ -19,6 +19,13 @@ const (
 	outputLineMaxLen     = 4000    // длиннее — обрезаем (UI-терминал)
 )
 
+// isScriptNoise — служебные строки обёртки `script` (pty-зеркало pi-лога):
+// «Script started on …» / «Script done on …» пишутся в файл, но не являются
+// выводом агента — из транскрипта и live-батчей их вычищаем.
+func isScriptNoise(l string) bool {
+	return strings.HasPrefix(l, "Script started on") || strings.HasPrefix(l, "Script done on")
+}
+
 type tailState struct {
 	offset  int64
 	partial []byte
@@ -77,6 +84,9 @@ func (s *SessionService) tailLoop(sessID, teamID int64, roleName, path string, s
 		now := time.Now().UTC().Format(time.RFC3339)
 		out := make([]any, 0, len(lines))
 		for _, l := range lines {
+			if isScriptNoise(l) {
+				continue
+			}
 			if len(l) > outputLineMaxLen {
 				l = l[:outputLineMaxLen]
 			}
@@ -138,6 +148,11 @@ func readNewLogLines(path string, offset int64, partial []byte) ([]string, []byt
 	if len(full) == 0 {
 		return nil, partial, newOffset, true
 	}
+	// script-pty пишет CRLF: голый \r в конце строки — артефакт терминала,
+	// а не контент (WS-клиенты и тесты сравнивают текст точно).
 	lines := strings.Split(strings.TrimSuffix(string(full), "\n"), "\n")
+	for i, l := range lines {
+		lines[i] = strings.TrimSuffix(l, "\r")
+	}
 	return lines, partial, newOffset, true
 }

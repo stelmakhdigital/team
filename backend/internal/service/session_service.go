@@ -551,6 +551,10 @@ func (s *SessionService) Reap(ctx context.Context) (int, error) {
 				"runtime died / watchdog: process not alive"); err != nil {
 				continue
 			}
+			// Очистка runtime-остатков: tmux-сессия с remain-on-exit переживает
+			// мёртвую панель (иначе накапливаются зомби-сессии). Для process
+			// Stop на мёртвом pid безвреден (ошибки игнорируем).
+			_ = adapter.Stop(ctx, sess.RuntimeRef)
 			// T2: drift-алерт (attention-item) при обнаружении мёртвого runtime.
 			// Только если НЕ остановлена пользователем (StoppedByUs): user-stop —
 			// ожидаемо, не «смерть». Дедуп по unread drift на сессию.
@@ -924,6 +928,15 @@ func (s *SessionService) GetTranscript(ctx context.Context, id int64, limit int)
 	} else {
 		return nil, 0, false, rerr
 	}
+	// обёртка `script` (pty-зеркало pi) добавляет служебные строки — вычищаем
+	clean := lines[:0]
+	for _, l := range lines {
+		if isScriptNoise(l) {
+			continue
+		}
+		clean = append(clean, l)
+	}
+	lines = clean
 	total := len(lines)
 	hasMore := false
 	start := 0
@@ -967,7 +980,8 @@ func splitNonEmpty(s string) []string {
 	for _, c := range s {
 		if c == '\n' {
 			if cur != "" {
-				out = append(out, cur)
+				// голый \r (script-pty CRLF) — артефакт терминала, не контент
+				out = append(out, strings.TrimSuffix(cur, "\r"))
 			}
 			cur = ""
 		} else {

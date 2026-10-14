@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -29,11 +30,19 @@ func (a *TMuxAdapter) Start(ctx context.Context, spec Spec) (string, error) {
 	}
 	// QA-fix: `--config` убран — pi CLI его не поддерживает; pi-адаптер сам строит
 	// корректные флаги (--model/--system-prompt/...) и кладёт их в spec.Args.
-	// DirectTTY (TUI-агенты, напр. pi): запускать без пайпа — stdout остаётся TTY
-	// (иначе TUI не рендерится). Транскрипт — через capture-pane. Иначе: pipe в лог.
+	// DirectTTY (TUI-агенты, напр. pi): stdout должен оставаться TTY (иначе TUI
+	// не рендерится). Обёртка `script -q -f -e -c CMD LOG` даёт TTY и при этом
+	// ЗЕРКАЛИТ вывод в OutputFile — транскрипт-файл, usage-парсинг (context-
+	// метрики) и WS session.output (tailer) снова работают для pi-сессий.
+	// Служебные строки script («Script started/done…») фильтруются в
+	// GetTranscript/тейлере (scriptNoise). Если OutputFile пуст — без зеркала.
 	var cmdLine string
 	if spec.DirectTTY {
-		cmdLine = full
+		if spec.OutputFile != "" {
+			cmdLine = fmt.Sprintf("script -q -f -e -c %s %s", shq(full), shq(spec.OutputFile))
+		} else {
+			cmdLine = full
+		}
 	} else {
 		cmdLine = fmt.Sprintf("%s 2>&1 | tee -a %q", full, spec.OutputFile)
 	}
@@ -47,6 +56,9 @@ func (a *TMuxAdapter) Start(ctx context.Context, spec Spec) (string, error) {
 	}); err != nil {
 		return "", err
 	}
+	// remain-on-exit: после смерти child панель остаётся → Status читает
+	// pane_dead_status (exit code) и Reaper различит failed (crash) / stopped.
+	_ = exec.CommandContext(ctx, "tmux", "set-option", "-t", name, "remain-on-exit", "on").Run()
 	return name, nil
 }
 
@@ -63,15 +75,40 @@ func (a *TMuxAdapter) Stop(ctx context.Context, runtimeRef string) error {
 	return fmt.Errorf("tmux kill-session: %s", o)
 }
 
+// Status — живость tmux-сессии. С remain-on-exit (задаётся в Start) мёртвая
+// панель остаётся в сессии → exit code читается из pane_dead_status (tmux ≥3.6)
+// / pane_exit_code (старые версии). Сессии, убитые целиком (kill-session /
+// «can't find session»), трактуются как stopped (exit 0) — как раньше, но
+// теперь фразы tmux 3.x тоже распознаются (раньше Reap молча пропускал их и
+// crashed-сессии навечно висели «running»).
 func (a *TMuxAdapter) Status(ctx context.Context, runtimeRef string) (*Status, error) {
 	out, err := exec.CommandContext(ctx, "tmux", "has-session", "-t", runtimeRef).CombinedOutput()
+	o := strings.TrimSpace(string(out))
 	if err == nil {
+		po, _ := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", runtimeRef,
+			"#{pane_dead} #{pane_dead_status} #{pane_exit_code}").CombinedOutput()
+		f := strings.Fields(string(po))
+		if len(f) >= 1 && f[0] == "1" { // панель мертва (child вышел)
+			code := 0
+			for _, s := range f[1:] {
+				if n, perr := strconv.Atoi(s); perr == nil {
+					code = n
+					break
+				}
+			}
+			st := StateStopped
+			if code != 0 {
+				st = StateFailed
+			}
+			return &Status{Alive: false, State: st, ExitCode: intPtr(code)}, nil
+		}
 		return &Status{Alive: true, State: StateRunning}, nil
 	}
-	if strings.Contains(string(out), "no session") {
+	if strings.Contains(o, "no session") || strings.Contains(o, "can't find session") ||
+		strings.Contains(o, "no such session") || strings.Contains(o, "no server running") {
 		return &Status{Alive: false, State: StateStopped, ExitCode: intPtr(0)}, nil
 	}
-	return nil, fmt.Errorf("tmux has-session: %s", strings.TrimSpace(string(out)))
+	return nil, fmt.Errorf("tmux has-session: %s", o)
 }
 
 // Capture — стл-кадр панели tmux (последние lines строк) через capture-pane.
@@ -134,6 +171,12 @@ func orDash(s string) string {
 		return "."
 	}
 	return s
+}
+
+// shq — shell-кавычка одного аргумента (single-quote + '\”-эскейп) —
+// для -c аргумента script-обёртки.
+func shq(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func quoteArgs(args []string) []string {
