@@ -1751,3 +1751,12 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 }
 .skip-link:focus { left: 8px; }
 #main:focus { outline: none; }
+
+/* P3: mobile — фильтры Pulse и форма поиска транскриптов в одну колонку */
+@media (max-width: 640px) {
+  .pulse-filters { flex-direction: column; align-items: stretch; gap: 8px; }
+  .pulse-filter { display: flex; flex-direction: column; gap: 4px; }
+  .pulse-filter select { width: 100%; }
+  .ts-form-grid { flex-direction: column; align-items: stretch; }
+  .ts-field { min-width: 0; }
+}

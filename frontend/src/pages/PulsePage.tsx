@@ -196,7 +196,9 @@ export default function PulsePage() {
     feed.push(ev);
   }
   const teams = teamsQ.data?.teams ?? [];
-  const roles = distinctRoles(apiEvents);
+  // P3: роли фильтра — из api-истории И live-событий (unfiltered live — иначе
+  // выбранная роль выкинула бы остальные опции)
+  const roles = distinctRoles([...live, ...apiEvents]);
 
   return (
     <div className="page">

@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import App from '../src/App';
@@ -106,4 +106,52 @@ describe('U-X3: URL-sync TranscriptSearchPage', () => {
       expect(p.get('q')).toBe('auth');
     }, { timeout: 10_000 });
   }, 20_000);
+});
+
+describe('U-X4: focus-trap модалок (CaptureModal)', () => {
+  beforeEach(() => resetMockDb());
+
+  it('Tab циклится внутри модалки; Esc закрывает; фокус возвращается на триггер', async () => {
+    renderAt('/sessions');
+    const trigger = await screen.findByRole('button', { name: 'Capture session 1' }, { timeout: 10_000 });
+    trigger.focus(); // jsdom не фокусирует по клику — явно (в браузере клик даёт focus)
+    fireEvent.click(trigger);
+    // dialog без aria-label → имя из контента не матчится; ищем по роли и тексту
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 10_000 });
+    await screen.findByText(/Capture — Session #1/, {}, { timeout: 10_000 });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    for (let i = 0; i < 6; i++) {
+      fireEvent.keyDown(document.activeElement!, { key: 'Tab' });
+      expect(dialog.contains(document.activeElement)).toBe(true);
+    }
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 10_000 });
+    expect(document.activeElement).toBe(trigger);
+  }, 30_000);
+});
+
+describe('U-X6: Pulse роли фильтра пополняются live-событиями', () => {
+  beforeEach(() => resetMockDb());
+
+  it('WS session.started с новой ролью → опция появляется в селекте Роль', async () => {
+    vi.useFakeTimers();
+    try {
+      renderAt('/pulse');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      const emit = (globalThis as unknown as { __wsMockEmit?: (m: unknown) => void }).__wsMockEmit;
+      expect(emit).toBeDefined();
+      act(() => {
+        emit!({ type: 'session.started', data: { session_id: 999, role_id: 424, role_name: 'LiveRole', team_id: 1 }, timestamp: new Date().toISOString() });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      // waitFor под fake timers виснет — прямой запрос после flush
+      expect(screen.getByRole('option', { name: 'LiveRole' })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  }, 30_000);
 });
