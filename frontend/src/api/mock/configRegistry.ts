@@ -125,7 +125,7 @@ export function resolveConfig(overrides: Record<string, unknown>): ListConfigRes
   const meta: ConfigMeta = {
     project: 'team',
     instance: 'local',
-    version: '1.0.0',
+    version: '0.1.4',
     uptime_seconds: 3600,
     git_commit: 'mock000',
     git_branch: 'master',

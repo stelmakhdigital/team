@@ -886,6 +886,21 @@ parse-ошибка, version≠1. Скриншот @2560: import-preview-мода
   → test-daemon :8081 на свежей `data/test.db` (раньше тесты засоряли
   daemon.db — 51 IT-команда из 56; вычищено 2026-10-14).
 
+### W11.1. Version-sync + fix Spec-modal (2026-10-14)
+
+- **Версия согласована**: daemonVersion (backend) `1.0.0` → `0.1.4`,
+  package.json `0.1.0` → `0.1.4`, mock health meta → `0.1.4`,
+  openapi `info.version` → `0.1.4`. Правило: релизный тег = версия демона =
+  package.json (менять три места разом, см. комментарий в config_service.go).
+- **Spec-modal «Something went wrong»**: роли team 28 хранили spec как путь
+  (`agents/pi-worker.yaml`), а GET /agentspecs/{name} строгий (traversal-
+  защита) → 400. Исправлено: данные DB вычищены (3 роли → чистые имена),
+  SpecModal нормализует fetch-имя (`normalizeSpecName`: basename + strip
+  .yaml/.yml), заголовок показывает значение как есть; закрытая модалка
+  больше не делает фейковый fetch `/agentspecs/null`.
+- Daemon пересобран (git_commit 809b3b6) и перезапущен из корня репо
+  (workspace.root восстановлен); Settings показывает Version 0.1.4.
+
 ### W11. UX-раунд 5 (2026-10-14) — группировка ленты, a11y-таблицы
 
 - **Day-separators в Pulse** — разделители «Сегодня / Вчера / 11 октября»

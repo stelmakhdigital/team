@@ -714,5 +714,6 @@ func gitInfo() (string, string) {
 	return commit, branch
 }
 
-// daemonVersion — версия демона (build-info подключается отдельно).
-const daemonVersion = "1.0.0"
+// daemonVersion — версия демона; синхронизируется с git-тегом релиза
+// (v0.1.4) и frontend/package.json. Менять три места разом.
+const daemonVersion = "0.1.4"

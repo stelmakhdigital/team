@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dayLabel } from '../src/lib/format';
+import { normalizeSpecName } from '../src/components/SpecModal';
 
 // W11: разделители дат в ленте Pulse.
 describe('W11: dayLabel', () => {
@@ -16,5 +17,16 @@ describe('W11: dayLabel', () => {
   it('битая дата → пустая строка (сепаратор не рисуется)', () => {
     expect(dayLabel('garbage')).toBe('');
     expect(dayLabel(undefined)).toBe('');
+  });
+});
+
+describe('W11.1: normalizeSpecName (SpecModal fetch-имя)', () => {
+  it('путь «agents/pi-worker.yaml» → «pi-worker»', () => {
+    expect(normalizeSpecName('agents/pi-worker.yaml')).toBe('pi-worker');
+    expect(normalizeSpecName('agents/pi-reviewer.yml')).toBe('pi-reviewer');
+  });
+
+  it('чистое имя остаётся чистым', () => {
+    expect(normalizeSpecName('pi-worker')).toBe('pi-worker');
   });
 });

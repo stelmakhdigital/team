@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Team Daemon HTTP API
-  version: 1.0.0
+  version: 0.1.4
   description: |
     Публичный HTTP API демона оркестрации мультиагентных команд ("team").
     Stdlib net/http (ADR-001). Auth: API-ключ в заголовке `X-API-Key` (ADR-003);
@@ -4650,7 +4650,7 @@ components:
       properties:
         project: { type: string, example: team }
         instance: { type: string, example: local }
-        version: { type: string, example: "1.0.0" }
+        version: { type: string, example: "0.1.4" }
         uptime_seconds: { type: integer, format: int64 }
         git_commit: { type: string }
         git_branch: { type: string }

@@ -11,12 +11,24 @@ interface Props {
   onClose: () => void;
 }
 
+// W11.1: некоторые роли хранят spec как путь («agents/pi-worker.yaml»),
+// а endpoint принимает чистое имя (traversal-защита). Для fetch берём
+// basename без .yaml; заголовок модалки показывает значение как есть.
+export function normalizeSpecName(name: string): string {
+  return name.includes('/') || name.endsWith('.yaml') || name.endsWith('.yml')
+    ? name.split('/').pop()!.replace(/\.(yaml|yml)$/, '')
+    : name;
+}
+
 export default function SpecModal({ name, onClose }: Props) {
   const { toast } = useToast();
+  // имя для fetch: нормализованный basename (пустой, если модалка закрыта —
+  // fetch не выполняется, возвращается честный stub)
+  const fetchName = name ? normalizeSpecName(name) : '';
   const q = useQuery(
-    name ? `agent-spec.content.${name}` : 'agent-spec.content.idle',
-    () => api.teams.getAgentSpec(name!),
-    [name],
+    name ? `agent-spec.content.${fetchName}` : 'agent-spec.content.idle',
+    () => (name ? api.teams.getAgentSpec(fetchName) : Promise.resolve({ name: '', yaml: '' })),
+    [fetchName],
   );
   useEscapeStack(onClose, !!name);
 
@@ -37,7 +49,7 @@ export default function SpecModal({ name, onClose }: Props) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${name}.yaml`;
+    a.download = `${fetchName}.yaml`;
     a.click();
     URL.revokeObjectURL(url);
   };
