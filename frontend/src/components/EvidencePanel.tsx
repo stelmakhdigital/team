@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
@@ -6,6 +6,8 @@ import { useMutation } from '../hooks/useMutation';
 import { Spinner, errorMessage } from './ui/States';
 import { useToast } from './ui/Toast';
 import { formatDateTime } from '../lib/format';
+import { useEscapeStack } from '../hooks/useEscapeStack';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { Task, TaskEvidence, EvidenceType, EvidenceAction } from '../types/api';
 
 // P3.13: Proof/evidence на задачах (closure ≠ acceptance).
@@ -94,8 +96,26 @@ export default function EvidencePanel({ task, onChanged }: { task: Task; onChang
     }
   };
 
-  const doVerdict = async (evidId: number, action: EvidenceAction) => {
-    const reason = action === 'withdraw' ? '' : window.prompt('Reason (optional):') ?? '';
+  // P3 (U-X5): verdict через мини-модалку вместо window.prompt (sync API,
+  // блокирует вкладку, недоступен в headless-тестах)
+  const [verdictAsk, setVerdictAsk] = useState<{ evidId: number; action: EvidenceAction } | null>(null);
+  const [verdictReason, setVerdictReason] = useState('');
+  const verdictRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(verdictRef, verdictAsk !== null);
+  useEscapeStack(() => setVerdictAsk(null), verdictAsk !== null);
+
+  const doVerdict = (evidId: number, action: EvidenceAction) => {
+    // withdraw — без причины (отзыв своего вердикта); accept/reject — модалка
+    if (action === 'withdraw') {
+      void applyVerdict(evidId, action, '');
+      return;
+    }
+    setVerdictReason('');
+    setVerdictAsk({ evidId, action });
+  };
+
+  const applyVerdict = async (evidId: number, action: EvidenceAction, reason: string) => {
+    setVerdictAsk(null);
     try {
       await verdict.mutate(evidId, { action, reason: reason || undefined });
       toast('success', `Verdict: ${action}`);
@@ -206,6 +226,48 @@ export default function EvidencePanel({ task, onChanged }: { task: Task; onChang
         </form>
       ) : (
         <button className="btn btn-small" onClick={() => setSubmitting(true)} data-testid="evidence-add-btn">+ Add evidence</button>
+      )}
+
+      {verdictAsk && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Verdict ${verdictAsk.action}`}
+          data-hotkey-exclude
+          onClick={() => setVerdictAsk(null)}
+          ref={verdictRef}
+        >
+          <div className="modal verdict-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2>Verdict: {verdictAsk.action}</h2>
+              <button type="button" className="modal-close" aria-label="Close" onClick={() => setVerdictAsk(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <label className="ev-verdict-reason">
+                <span>Reason (опционально)</span>
+                <textarea
+                  value={verdictReason}
+                  onChange={(e) => setVerdictReason(e.target.value)}
+                  rows={3}
+                  placeholder="Почему accept/reject — решение попадёт в историю evidence"
+                  aria-label="Verdict reason"
+                />
+              </label>
+              <div className="wf-config-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={verdict.pending}
+                  onClick={() => void applyVerdict(verdictAsk.evidId, verdictAsk.action, verdictReason)}
+                >
+                  {verdict.pending ? '…' : `Подтвердить ${verdictAsk.action}`}
+                </button>
+                <button type="button" className="btn" onClick={() => setVerdictAsk(null)}>Отмена</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

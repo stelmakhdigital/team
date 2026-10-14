@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
+import { errorMessage } from './ui/States';
 import type { SendToSessionResult } from '../types/api';
 
 // P2.11: Send to session + verify — ввод текста в терминал живой сессии (tmux/pi)
@@ -69,9 +70,8 @@ export default function SendToSession({ sessionId }: { sessionId: number }) {
       </div>
       {pending ? <p className="muted small">Отправляем…</p> : null}
       {error ? (
-        <p className="send-error">
-          Ошибка (HTTP {error.status}): {error.message}
-        </p>
+        // P3: честный текст через errorMessage (дружественные коды вместо сырого HTTP)
+        <p className="send-error" role="alert">{errorMessage(error)}</p>
       ) : null}
       {result ? (
         <div className="send-result">

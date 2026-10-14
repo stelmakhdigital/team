@@ -17,8 +17,6 @@ function renderAt(path: string) {
 describe('P3.13: proof/evidence on tasks', () => {
   beforeEach(() => {
     resetMockDb();
-    // mock window.prompt (judge reason) — jsdom не реализует prompt
-    vi.spyOn(window, 'prompt').mockReturnValue('looks good');
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -74,6 +72,9 @@ describe('P3.13: proof/evidence on tasks', () => {
     const buildItem = (await screen.findByText('build.log', {}, { timeout: 10_000 })).closest('.ev-item') as HTMLElement;
     const acceptBtn = within(buildItem).getByRole('button', { name: /Accept/ });
     fireEvent.click(acceptBtn);
+    // P3: вердикт — через мини-модалку с reason (было window.prompt)
+    await screen.findByRole('dialog', { name: /Verdict accept/ }, { timeout: 10_000 });
+    fireEvent.click(screen.getByRole('button', { name: /Подтвердить accept/ }));
     // статус build.log → accepted (item обновился)
     await waitFor(() => {
       const items = screen.getAllByTestId('evidence-item');
