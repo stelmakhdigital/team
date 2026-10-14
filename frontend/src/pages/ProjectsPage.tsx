@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useEscapeStack } from '../hooks/useEscapeStack';
 import { Badge, EmptyState, ErrorState, PageSkeleton, errorMessage } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
@@ -153,8 +154,11 @@ function CreateProjectModal({ onClose, onDone }: { onClose: () => void; onDone: 
     }
   };
 
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(backdropRef, true);
+
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose} ref={backdropRef}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>New project</h2>
         <form onSubmit={submit}>

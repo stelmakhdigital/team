@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { api } from '../../api';
 import { useMutation } from '../../hooks/useMutation';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
@@ -173,8 +174,12 @@ export default function AgentResourcesPanel({ roleId, roleSpec, initialConfig, o
     }
   };
 
+  // U-X4: focus-trap
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(backdropRef, true);
+
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Agent resources">
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Agent resources" ref={backdropRef}>
       <div className="modal agent-resources-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>

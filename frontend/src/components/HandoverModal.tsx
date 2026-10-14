@@ -1,6 +1,7 @@
 
 import { useEscapeStack } from '../hooks/useEscapeStack';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { HandoverResult, HandoverStep } from '../types/api';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -49,8 +50,12 @@ export default function HandoverModal({ sessionId, onClose }: { sessionId: numbe
     // W3.1: Esc закрывает модалку (если она верхний оверлей)
   useEscapeStack(onClose, true);
 
+  // U-X4: focus-trap + возврат фокуса на триггер
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(backdropRef, true);
+
 return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={onClose} ref={backdropRef}>
       <div className="modal handover-modal" onClick={(e) => e.stopPropagation()}>
         <h2>Продолжить в новой сессии</h2>
         <label>

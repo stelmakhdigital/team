@@ -1,6 +1,7 @@
 
 import { useEscapeStack } from '../hooks/useEscapeStack';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { BriefingPreviewResponse, CreateSessionResponse, Role, Task } from '../types/api';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -82,8 +83,12 @@ export default function BriefingPreviewModal({
     // W3.1: Esc закрывает модалку (если она верхний оверлей)
   useEscapeStack(onClose, true);
 
+  // U-X4: focus-trap + возврат фокуса на триггер
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(backdropRef, true);
+
 return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={onClose} ref={backdropRef}>
       <div className="modal briefing-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>Брифинг сессии</h2>

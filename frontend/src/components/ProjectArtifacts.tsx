@@ -1,6 +1,7 @@
 
 import { useEscapeStack } from '../hooks/useEscapeStack';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { ReactNode } from 'react';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
@@ -32,6 +33,10 @@ export default function ProjectArtifacts({ projectId, root }: Props) {
   const [children, setChildren] = useState<Map<string, ProjectFileEntry[] | null>>(() => new Map());
   // A4: Esc закрывает preview-модалку, только когда preview открыт (active-флаг)
   useEscapeStack(() => setPreview(null), preview !== null);
+
+  // U-X4: focus-trap preview-модалки
+  const previewRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(previewRef, preview !== null); // open флагом — ref появляется вместе с модалкой
 
   const openPreview = async (path: string) => {
     setPreviewError(null);
@@ -191,7 +196,7 @@ return (
       </div>
 
       {preview && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={() => setPreview(null)}>
+        <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={() => setPreview(null)} ref={previewRef}>
           <div className="modal artifacts-preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <h2 className="mono small">{preview.path}</h2>

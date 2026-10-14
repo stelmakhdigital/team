@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -6,6 +6,7 @@ import { useQuery } from '../hooks/useQuery';
 import {  EmptyState, ErrorState, errorMessage, PageSkeleton , Badge } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import { useEscapeStack } from '../hooks/useEscapeStack';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { formatRelative } from '../lib/format';
 
 export default function WorkflowsPage() {
@@ -19,6 +20,9 @@ export default function WorkflowsPage() {
   const [creating, setCreating] = useState(false);
   // A2: Esc закрывает модалку создания (через useEscapeStack)
   useEscapeStack(() => setCreating(false), creating);
+  // U-X4: focus-trap модалки создания
+  const wfCreateRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(wfCreateRef, creating);
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [teamId, setTeamId] = useState<number | null>(null);
@@ -190,7 +194,7 @@ export default function WorkflowsPage() {
       )}
 
       {creating && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setCreating(false)}>
+        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setCreating(false)} ref={wfCreateRef}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>New workflow</h2>
             <form onSubmit={submit}>

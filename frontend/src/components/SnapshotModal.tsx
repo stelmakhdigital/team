@@ -1,6 +1,7 @@
 
 import { useEscapeStack } from '../hooks/useEscapeStack';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { errorMessage } from './ui/States';
@@ -41,9 +42,12 @@ export default function SnapshotModal({ sessionId, defaultName, onClose, onCreat
 
     // W3.1: Esc закрывает модалку (если она верхний оверлей)
   useEscapeStack(onClose, true);
+  // U-X4: focus-trap + возврат фокуса на триггер
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(backdropRef, true);
 
 return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" data-hotkey-exclude onClick={onClose} ref={backdropRef}>
       <div className="modal snapshot-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>Save as agent image</h2>
