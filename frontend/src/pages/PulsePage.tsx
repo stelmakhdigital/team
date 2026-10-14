@@ -1,3 +1,4 @@
+import { BackToTop } from '../components/ui/BackToTop';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '../hooks/useQuery';
@@ -303,6 +304,7 @@ export default function PulsePage() {
           </ul>
         </div>
       )}
+      <BackToTop />
     </div>
   );
 }

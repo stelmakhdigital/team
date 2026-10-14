@@ -407,6 +407,9 @@ tr:hover .wf-rename-btn, .wf-rename-btn:focus-visible { opacity: 0.7; }
 .btn-danger { border-color: var(--red); color: var(--red); }
 .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
 
+/* W10: кнопка «наверх» для длинных лент (над toast-стеком, z 200) */
+.back-to-top { position: fixed; right: 20px; bottom: 72px; z-index: 60; padding: 8px 14px; border-radius: 999px; background: var(--bg-panel); border: 1px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+
 /* U-X10: копирование с фидбеком */
 .h-inline { display: flex; align-items: center; gap: 8px; }
 .copy-btn { vertical-align: middle; font-family: inherit; }

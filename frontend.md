@@ -886,6 +886,17 @@ parse-ошибка, version≠1. Скриншот @2560: import-preview-мода
   → test-daemon :8081 на свежей `data/test.db` (раньше тесты засоряли
   daemon.db — 51 IT-команда из 56; вычищено 2026-10-14).
 
+### W10. UX-раунд 4 (2026-10-14) — WS-фидбек, back-to-top
+
+- **WS-reconnect тосты** — AppShell (единственный инстанс) тостит переходы:
+  потеря → «Соединение потеряно — переподключаюсь…» (error), восстановление →
+  «Соединение восстановлено» (success). Mock-режим молчит.
+- **BackToTop** — `ui/BackToTop`: появляется после 300px прокрутки (Pulse),
+  smooth-scroll, prefers-reduced-motion → 'auto', позиция над toast-стеком
+  (bottom 72px). Тесты ux_w10.test.tsx (4).
+- **Pulse тайм-тултип** — время ленты получило title с абсолютным временем.
+- Сьют **381 passed | 21 skipped (402)** ×3; скриншоты w10-*.
+
 ### W9. UX-раунд 3 (2026-10-14) — тайм-тултипы, CopyBtn, пауза ленты
 
 Референсы: Cloudscape «Timestamps» (relative primary + absolute on hover),

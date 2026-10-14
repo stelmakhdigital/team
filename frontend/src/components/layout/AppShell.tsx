@@ -5,6 +5,7 @@ import { api } from '../../api';
 import { getMockError, setMockError } from '../../api/mock/adapter';
 import type { MockErrorKind } from '../../api/mock/adapter';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import { useToast } from '../ui/Toast';
 import CommandPalette from '../CommandPalette';
 import ContextTree from '../ContextTree';
 import OnboardingTour, { type TourStep } from '../OnboardingTour';
@@ -66,6 +67,20 @@ export default function AppShell() {
   const cfg = getApiConfig();
   const [simError, setSimError] = useState<MockErrorKind | ''>(getMockError() ?? '');
   const { status: wsStatus, onMessage } = useWebSocket([]);
+  const { toast } = useToast();
+  // W10: честный фидбек WS-переподключения (AppShell — единственный
+  // инстанс, чтобы тосты не дублировались по страницам).
+  const prevWs = useRef(wsStatus);
+  useEffect(() => {
+    const prev = prevWs.current;
+    prevWs.current = wsStatus;
+    if (prev === wsStatus) return;
+    if ((prev === 'disconnected' || prev === 'reconnecting') && wsStatus === 'connected') {
+      toast('success', 'Соединение восстановлено');
+    } else if (prev === 'connected' && (wsStatus === 'reconnecting' || wsStatus === 'disconnected')) {
+      toast('error', 'Соединение потеряно — переподключаюсь…');
+    }
+  }, [wsStatus, toast]);
 
   // W4.2: onboarding-тур (first visit) — показывается, если tour.dismissed не задан.
   const [tourOpen, setTourOpen] = useState<boolean>(() => {
