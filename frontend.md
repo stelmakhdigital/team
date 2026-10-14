@@ -854,6 +854,31 @@ parse-ошибка, version≠1. Скриншот @2560: import-preview-мода
 - **W5.6 HistoryPage селектор** — select team/role → select задачи/сессии,
   URL-sync `?task=`/`?session=`.
 
+### W6. UX-аудит-фиксы + фичи (2026-10-14, автономный аудит)
+
+- **U-X1 ErrorBoundary** — верхняя граница (main.tsx, снаружи
+  Router/ToastProvider): крах рендера → экран «Интерфейс сломался» с
+  описанием и кнопками «⟳ Перезагрузить» / «Повторить рендер» вместо белого
+  экрана; CSS `.error-boundary`.
+- **U-X2 skip-link** — «Перейти к содержимому» (#main, первый таб-стоп) +
+  `#main[tabIndex=-1]`; CSS `.skip-link` (вне экрана до фокуса).
+- **U-X3 URL-sync фильтров** — TasksPage: URL — одна точка правды
+  `?team=&state=&project=&view=` (шеринг преднастроенных ссылок, парные
+  ссылки дашборда); TranscriptSearchPage: фильтры и выполненный поиск пишут
+  URL `?team_id=&role_id=&state=&q=` (раньше страница только ЧИТАЛА URL).
+  Тесты: `tests/ux_polish.test.tsx` (5 кейсов).
+
+### U-XB. Бэкенд-аудит (2026-10-14) — fix(runtime) `1d9e673`
+
+- Reap не признавал мёртвыми tmux/pi-сессии (tmux 3.x «can't find session»
+  не матчился) → crashed-сессии навечно `running`, без drift-алерта.
+- remain-on-exit + `pane_dead_status` → failed + exit_code; зомби-сессии
+  чистятся в Reap (adapter.Stop).
+- pi (DirectTTY) оборачивается в `script -q -f -e -c CMD LOG`: TTY для TUI
+  сохранён, stdout зеркалится в transcript-файл → usage-метрики (context_*)
+  и WS `session.output` (тейлер) работают для pi-сессий; CRLF-артефакты
+  вычищены. Интеграционные 18/21 зелёные (3 фикса — см. коммит `b3ed157`).
+
 ## 5. Команды
 ```bash
 cd frontend
