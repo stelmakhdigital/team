@@ -185,10 +185,10 @@ return (
         <table className="artifacts-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th className="col-size">Size</th>
-              <th className="col-modified">Modified</th>
-              <th className="col-actions">Actions</th>
+              <th scope="col">Name</th>
+              <th scope="col" className="col-size">Size</th>
+              <th scope="col" className="col-modified">Modified</th>
+              <th scope="col" className="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>{renderRows(files, 0)}</tbody>

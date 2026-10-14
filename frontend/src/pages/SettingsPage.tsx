@@ -155,12 +155,12 @@ function SectionCard({ section, highlight, onChanged }: { section: ConfigSection
       <table className="table cfg-table">
         <thead>
           <tr>
-            <th>Key</th>
-            <th>Type</th>
-            <th>Current value</th>
-            <th>Source</th>
-            <th>Restart</th>
-            <th></th>
+            <th scope="col">Key</th>
+            <th scope="col">Type</th>
+            <th scope="col">Current value</th>
+            <th scope="col">Source</th>
+            <th scope="col">Restart</th>
+            <th scope="col"></th>
           </tr>
         </thead>
         <tbody>
@@ -207,10 +207,10 @@ function EnvironmentCard({ environment }: { environment: ConfigEnvVar[] }) {
       <table className="table cfg-table">
         <thead>
           <tr>
-            <th>Env var</th>
-            <th>Value</th>
-            <th>Feeds key</th>
-            <th>Active source</th>
+            <th scope="col">Env var</th>
+            <th scope="col">Value</th>
+            <th scope="col">Feeds key</th>
+            <th scope="col">Active source</th>
           </tr>
         </thead>
         <tbody>

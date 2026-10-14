@@ -201,11 +201,11 @@ export default function HistoryPage() {
               <div className="table-wrap"><table className="table">
                 <thead>
                   <tr>
-                    <th>Time</th>
-                    <th>User</th>
-                    <th>Action</th>
-                    <th>Resource</th>
-                    <th>Severity</th>
+                    <th scope="col">Time</th>
+                    <th scope="col">User</th>
+                    <th scope="col">Action</th>
+                    <th scope="col">Resource</th>
+                    <th scope="col">Severity</th>
                   </tr>
                 </thead>
                 <tbody>

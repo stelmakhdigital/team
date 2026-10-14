@@ -7,6 +7,7 @@ import type { EventItem, WSServerMessage } from '../types/api';
 import { Badge, EmptyState, ErrorState, PageSkeleton } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { dayLabel, formatDateTime } from '../lib/format';
 
 // P2.9 — Pulse: единая лента событий системы (задачи/сессии/сообщения/алерты/
 // воркфлоу) с фильтрами, историей из API + live-prepend по WS (те же события).
@@ -286,21 +287,31 @@ export default function PulsePage() {
       ) : (
         <div className="card pulse-feed">
           <ul className="pulse-list">
-            {feed.map((ev) => (
-              <li key={`${ev.id}:${ev.created_at}`} className="pulse-item">
-                <Badge kind="type" value={TYPE_KIND[ev.type] ?? 'info'}>{ev.type}</Badge>
-                <div className="pulse-summary">
-                  <span className="pulse-text">{ev.summary}</span>
-                  {ev.entity_id > 0 ? (
-                    <EntityLink to={entityLink(ev)} title={entityLabel(ev)} className="pulse-entity">
-                      {entityLabel(ev)}
-                    </EntityLink>
-                  ) : null}
-                  {ev.team_name ? <span className="muted small"> · {ev.team_name}</span> : null}
-                </div>
-                <span className="muted small pulse-time">{humanElapsed(ev.created_at)}</span>
-              </li>
-            ))}
+            {feed.map((ev, idx) => {
+              // W11: разделитель дат («Сегодня», «Вчера», «12 октября») —
+              // паттерн группировки activity-feed (saasui.design)
+              const prev = idx > 0 ? feed[idx - 1] : null;
+              const sep = !prev || prev.created_at?.slice(0, 10) !== ev.created_at?.slice(0, 10);
+              const label = sep ? dayLabel(ev.created_at) : '';
+              return (
+                <li key={`${ev.id}:${ev.created_at}`} className="pulse-item">
+                  {sep && label && (
+                    <span className="pulse-daysep" aria-hidden="true">{label}</span>
+                  )}
+                  <Badge kind="type" value={TYPE_KIND[ev.type] ?? 'info'}>{ev.type}</Badge>
+                  <div className="pulse-summary">
+                    <span className="pulse-text">{ev.summary}</span>
+                    {ev.entity_id > 0 ? (
+                      <EntityLink to={entityLink(ev)} title={entityLabel(ev)} className="pulse-entity">
+                        {entityLabel(ev)}
+                      </EntityLink>
+                    ) : null}
+                    {ev.team_name ? <span className="muted small"> · {ev.team_name}</span> : null}
+                  </div>
+                  <span className="muted small pulse-time" title={formatDateTime(ev.created_at)}>{humanElapsed(ev.created_at)}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

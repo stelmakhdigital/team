@@ -68,13 +68,13 @@ export default function ProjectsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Path</th>
-                  <th>Kind</th>
-                  <th>Git</th>
-                  <th>State</th>
-                  <th>Updated</th>
-                  <th></th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Path</th>
+                  <th scope="col">Kind</th>
+                  <th scope="col">Git</th>
+                  <th scope="col">State</th>
+                  <th scope="col">Updated</th>
+                  <th scope="col"></th>
                 </tr>
               </thead>
               <tbody>

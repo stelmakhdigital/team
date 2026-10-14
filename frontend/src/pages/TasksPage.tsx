@@ -206,15 +206,15 @@ export default function TasksPage() {
           <div className="table-wrap"><table className="table">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Title</th>
-                <th>Team</th>
-                <th>Role</th>
-                <th>State</th>
-                <th>Due</th>
-                <th>Prio</th>
-                <th>Updated</th>
-                <th>Actions</th>
+                <th scope="col">#</th>
+                <th scope="col">Title</th>
+                <th scope="col">Team</th>
+                <th scope="col">Role</th>
+                <th scope="col">State</th>
+                <th scope="col">Due</th>
+                <th scope="col">Prio</th>
+                <th scope="col">Updated</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>

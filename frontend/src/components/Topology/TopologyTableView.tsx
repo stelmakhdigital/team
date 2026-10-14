@@ -65,13 +65,13 @@ export default function TopologyTableView({ segments, roles, liveSessions, tasks
       <table className="table topo-table" aria-label="Topology table">
         <thead>
           <tr>
-            <th>Role</th>
-            <th>Spec</th>
-            <th>Model</th>
-            <th>State</th>
-            <th>Ctx</th>
-            <th>Task</th>
-            <th></th>
+            <th scope="col">Role</th>
+            <th scope="col">Spec</th>
+            <th scope="col">Model</th>
+            <th scope="col">State</th>
+            <th scope="col">Ctx</th>
+            <th scope="col">Task</th>
+            <th scope="col"></th>
           </tr>
         </thead>
         {groups.map((g) => (

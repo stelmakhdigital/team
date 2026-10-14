@@ -290,12 +290,12 @@ export default function TeamsPage() {
           <div className="table-wrap"><table className="table">
             <thead>
               <tr>
-                <th>Team</th>
-                <th>State</th>
-                <th>Segments</th>
-                <th>Roles</th>
-                <th>Updated</th>
-                <th>Actions</th>
+                <th scope="col">Team</th>
+                <th scope="col">State</th>
+                <th scope="col">Segments</th>
+                <th scope="col">Roles</th>
+                <th scope="col">Updated</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>

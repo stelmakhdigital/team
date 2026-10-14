@@ -152,14 +152,14 @@ export default function WorkflowInstancePage() {
           <div className="table-wrap"><table className="detail-table">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Block</th>
-                <th>Type</th>
-                <th>Task</th>
-                <th>State</th>
-                <th>Exit</th>
-                <th>Actor</th>
-                <th>Exited</th>
+                <th scope="col">#</th>
+                <th scope="col">Block</th>
+                <th scope="col">Type</th>
+                <th scope="col">Task</th>
+                <th scope="col">State</th>
+                <th scope="col">Exit</th>
+                <th scope="col">Actor</th>
+                <th scope="col">Exited</th>
               </tr>
             </thead>
             <tbody>

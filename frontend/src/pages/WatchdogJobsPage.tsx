@@ -140,14 +140,14 @@ export default function WatchdogJobsPage() {
           <div className="table-wrap"><table className="data-table watchdog-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Policy</th>
-                <th>Сессия</th>
-                <th>Порог</th>
-                <th>Статус</th>
-                <th>Fired</th>
-                <th>Последний fire</th>
-                <th></th>
+                <th scope="col">Name</th>
+                <th scope="col">Policy</th>
+                <th scope="col">Сессия</th>
+                <th scope="col">Порог</th>
+                <th scope="col">Статус</th>
+                <th scope="col">Fired</th>
+                <th scope="col">Последний fire</th>
+                <th scope="col"></th>
               </tr>
             </thead>
             <tbody>

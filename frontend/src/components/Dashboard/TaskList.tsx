@@ -14,12 +14,12 @@ function TaskListInner({ tasks }: { tasks: Task[] }) {
       <div className="table-wrap"><table className="table">
         <thead>
           <tr>
-            <th>Task</th>
-            <th>Team</th>
-            <th>Assigned to</th>
-            <th>State</th>
-            <th>Progress</th>
-            <th>Updated</th>
+            <th scope="col">Task</th>
+            <th scope="col">Team</th>
+            <th scope="col">Assigned to</th>
+            <th scope="col">State</th>
+            <th scope="col">Progress</th>
+            <th scope="col">Updated</th>
           </tr>
         </thead>
         <tbody>

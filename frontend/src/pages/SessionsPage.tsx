@@ -190,14 +190,14 @@ export default function SessionsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>Role</th>
-                  <th>Team</th>
-                  <th>State</th>
-                  <th>Runtime</th>
-                  <th>Model</th>
-                  <th>Started</th>
-                  <th aria-label="Capture">⎙</th>
+                  <th scope="col">#</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Team</th>
+                  <th scope="col">State</th>
+                  <th scope="col">Runtime</th>
+                  <th scope="col">Model</th>
+                  <th scope="col">Started</th>
+                  <th scope="col" aria-label="Capture">⎙</th>
                 </tr>
               </thead>
               <tbody>

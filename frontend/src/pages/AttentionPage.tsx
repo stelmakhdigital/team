@@ -109,10 +109,10 @@ export default function AttentionPage() {
   const thead = (
     <thead>
       <tr>
-        <th className="atd-w-sev">Severity</th>
-        <th>Item</th>
-        <th className="atd-w-elapsed">Elapsed</th>
-        <th className="atd-w-action">Suggested action</th>
+        <th scope="col" className="atd-w-sev">Severity</th>
+        <th scope="col">Item</th>
+        <th scope="col" className="atd-w-elapsed">Elapsed</th>
+        <th scope="col" className="atd-w-action">Suggested action</th>
       </tr>
     </thead>
   );

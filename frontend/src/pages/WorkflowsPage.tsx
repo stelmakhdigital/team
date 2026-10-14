@@ -137,11 +137,11 @@ export default function WorkflowsPage() {
           <div className="table-wrap"><table className="table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Team</th>
-                <th>State</th>
-                <th>Engine</th>
-                <th>Updated</th>
+                <th scope="col">Name</th>
+                <th scope="col">Team</th>
+                <th scope="col">State</th>
+                <th scope="col">Engine</th>
+                <th scope="col">Updated</th>
               </tr>
             </thead>
             <tbody>

@@ -24,6 +24,19 @@ export function formatRelative(iso?: string): string {
   return `${Math.round(h / 24)}d ago`;
 }
 
+// W11: разделитель дат для лент («Сегодня», «Вчера», «12 октября»).
+const DAY_FMT = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
+
+export function dayLabel(iso?: string): string {
+  const d = new Date(iso ?? '');
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const s = d.toDateString();
+  if (s === now.toDateString()) return 'Сегодня';
+  if (s === new Date(now.getTime() - 86_400_000).toDateString()) return 'Вчера';
+  return DAY_FMT.format(d);
+}
+
 // P0.2: осталось до дедлайна (секунды) → "45m" / "3h" / "2d" (или просрочка)
 export function formatRelativeFromSecs(secs: number): string {
   const neg = secs < 0;
