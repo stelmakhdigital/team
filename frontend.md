@@ -868,6 +868,24 @@ parse-ошибка, version≠1. Скриншот @2560: import-preview-мода
   URL `?team_id=&role_id=&state=&q=` (раньше страница только ЧИТАЛА URL).
   Тесты: `tests/ux_polish.test.tsx` (5 кейсов).
 
+### W7. P3-бэклог Wave 5 (2026-10-14) — 5 отложенных пунктов закрыты
+
+- **P3-1 focus-trap** — `useFocusTrap(containerRef, open)`: фокус внутрь на
+  open, Tab/Shift+Tab циклятся внутри контейнера, возврат фокуса на триггер
+  на close; применён к CaptureModal, TeamsPage (create/import) и 4 модалкам
+  TasksPage.
+- **P3-2 verdict-модалка** — EvidencePanel accept/reject открывает
+  мини-модалку с textarea reason (window.prompt убран: блокировал вкладку,
+  ломал headless-тесты); withdraw — без причины; Esc закрывает.
+- **P3-3 честные ошибки** — SendToSession «Ошибка (HTTP …)» → `errorMessage()`.
+- **P3-4 Pulse live-роли** — селект Роль пополняется из live-событий
+  (`distinctRoles([...live, ...apiEvents])`, unfiltered live).
+- **P3-5 mobile ≤640px** — `.pulse-filters` и `.ts-form-grid` сворачиваются
+  в одну колонку.
+- Интеграционные тесты изолированы от живой БД: `scripts/test-integration.sh`
+  → test-daemon :8081 на свежей `data/test.db` (раньше тесты засоряли
+  daemon.db — 51 IT-команда из 56; вычищено 2026-10-14).
+
 ### U-XB. Бэкенд-аудит (2026-10-14) — fix(runtime) `1d9e673`
 
 - Reap не признавал мёртвыми tmux/pi-сессии (tmux 3.x «can't find session»
