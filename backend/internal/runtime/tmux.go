@@ -46,6 +46,11 @@ func (a *TMuxAdapter) Start(ctx context.Context, spec Spec) (string, error) {
 	} else {
 		cmdLine = fmt.Sprintf("%s 2>&1 | tee -a %q", full, spec.OutputFile)
 	}
+	// remain-on-exit задаём ВНУТРИ панельной команды (до старта child) — иначе
+	// гонка: child (напр. `exit 3`) может умереть раньше, чем внешний
+	// `tmux set-option` после new-session → сессия исчезает целиком → Status
+	// даёт stopped/exit 0 вместо failed/exit 3 (флейк crash-детекции).
+	cmdLine = fmt.Sprintf("tmux set-option -t %s remain-on-exit on; %s", shq(name), cmdLine)
 	if _, err := a.Process.Start(ctx, Spec{
 		SessionID:  spec.SessionID,
 		WorkingDir: spec.WorkingDir,
