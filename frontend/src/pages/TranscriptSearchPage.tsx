@@ -43,7 +43,7 @@ function groupBySession(items: TranscriptMatch[]): Map<number, TranscriptMatch[]
 // с контекст-окном (подсветка).
 export default function TranscriptSearchPage() {
   // W5.5: prefill фильтров из URL (ссылка «Искать в транскриптах» на SessionsPage)
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [teamId, setTeamId] = useState<number | ''>(
     searchParams.get('team_id') ? Number(searchParams.get('team_id')) : '',
@@ -54,6 +54,16 @@ export default function TranscriptSearchPage() {
   const [state, setState] = useState<SessionState | ''>('');
   const [result, setResult] = useState<TranscriptSearchResult | null>(null);
   const [searched, setSearched] = useState(false);
+
+  // U-X3: фильтры → URL (shareable-ссылки; replace — не растить историю)
+  const syncUrl = (team: number | '', role: number | '', st: SessionState | '', query: string) => {
+    const p = new URLSearchParams();
+    if (team !== '') p.set('team_id', String(team));
+    if (role !== '') p.set('role_id', String(role));
+    if (st) p.set('state', st);
+    if (query) p.set('q', query);
+    setSearchParams(p, { replace: true });
+  };
 
   const { data: teams } = useQuery('teams', () => api.teams.getTeams(), []);
   const { data: teamDetail } = useQuery(
@@ -76,6 +86,7 @@ export default function TranscriptSearchPage() {
       state: state || undefined,
       limit: 50,
     };
+    syncUrl(teamId, roleId, state, query); // U-X3: URL отражает выполненный поиск
     search.mutate(params).then((r) => { setResult(r); setSearched(true); }).catch(() => {});
   };
 
@@ -102,7 +113,7 @@ export default function TranscriptSearchPage() {
           </label>
           <label className="ts-field">
             <span>Команда</span>
-            <select value={teamId} onChange={(e) => { setTeamId(e.target.value ? Number(e.target.value) : ''); setRoleId(''); }}>
+            <select value={teamId} onChange={(e) => { const v = e.target.value ? Number(e.target.value) : ''; setTeamId(v); setRoleId(''); syncUrl(v, '', state, q); }}>
               <option value="">— все —</option>
               {(teams?.teams ?? []).map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
@@ -111,7 +122,7 @@ export default function TranscriptSearchPage() {
           </label>
           <label className="ts-field">
             <span>Роль</span>
-            <select value={roleId} onChange={(e) => setRoleId(e.target.value ? Number(e.target.value) : '')} disabled={!teamId}>
+            <select value={roleId} onChange={(e) => { const v = e.target.value ? Number(e.target.value) : ''; setRoleId(v); syncUrl(teamId, v, state, q); }} disabled={!teamId}>
               <option value="">{teamId ? '— все —' : 'выберите команду'}</option>
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>{r.name}</option>
@@ -120,7 +131,7 @@ export default function TranscriptSearchPage() {
           </label>
           <label className="ts-field">
             <span>Состояние</span>
-            <select value={state} onChange={(e) => setState(e.target.value as SessionState | '')}>
+            <select value={state} onChange={(e) => { const v = e.target.value as SessionState | ''; setState(v); syncUrl(teamId, roleId, v, q); }}>
               {STATE_OPTIONS.map((s) => (
                 <option key={s || 'all'} value={s}>{s || '— все —'}</option>
               ))}

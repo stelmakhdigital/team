@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
@@ -27,6 +28,34 @@ export default function TasksPage() {
   const [stateFilter, setStateFilter] = useState<TaskState | 'all'>('all');
   const [projectFilter, setProjectFilter] = useState<number | 'all'>('all'); // P1.0
   const [view, setView] = useState<'all' | 'overdue'>('all');
+
+  // U-X3: URL — одна точка правды для фильтров (?team=&state=&project=&view=)
+  // — ссылки с преднастроенными фильтрами шарятся (как SessionsPage W5.5).
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const t = searchParams.get('team');
+    const st = searchParams.get('state');
+    const pr = searchParams.get('project');
+    const v = searchParams.get('view');
+    setTeamFilter(t && t !== 'all' ? Number(t) : 'all');
+    setStateFilter(st && st !== 'all' ? (st as TaskState) : 'all');
+    setProjectFilter(pr && pr !== 'all' ? Number(pr) : 'all');
+    setView(v === 'overdue' ? 'overdue' : 'all');
+  }, [searchParams]);
+
+  const syncUrl = (
+    team: number | 'all',
+    state: TaskState | 'all',
+    project: number | 'all',
+    v: 'all' | 'overdue',
+  ) => {
+    const p = new URLSearchParams();
+    if (team !== 'all') p.set('team', String(team));
+    if (state !== 'all') p.set('state', state);
+    if (project !== 'all') p.set('project', String(project));
+    if (v !== 'all') p.set('view', v);
+    setSearchParams(p, { replace: true });
+  };
   const [creating, setCreating] = useState(false);
   const [closedId, setClosedId] = useState<number | null>(null);
   const [blockId, setBlockId] = useState<number | null>(null); // P0.3: block with wake
@@ -104,10 +133,10 @@ export default function TasksPage() {
       </div>
 
       <div className="tabs" role="tablist" aria-label="Tasks view">
-        <button role="tab" aria-selected={view === 'all'} className={`tab${view === 'all' ? ' tab-active' : ''}`} onClick={() => setView('all')}>
+        <button role="tab" aria-selected={view === 'all'} className={`tab${view === 'all' ? ' tab-active' : ''}`} onClick={() => { setView('all'); syncUrl(teamFilter, stateFilter, projectFilter, 'all'); }}>
           All tasks
         </button>
-        <button role="tab" aria-selected={view === 'overdue'} className={`tab${view === 'overdue' ? ' tab-active' : ''}`} onClick={() => setView('overdue')}>
+        <button role="tab" aria-selected={view === 'overdue'} className={`tab${view === 'overdue' ? ' tab-active' : ''}`} onClick={() => { setView('overdue'); syncUrl(teamFilter, stateFilter, projectFilter, 'overdue'); }}>
           Overdue{overdue.data ? ` (${overdue.data.total})` : ''}
         </button>
       </div>
@@ -119,7 +148,7 @@ export default function TasksPage() {
             <select
               aria-label="Team (filter)"
               value={String(teamFilter)}
-              onChange={(e) => setTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              onChange={(e) => { const v = e.target.value === 'all' ? 'all' : Number(e.target.value); setTeamFilter(v); syncUrl(v, stateFilter, projectFilter, view); }}
             >
               <option value="all">All teams</option>
               {teams.data?.teams.map((t) => (
@@ -131,7 +160,7 @@ export default function TasksPage() {
           </label>
           <label>
             State
-            <select aria-label="State (filter)" value={stateFilter} onChange={(e) => setStateFilter(e.target.value as TaskState | 'all')}>
+            <select aria-label="State (filter)" value={stateFilter} onChange={(e) => { const v = e.target.value as TaskState | 'all'; setStateFilter(v); syncUrl(teamFilter, v, projectFilter, view); }}>
               {STATE_FILTERS.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -144,7 +173,7 @@ export default function TasksPage() {
             <select
               aria-label="Project (filter)"
               value={String(projectFilter)}
-              onChange={(e) => setProjectFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              onChange={(e) => { const v = e.target.value === 'all' ? 'all' : Number(e.target.value); setProjectFilter(v); syncUrl(teamFilter, stateFilter, v, view); }}
             >
               <option value="all">All projects</option>
               {projects.data?.projects.map((p) => (
