@@ -109,10 +109,10 @@ type BundleRoleLayout struct {
 }
 
 type BundleRelativeLayout struct {
-	RelativeID int64     `json:"relative_id"`
-	FromRoleID int64     `json:"from_role_id"`
-	ToRoleID   int64     `json:"to_role_id"`
-	Path       []Point   `json:"path,omitempty"`
+	RelativeID int64   `json:"relative_id"`
+	FromRoleID int64   `json:"from_role_id"`
+	ToRoleID   int64   `json:"to_role_id"`
+	Path       []Point `json:"path,omitempty"`
 }
 
 // BundleWorkflow — воркфлоу команды. Config несёт структуру воркфлоу

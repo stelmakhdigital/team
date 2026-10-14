@@ -19,11 +19,11 @@ func bundleTeamSpec() map[string]any {
 		"spec": map[string]any{
 			"segments": []map[string]any{
 				{
-					"name": "Backend",
+					"name":   "Backend",
 					"layout": map[string]any{"x": 10.0, "y": 20.0, "width": 420.0, "height": 260.0},
 				},
 				{
-					"name": "Review",
+					"name":   "Review",
 					"layout": map[string]any{"x": 500.0, "y": 20.0, "width": 380.0, "height": 260.0},
 				},
 			},

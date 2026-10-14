@@ -55,7 +55,6 @@ type relativeStore interface {
 	UpdateConfig(ctx context.Context, tx repository.DBTX, id int64, cfg map[string]any) error
 }
 
-
 // chatRoomStore — создание chatroom'ов при создании команды/сегмента (slice 4).
 type chatRoomStore interface {
 	Create(ctx context.Context, tx repository.DBTX, c *models.Chatroom) error
