@@ -711,13 +711,15 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
     expect(d1.context_used_percentage!).toBeCloseTo(10, 1); // 20000/200000
     expect(d1.context_total_input_tokens).toBe(20000);
     expect(d1.context_total_output_tokens).toBe(10);
-    expect(d1.model).toBeUndefined(); // process-рантайм — model omit
+    expect(typeof d1.model).toBe('string'); // pi-спека (pi_config.model) — модель честно репортится
     const stop1 = await api.sessions.stop(s1.id);
     expect(stop1.state).toBe('stopped');
 
-    // 2) обычный вывод (без usage, TUI-подобный) → context-поля OMIT (не 0!)
+    // 2) обычный вывод (без usage) через process-рантайм → context-поля OMIT (не 0!),
+    //    model omit (process-рантайм не задаёт модель)
     const s2 = await api.sessions.create(team.id, {
       role_id: plainRole.id,
+      runtime_type: 'process',
       command: 'sh',
       args: ['-c', 'echo plain-output; sleep 60'],
     });
@@ -780,6 +782,11 @@ describe.runIf(backendAvailable)('integration: frontend real client vs backend',
       const overall = setTimeout(() => fail(new Error('WS session.output: overall timeout')), 25_000);
 
       ws = new WS!(WS_URL);
+      // контракт: подписка обязательна (как фронтовой useWebSocket) —
+      // без subscribe канал session:<id> не доставляется
+      ws.onopen = () => {
+        ws?.send(JSON.stringify({ type: 'subscribe', channels: [`session:${sid}`] }));
+      };
       ws.onmessage = (ev: MessageEvent) => {
         const m = JSON.parse(String(ev.data));
         if (m.type !== 'session.output') return;
