@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Time } from '../components/ui/Time';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -7,7 +8,7 @@ import { Badge, ErrorState, PageSkeleton, errorMessage } from '../components/ui/
 import { useToast } from '../components/ui/Toast';
 import EntityLink from '../components/ui/EntityLink';
 import ProjectArtifacts from '../components/ProjectArtifacts';
-import { formatRelative, formatCost } from '../lib/format';
+import {formatCost} from '../lib/format';
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -166,7 +167,7 @@ export default function ProjectDetailPage() {
             <tr>
               <th>Created / Updated</th>
               <td className="muted">
-                {formatRelative(p.created_at)} / {formatRelative(p.updated_at)}
+                <Time iso={p.created_at}/> / <Time iso={p.updated_at}/>
               </td>
             </tr>
           </tbody>

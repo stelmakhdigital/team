@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Time } from '../components/ui/Time';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -7,7 +8,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useEscapeStack } from '../hooks/useEscapeStack';
 import { Badge, EmptyState, ErrorState, PageSkeleton, errorMessage } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
-import { formatRelative } from '../lib/format';
+import {} from '../lib/format';
 import type { ProjectKind } from '../types/api';
 
 export default function ProjectsPage() {
@@ -91,7 +92,7 @@ export default function ProjectsPage() {
                     </td>
                     <td>{p.git ? <Badge kind="type" value="git" /> : <span className="muted">—</span>}</td>
                     <td>{p.archived ? <Badge kind="warn" value="archived" /> : <Badge kind="entity" value="active" />}</td>
-                    <td className="muted">{formatRelative(p.updated_at)}</td>
+                    <td className="muted"><Time iso={p.updated_at}/></td>
                     <td>
                       {!p.archived && (
                         <button className="btn btn-small" disabled={archive.pending} onClick={() => doArchive(p.id, p.name)}>

@@ -1,10 +1,11 @@
 import { Fragment, useState, useEffect } from 'react';
+import { Time } from '../components/ui/Time';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import {  EmptyState, ErrorState, PageSkeleton, Unavailable, isNotFoundError , Badge } from '../components/ui/States';
 import EntityLink from '../components/ui/EntityLink';
-import { formatDateTime, formatRelative } from '../lib/format';
+import {formatDateTime} from '../lib/format';
 
 // W5.6 — History: селектор команды/роли → задачи/сессии (раньше — только первая
 // из списка), URL-sync (?team=/?role=/?task=/?session=). Audit log — без изменений.
@@ -264,7 +265,7 @@ export default function HistoryPage() {
                       </strong>{' '}
                       <span className="muted small">
                         by {h.actor_type}
-                        {h.actor_role_name ? ` (${h.actor_role_name})` : ''} · {formatRelative(h.created_at)}
+                        {h.actor_role_name ? ` (${h.actor_role_name})` : ''} · <Time iso={h.created_at}/>
                       </span>
                       {h.comment && <div className="muted">{h.comment}</div>}
                     </div>

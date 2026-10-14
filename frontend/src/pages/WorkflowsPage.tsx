@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { Time } from '../components/ui/Time';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
@@ -7,7 +8,7 @@ import {  EmptyState, ErrorState, errorMessage, PageSkeleton , Badge } from '../
 import { useToast } from '../components/ui/Toast';
 import { useEscapeStack } from '../hooks/useEscapeStack';
 import { useFocusTrap } from '../hooks/useFocusTrap';
-import { formatRelative } from '../lib/format';
+import {} from '../lib/format';
 
 export default function WorkflowsPage() {
   const { data, loading, error, refetch } = useQuery('workflows.list', () =>
@@ -185,7 +186,7 @@ export default function WorkflowsPage() {
                       </button>
                     )}
                   </td>
-                  <td className="muted">{formatRelative(w.updated_at)}</td>
+                  <td className="muted"><Time iso={w.updated_at}/></td>
                 </tr>
               ))}
             </tbody>

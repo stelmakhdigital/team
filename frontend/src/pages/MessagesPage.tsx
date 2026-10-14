@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Time } from '../components/ui/Time';
 import { api } from '../api';
 import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
@@ -6,7 +7,7 @@ import { Badge, EmptyState, ErrorState, Spinner, Unavailable, isNotFoundError } 
 import EntityLink from '../components/ui/EntityLink';
 import MailboxPanel from '../components/MailboxPanel';
 import { useToast } from '../components/ui/Toast';
-import { formatRelative } from '../lib/format';
+import {} from '../lib/format';
 
 // T3: 2-панная раскладка (как в мессенджере): слева — диалоги, сгруппированные в
 // «Direct» и «Rooms»; справа — сообщения выбранного диалога + ввод. Direct — по
@@ -192,7 +193,7 @@ export default function MessagesPage() {
                 {roomMessages.data?.messages.map((m) => (
                   <div key={m.id} className={`chat-bubble${m.is_mine ? ' chat-mine' : ''}`}>
                     <div className="muted small">
-                      {m.from_role_name} · {formatRelative(m.created_at)}
+                      {m.from_role_name} · <Time iso={m.created_at}/>
                     </div>
                     {m.body}
                   </div>
@@ -216,7 +217,7 @@ export default function MessagesPage() {
                   <div key={m.id} className={`chat-bubble${m.is_mine ? ' chat-mine' : ''}`}>
                     <div className="muted small">
                       {m.from_role_name ?? 'system'}
-                      {m.to_role_name ? ` → ${m.to_role_name}` : ''} · {formatRelative(m.created_at)}
+                      {m.to_role_name ? ` → ${m.to_role_name}` : ''} · <Time iso={m.created_at}/>
                       {m.queue_task_id && (
                         <> · <EntityLink to={`/tasks/${m.queue_task_id}`} title="Open related task">#{m.queue_task_id}</EntityLink></>
                       )}

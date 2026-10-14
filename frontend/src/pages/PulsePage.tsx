@@ -145,6 +145,9 @@ export default function PulsePage() {
   );
   const teamsQ = useQuery('pulse.teams', () => api.teams.getTeams());
   const [live, setLive] = useState<EventItem[]>([]);
+  const [paused, setPaused] = useState(false);
+  // pausedRef — чтобы колбэк WS не переподписывался на каждый toggle
+  const pausedRef = useRef(false);
   const { onMessage } = useWebSocket(['dashboard']);
 
   // live-prepend по WS (W5.1): события копятся в ref-буфере и сбрасываются одним
@@ -158,6 +161,13 @@ export default function PulsePage() {
     const ev = wsToEvent(m);
     if (!ev) return;
     buffer.current.push(ev);
+    // W9: пауза ленты — события копятся в буфере (cap 200, старейшие вытесняются),
+    // flush откладывается до «Возобновить» (паттерн activity-feed: чтение без
+    // прыгающих строк, см. saasui.design activity-feed UX).
+    if (pausedRef.current) {
+      if (buffer.current.length > 200) buffer.current.shift();
+      return;
+    }
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       const buf = buffer.current;
@@ -168,6 +178,17 @@ export default function PulsePage() {
     }, 300);
   }, []);
   onMessage(onEvent);
+
+  const pauseFeed = () => { pausedRef.current = true; setPaused(true); };
+  const resumeFeed = () => {
+    pausedRef.current = false;
+    setPaused(false);
+    // flush накопленного буфера немедленно (одним prepend)
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    const buf = buffer.current;
+    buffer.current = [];
+    if (buf.length > 0) setLive((prev) => [...buf.reverse(), ...prev].slice(0, 50));
+  };
 
   if (q.loading) {
     return <div className="page"><PageSkeleton label="Загружаю ленту событий…" /></div>;
@@ -231,6 +252,15 @@ export default function PulsePage() {
             {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </label>
+        <button
+          type="button"
+          className={`btn btn-sm pulse-pause${paused ? ' pulse-pause--paused' : ''}`}
+          onClick={paused ? resumeFeed : pauseFeed}
+          title={paused ? 'Возобновить ленту — накопленные события появятся сразу' : 'Пауза ленты: новые события копятся и не сдвигают строки'}
+          aria-pressed={paused}
+        >
+          {paused ? '▶ Возобновить' : 'Пауза'}
+        </button>
         <label className="pulse-filter">
           Роль
           <select value={roleF} onChange={(e) => setRoleF(e.target.value)}>
@@ -240,6 +270,11 @@ export default function PulsePage() {
         </label>
       </div>
 
+      {paused && (
+        <p className="muted small pulse-paused-note" role="status">
+          Лента на паузе — новые события копятся (до 200) и появятся по «Возобновить».
+        </p>
+      )}
       {feed.length === 0 ? (
         <div className="card">
           <EmptyState

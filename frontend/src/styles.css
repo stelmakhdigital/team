@@ -406,6 +406,11 @@ tr:hover .wf-rename-btn, .wf-rename-btn:focus-visible { opacity: 0.7; }
 .btn-primary:hover { filter: brightness(0.92); } /* darken on hover to keep ≥4.5:1 (lightening would drop below) */
 .btn-danger { border-color: var(--red); color: var(--red); }
 .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
+
+/* U-X10: копирование с фидбеком */
+.h-inline { display: flex; align-items: center; gap: 8px; }
+.copy-btn { vertical-align: middle; font-family: inherit; }
+.copy-btn--ok { color: var(--green); border-color: var(--green); }
 .btn-icon {
   background: transparent;
   border: 1px solid var(--border);
@@ -1281,6 +1286,9 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
 .badge-type-workflow { color: var(--accent-strong); border-color: var(--accent-strong); }
 .pulse-filters { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 16px; }
 .pulse-filter { display: flex; flex-direction: column; gap: 4px; font-size: 0.72rem; color: var(--text-muted); }
+.pulse-pause { align-self: center; }
+.pulse-pause--paused { color: var(--yellow); border-color: var(--yellow); }
+.pulse-paused-note { padding: 8px 16px 0; margin: 0; }
 .pulse-filter select { font-size: 0.85rem; padding: 6px 8px; }
 .pulse-feed { padding: 4px 0; }
 .pulse-list { list-style: none; margin: 0; padding: 0; }

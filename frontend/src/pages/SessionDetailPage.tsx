@@ -1,5 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { CopyBtn } from '../components/ui/CopyBtn';
+import { Time } from '../components/ui/Time';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -10,7 +12,7 @@ import SendToSession from '../components/SendToSession';
 import WalkPanel from '../components/WalkPanel';
 import PosturePanel from '../components/PosturePanel';
 import SnapshotModal from '../components/SnapshotModal';
-import { formatRelative, formatCost } from '../lib/format';
+import {formatCost} from '../lib/format';
 
 // U4b: session drill-down — session metrics + history + transcript (messages), fetch-by-id.
 function fmtTokens(n?: number): string {
@@ -108,10 +110,21 @@ export default function SessionDetailPage() {
       <div className="detail-layout">
         <div className="detail-main">
           <div className="card">
-            <h2>Session #{s.id}</h2>
+            <div className="h-inline">
+              <h2>Session #{s.id}</h2>
+              <CopyBtn text={String(s.id)} label="ID сессии" />
+            </div>
             <dl className="cfg-meta-grid">
               {metrics.map(([k, v]) => (
-                <div key={k} className="cfg-meta-item"><dt>{k}</dt><dd>{v}</dd></div>
+                <div key={k} className="cfg-meta-item">
+                  <dt>{k}</dt>
+                  <dd>
+                    {v}
+                    {(k === 'Log' || k === 'Ref') && (
+                      <CopyBtn text={v} label={`поле ${k}`} />
+                    )}
+                  </dd>
+                </div>
               ))}
             </dl>
           </div>
@@ -175,7 +188,7 @@ export default function SessionDetailPage() {
                       {m.role ?? m.message_type}
                       {m.metadata?.tool_name ? ` · ${m.metadata.tool_name}` : ''}
                       {m.metadata?.tokens ? ` · ${m.metadata.tokens} tok` : ''}
-                      {m.metadata?.model ? ` · ${m.metadata.model}` : ''} · {formatRelative(m.created_at)}
+                      {m.metadata?.model ? ` · ${m.metadata.model}` : ''} · <Time iso={m.created_at}/>
                     </div>
                     <pre className="transcript-content">{m.content}</pre>
                     {m.metadata?.tool_result && <pre className="transcript-content muted">{m.metadata.tool_result}</pre>}
@@ -203,7 +216,7 @@ export default function SessionDetailPage() {
             <ul className="hist-list">
               {history.map((h) => (
                 <li key={h.id} className="hist-entry">
-                  <div className="muted small">{formatRelative(h.created_at)} · {h.actor_type}{h.actor_role_name ? ` · ${h.actor_role_name}` : ''}</div>
+                  <div className="muted small"><Time iso={h.created_at}/> · {h.actor_type}{h.actor_role_name ? ` · ${h.actor_role_name}` : ''}</div>
                   <div className="hist-transition">
                     {h.from_state && <span className="muted">{h.from_state} →</span>} <strong>{h.to_state}</strong>
                   </div>

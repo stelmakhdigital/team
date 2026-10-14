@@ -6,7 +6,8 @@ import { useQuery } from '../hooks/useQuery';
 import { Badge, ErrorState, PageSkeleton, errorMessage } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
 import EntityLink from '../components/ui/EntityLink';
-import { formatRelative } from '../lib/format';
+import {} from '../lib/format';
+import { Time } from '../components/ui/Time';
 
 const stateKind: Record<string, 'entity' | 'warn'> = {
   running: 'entity',
@@ -182,7 +183,7 @@ export default function WorkflowInstancePage() {
                     </td>
                     <td className="muted small">{s.exit_kind ?? '—'}</td>
                     <td className="muted small">{s.actor_name ?? '—'}</td>
-                    <td className="muted small">{s.exited_at ? formatRelative(s.exited_at) : '—'}</td>
+                    <td className="muted small">{s.exited_at ? <Time iso={s.exited_at}/> : '—'}</td>
                   </tr>
                 );
               })}

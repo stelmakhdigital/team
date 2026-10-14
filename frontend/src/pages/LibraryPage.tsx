@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Time } from '../components/ui/Time';
 import { useNavigate } from 'react-router-dom';
 import YAML from 'yaml';
 import { api } from '../api';
@@ -6,7 +7,7 @@ import { useMutation } from '../hooks/useMutation';
 import { useQuery } from '../hooks/useQuery';
 import {  EmptyState, ErrorState, PageSkeleton, Spinner, Unavailable, isNotFoundError , Badge, errorMessage } from '../components/ui/States';
 import { useToast } from '../components/ui/Toast';
-import { formatRelative } from '../lib/format';
+import {} from '../lib/format';
 
 export default function LibraryPage() {
   const [search, setSearch] = useState('');
@@ -174,7 +175,7 @@ export default function LibraryPage() {
                 <h3>{item.name}</h3>
                 {item.description && <p className="muted small">{item.description}</p>}
                 <div className="muted small">
-                  {item.downloads_count} downloads · updated {formatRelative(item.updated_at)}
+                  {item.downloads_count} downloads · updated <Time iso={item.updated_at}/>
                 </div>
                 {item.tags && item.tags.length > 0 && (
                   <div className="group-chips">
@@ -515,7 +516,7 @@ export default function LibraryPage() {
               <ul>
                 {detail.data.versions.map((v) => (
                   <li key={v.version} className="muted small">
-                    {v.version} — {v.changes ?? ''} ({formatRelative(v.created_at)})
+                    {v.version} — {v.changes ?? ''} (<Time iso={v.created_at}/>)
                   </li>
                 ))}
               </ul>

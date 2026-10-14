@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { CopyBtn } from '../components/ui/CopyBtn';
+import { Time } from '../components/ui/Time';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useQuery } from '../hooks/useQuery';
@@ -72,7 +74,10 @@ export default function TaskDetailPage() {
       <div className="detail-layout">
         <div className="detail-main">
           <div className="card">
-            <h2>Task #{t.id}</h2>
+            <div className="h-inline">
+              <h2>Task #{t.id}</h2>
+              <CopyBtn text={String(t.id)} label="ID задачи" />
+            </div>
             <dl className="cfg-meta-grid">
               {rows.map(([k, v]) => (
                 <div key={k} className="cfg-meta-item"><dt>{k}</dt><dd>{v}</dd></div>
@@ -129,7 +134,7 @@ export default function TaskDetailPage() {
               {history.map((h) => (
                 <li key={h.id} className="hist-entry">
                   <div className="muted small">
-                    {formatRelative(h.created_at)} · {h.actor_type}
+                    <Time iso={h.created_at}/> · {h.actor_type}
                     {h.actor_role_name ? ` · ${h.actor_role_name}` : ''}
                   </div>
                   <div className="hist-transition">

@@ -886,6 +886,24 @@ parse-ошибка, version≠1. Скриншот @2560: import-preview-мода
   → test-daemon :8081 на свежей `data/test.db` (раньше тесты засоряли
   daemon.db — 51 IT-команда из 56; вычищено 2026-10-14).
 
+### W9. UX-раунд 3 (2026-10-14) — тайм-тултипы, CopyBtn, пауза ленты
+
+Референсы: Cloudscape «Timestamps» (relative primary + absolute on hover),
+saasui.design «Activity Feed UX» (пауза live-ленты).
+
+- **Time (U-X9)** — компонент `ui/Time`: относительное время + абсолютное
+  в `title` (hover/focus). Внедрён в 11 местах (Messages, SessionDetail
+  (2), History, Projects, Workflows, ProjectDetail (2), WorkflowInstance,
+  Library (2), TaskDetail-history); TasksPage уже имел title.
+- **CopyBtn (U-X10)** — `ui/CopyBtn`: копирование id/путей с фидбеком
+  («✓ Скопировано» 1.6с), честный toast при отказе буфера. Установлен:
+  Session #id, Log, Ref; Task #id. Вне `<h2>` (чтобы имя heading не менялось).
+- **Пауза live-ленты Pulse (W9)** — кнопка «Пауза/▶ Возобновить» в фильтрах:
+  события копятся в буфере (cap 200, старейшие вытесняются), строки не
+  прыгают; «Возобновить» сбрасывает накопленное одним prepend + note.
+- Тесты: `ux_w9.test.tsx` (CopyBtn фидбек/ошибка, Time title) + pause-тест
+  в `pulse.test.tsx`; сьют **377 passed | 21 skipped (398)** ×3.
+
 ### W8. Доборы аудита (2026-10-14, продолжение)
 
 - **Детерминная crash-детektion** — `remain-on-exit` задаётся ВНУТРИ панельной

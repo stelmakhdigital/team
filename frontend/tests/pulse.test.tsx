@@ -152,4 +152,37 @@ describe('P2.9: Pulse feed (единая лента событий)', () => {
     await waitFor(() => expect(window.location.search).toBe(''), { timeout: 10_000 });
     expect(await screen.findByText('Session #2 started (Worker, pi)', {}, { timeout: 10_000 })).toBeInTheDocument();
   }, 20_000);
+
+  // W9: пауза live-ленты — на паузе события копятся в буфере и не сдвигают строки,
+  // «Возобновить» сбрасывает накопленное одним prepend.
+  it('W9: пауза ленты удерживает feed, возобновление сбрасывает накопленное', async () => {
+    vi.useFakeTimers();
+    try {
+      renderPulse();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(screen.getByRole('heading', { name: 'Pulse' })).toBeInTheDocument();
+
+      // пауза
+      fireEvent.click(screen.getByRole('button', { name: 'Пауза' }));
+      expect(screen.getByText(/Лента на паузе/)).toBeInTheDocument();
+
+      // WS-события приходят (mock pool каждый 8с), но лента не меняется
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(8000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(screen.queryByText('Task #1 → in_progress')).not.toBeInTheDocument();
+
+      // возобновление → накопленное появляется
+      fireEvent.click(screen.getByRole('button', { name: '▶ Возобновить' }));
+      expect(screen.getByText('Task #1 → in_progress')).toBeInTheDocument();
+      expect(screen.queryByText(/Лента на паузе/)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  }, 20_000);
 });
