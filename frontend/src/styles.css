@@ -1724,3 +1724,30 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   border-radius: 6px;
   border-left: 2px solid var(--emerald, #10b981);
 }
+
+/* U-X1: ErrorBoundary — честный экран краха рендера (вместо белого экрана) */
+.error-boundary {
+  margin: 40px auto;
+  max-width: 560px;
+  padding: 24px;
+  border: 1px solid var(--danger, #ef4444);
+  border-radius: 10px;
+  background: var(--bg-panel);
+}
+.error-boundary h2 { margin: 0 0 8px; }
+.error-boundary-actions { display: flex; gap: 10px; margin-top: 14px; }
+
+/* U-X2: skip-link — первый таб-стоп на клавиатуре (a11y), вне экрана до фокуса */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 1200;
+  padding: 8px 14px;
+  background: var(--accent, #38bdf8);
+  color: var(--bg, #0d1117);
+  border-radius: 6px;
+  font-weight: 600;
+}
+.skip-link:focus { left: 8px; }
+#main:focus { outline: none; }

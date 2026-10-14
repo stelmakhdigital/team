@@ -149,6 +149,7 @@ export default function AppShell() {
   };
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main">Перейти к содержимому</a>
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-icon" aria-hidden="true">◧</span>
@@ -198,7 +199,7 @@ export default function AppShell() {
           )}
         </div>
       </aside>
-      <main className="content">
+      <main className="content" id="main" tabIndex={-1}>
         <div
           className={`api-banner api-banner-${cfg.mode}`}
           role="status"
