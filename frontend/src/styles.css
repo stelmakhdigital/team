@@ -967,16 +967,19 @@ legend { font-size: 0.75rem; color: var(--muted); padding: 0 4px; }
   .nav-item { justify-content: center; padding: 9px 0; }
   .nav-label { display: none; }
   .nav-badge { position: absolute; top: 3px; right: 8px; margin-left: 0; min-width: 15px; padding: 0 4px; font-size: 10px; }
-  .sidebar-footer { align-items: center; }
+  .sidebar-footer { align-items: center; padding: 6px 2px; }
   .mode-badge { font-size: 0.55rem; padding: 2px 4px; text-align: center; }
   .dev-error { display: none; }
   .ctx-tree { display: none; }
+  /* WS-чип в рельсе: компактный (текст эллипсится, цвет остаётся индикатором) */
+  .ws-badge { max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 4px; }
 }
 @media (max-width: 640px) {
   .page { padding: 14px 10px; }
   .page-head { flex-wrap: wrap; gap: 8px; }
   .head-actions { flex-wrap: wrap; }
-  .table-wrap .table { min-width: 560px; }
+  .table-wrap .table, .table-wrap .detail-table, .table-wrap .data-table { min-width: 560px; }
+  .detail-table td { word-break: break-word; }
   .builder-fab { bottom: 92px; }
 }
 

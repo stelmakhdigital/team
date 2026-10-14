@@ -148,7 +148,7 @@ export default function WorkflowInstancePage() {
         {steps.length === 0 ? (
           <div className="muted">No steps yet.</div>
         ) : (
-          <table className="detail-table">
+          <div className="table-wrap"><table className="detail-table">
             <thead>
               <tr>
                 <th>#</th>
@@ -187,7 +187,7 @@ export default function WorkflowInstancePage() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
         {isTerminal && (
           <div className="muted small" style={{ marginTop: 12 }}>

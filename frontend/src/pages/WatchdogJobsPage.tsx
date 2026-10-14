@@ -137,7 +137,7 @@ export default function WatchdogJobsPage() {
         <EmptyState title="Нет watchdog-джобов" hint="Создайте первый: выберите сессию и порог контекста." action={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ Новый джоб</button>} />
       ) : (
         <div className="panel">
-          <table className="data-table watchdog-table">
+          <div className="table-wrap"><table className="data-table watchdog-table">
             <thead>
               <tr>
                 <th>Name</th>
@@ -175,7 +175,7 @@ export default function WatchdogJobsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </div>

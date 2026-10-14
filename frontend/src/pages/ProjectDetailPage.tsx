@@ -127,7 +127,7 @@ export default function ProjectDetailPage() {
       )}
 
       <div className="card">
-        <table className="detail-table">
+        <div className="table-wrap"><table className="detail-table">
           <tbody>
             <tr>
               <th>Name</th>
@@ -170,7 +170,7 @@ export default function ProjectDetailPage() {
               </td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       <div className="card">
