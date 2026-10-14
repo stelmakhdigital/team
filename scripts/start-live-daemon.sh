@@ -16,8 +16,19 @@ export DAEMON_SECRET_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456
 export DAEMON_DB_DSN="sqlite:$ROOT/data/daemon.db"
 export DAEMON_AGENT_SPECS_DIR="$ROOT/agents"
 
-# --- ensure binary is built ---
-if [ ! -x "$ROOT/backend/bin/daemon" ] || [ "$ROOT/backend/bin/daemon" -ot "$ROOT/backend/go.mod" ]; then
+# --- ensure `go` is available (fallback: ~/sdk/go/bin, /usr/local/go/bin) ---
+if ! command -v go >/dev/null 2>&1; then
+  for d in "$HOME/sdk/go/bin" /usr/local/go/bin /opt/go/bin; do
+    if [ -x "$d/go" ]; then export PATH="$d:$PATH"; break; fi
+  done
+fi
+if ! command -v go >/dev/null 2>&1; then
+  echo "✗ go not found (PATH, ~/sdk/go/bin, /usr/local/go/bin) — install Go or add it to PATH"
+  exit 1
+fi
+
+# --- ensure binary is built (stale vs ANY .go source, not just go.mod) ---
+if [ ! -x "$ROOT/backend/bin/daemon" ] || [ -n "$(find "$ROOT/backend" -name '*.go' -newer "$ROOT/backend/bin/daemon" -print -quit 2>/dev/null)" ]; then
   echo "Building daemon binary…"
   ( cd "$ROOT/backend" && go build -o ./bin/daemon ./cmd/daemon )
 fi
